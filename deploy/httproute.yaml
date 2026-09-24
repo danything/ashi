@@ -1,0 +1,22 @@
+# 公開経路。**Cilium Gateway (danything/gitops の bootstrap/gateway/) に付ける HTTPRoute。**
+# 証明書は Gateway 側のリスナーに cert-manager がワイルドカードで発行したものが付いているので、
+# ここでは指定しない。DNS も *.doany.io のワイルドカードで引ける。
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: ashi
+  namespace: ashi
+spec:
+  parentRefs:
+    - name: doany
+      namespace: kube-system
+      sectionName: https
+  hostnames: ["as.doany.io"]
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: ashi
+          port: 3000

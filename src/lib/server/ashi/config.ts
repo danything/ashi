@@ -3,10 +3,13 @@
  * 読み込むときに範囲へ丸めるので、ここに無茶な値を書いてもガードレールは外れない。
  */
 
-/** 持ち主の足跡。rss: フィードの URL / github: ユーザー名 / x: ユーザー名(X_BEARER_TOKEN が要る) */
+/**
+ * 持ち主の足跡。rss: フィードの URL / github: ユーザー名 / x: ユーザー名(X_BEARER_TOKEN が要る)/
+ * forgejo: ユーザー名(FORGEJO_URL と FORGEJO_TOKEN が要る。非公開リポジトリの動きも読む)
+ */
 export interface Feed {
 	id: string;
-	kind: "rss" | "github" | "x";
+	kind: "rss" | "github" | "x" | "forgejo";
 	target: string;
 	title?: string;
 }
@@ -151,7 +154,7 @@ export function normalizeConfig(raw: unknown): Config {
 	};
 }
 
-const FEED_KINDS = ["rss", "github", "x"] as const;
+const FEED_KINDS = ["rss", "github", "x", "forgejo"] as const;
 
 function normalizeFeeds(raw: unknown): Feed[] {
 	if (!Array.isArray(raw)) return [];

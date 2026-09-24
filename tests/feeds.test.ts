@@ -206,3 +206,114 @@ describe("step と crawl", () => {
 		expect(store.owner()).toContain("Talos");
 	});
 });
+
+describe("Forgejo", () => {
+	test("動きを文にする", async () => {
+		const { describeForgejoActivity } = await import(
+			"../src/lib/server/ashi/legs/feeds.ts"
+		);
+		expect(
+			describeForgejoActivity({
+				id: 1,
+				op_type: "commit_repo",
+				repo: { full_name: "doa/todoroku" },
+				content: JSON.stringify({
+					Commits: [{ Message: "車検証 QR を直す\n\n詳細" }],
+				}),
+			}),
+		).toBe("doa/todoroku に push: 車検証 QR を直す");
+		expect(
+			describeForgejoActivity({
+				id: 2,
+				op_type: "create_pull_request",
+				repo: { full_name: "doa/x" },
+				content: "12|PR の題",
+			}),
+		).toBe("doa/x に PR: PR の題");
+		expect(
+			describeForgejoActivity({ id: 3, op_type: "delete_branch" }),
+		).toBeUndefined();
+	});
+
+	test("人が決めたクラスタの中の宛先は読み、鍵を付け、転送は追わない", async () => {
+		const store = freshStore();
+		store.writeText(
+			"ashi.json",
+			JSON.stringify({
+				feeds: [{ id: "fj", kind: "forgejo", target: "info" }],
+			}),
+		);
+		const seen: { url: string; auth: string | null }[] = [];
+		const fetch = (async (u: URL, init: RequestInit) => {
+			seen.push({
+				url: u.toString(),
+				auth: new Headers(init.headers).get("authorization"),
+			});
+			return Response.json([
+				{ id: 7, op_type: "create_repo", repo: { full_name: "doa/ashi" } },
+			]);
+		}) as unknown as typeof globalThis.fetch;
+		// プライベートアドレスに引けても、頭の fetch_url と違って止めない
+		const deps = { fetch, resolve: async () => ["10.43.0.9"] };
+		const env = {
+			FORGEJO_URL: "http://forgejo-web.forgejo.svc:3000/",
+			FORGEJO_TOKEN: "t",
+		};
+		const r = await crawlRequested(
+			store,
+			["fj"],
+			new Date(),
+			deps,
+			env,
+			async () => {},
+		);
+		expect(r).toEqual([{ id: "fj", added: 1 }]);
+		expect(seen[0]).toEqual({
+			url: "http://forgejo-web.forgejo.svc:3000/api/v1/users/info/activities/feeds?limit=50&only-performed-by=true",
+			auth: "token t",
+		});
+		expect(store.sources()[0]?.title).toBe("Forgejo の動き(1 件)");
+
+		const redirect = (async () =>
+			new Response(null, {
+				status: 302,
+				headers: { location: "https://evil.example/" },
+			})) as unknown as typeof globalThis.fetch;
+		const store2 = freshStore();
+		store2.writeText(
+			"ashi.json",
+			JSON.stringify({
+				feeds: [{ id: "fj", kind: "forgejo", target: "info" }],
+			}),
+		);
+		const r2 = await crawlRequested(
+			store2,
+			["fj"],
+			new Date(),
+			{ fetch: redirect },
+			env,
+			async () => {},
+		);
+		expect(r2[0]?.error).toContain("転送");
+	});
+
+	test("鍵が無ければ付け方つきで知らせる", async () => {
+		const store = freshStore();
+		store.writeText(
+			"ashi.json",
+			JSON.stringify({
+				feeds: [{ id: "fj", kind: "forgejo", target: "info" }],
+			}),
+		);
+		const sent: string[] = [];
+		await crawlRequested(
+			store,
+			["fj"],
+			new Date(),
+			{},
+			{},
+			async (t) => void sent.push(t),
+		);
+		expect(sent[0]).toContain("forgejo-token");
+	});
+});

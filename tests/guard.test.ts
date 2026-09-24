@@ -142,3 +142,26 @@ describe("normalizeConfig", () => {
 		expect(normalizeConfig(undefined).model).toBe("claude-opus-5");
 	});
 });
+
+describe("ASHI_FEEDS", () => {
+	test("環境変数の足跡が ashi.json より勝つ", async () => {
+		const { freshStore } = await import("./helpers.ts");
+		const store = freshStore();
+		store.writeText(
+			"ashi.json",
+			JSON.stringify({
+				feeds: [{ kind: "rss", target: "https://a.example/rss" }],
+			}),
+		);
+		process.env.ASHI_FEEDS = '[{"id":"gh","kind":"github","target":"5ym"}]';
+		try {
+			expect(store.config().feeds).toEqual([
+				{ id: "gh", kind: "github", target: "5ym", title: undefined },
+			]);
+			process.env.ASHI_FEEDS = "{壊れた";
+			expect(store.config().feeds[0]?.target).toBe("https://a.example/rss");
+		} finally {
+			delete process.env.ASHI_FEEDS;
+		}
+	});
+});

@@ -2,7 +2,21 @@
 
 Ashi が自分で学ぶために要る権限と、弾かれたときの直し方。弾かれると画面の上に帯が出て(`/blocked` に一覧)、`NOTIFY_WEBHOOK_URL` があれば初めて起きたときに通知する。同じ先がうまくいけば自動で片づく。
 
-値はどれもサーバーの環境変数で渡す。クラスタでは Infisical に置いて Deployment の env に流し、変えたら `kubectl rollout restart` する(Infisical operator は失敗のあとバックオフするので、再起動で即同期させる)。
+値はどれもサーバーの環境変数で渡す。クラスタでは Infisical(il.doany.io、プロジェクト `doa`・環境 `prod`)のフォルダ **`/ashi/ashi-secrets`** に置く。Infisical operator が Secret `ashi-secrets` にし、Deployment は同期で自動的に入れ替わる(`deploy/secret.yaml`)。同期しないときは `kubectl -n ashi rollout restart deploy/ashi`(operator は失敗のあとバックオフする)。
+
+| Infisical の鍵 | 環境変数 | |
+| --- | --- | --- |
+| `anthropic-api-key` | `ANTHROPIC_API_KEY` | 必須 |
+| `entra-tenant-id` | `ENTRA_TENANT_ID` | 必須 |
+| `entra-client-id` | `ENTRA_CLIENT_ID` | 必須 |
+| `entra-client-secret` | `ENTRA_CLIENT_SECRET` | 必須 |
+| `session-secret` | `SESSION_SECRET` | 必須。`openssl rand -base64 48` |
+| `github-token` | `GITHUB_TOKEN` | 任意 |
+| `x-bearer-token` | `X_BEARER_TOKEN` | 任意 |
+| `forgejo-token` | `FORGEJO_TOKEN` | 任意 |
+| `notify-webhook-url` | `NOTIFY_WEBHOOK_URL` | 任意 |
+
+必須のものが無いと Pod は起動しない(CreateContainerConfigError)。任意のものは無くても動き、使う場面で `/blocked` に出る。`ORIGIN`(https://as.doany.io)と `FORGEJO_URL` は秘密ではないので `deploy/deployment.yaml` に直接書いてある。
 
 ## 最初に要るもの
 
@@ -21,11 +35,11 @@ Ashi が自分で学ぶために要る権限と、弾かれたときの直し方
 
 doany.io の他のアプリと同じ作り。共有のアプリ登録 `Main` に足すか、Ashi 用に新しく登録する。
 
-1. Entra 管理センター → アプリの登録 → (`Main` か新規)→ 認証 → Web のリダイレクト URI に `https://<Ashi の URL>/auth/callback` を足す
+1. Entra 管理センター → アプリの登録 → (`Main` か新規)→ 認証 → Web のリダイレクト URI に `https://as.doany.io/auth/callback` を足す
 2. 証明書とシークレット → クライアント シークレットを作る → `ENTRA_CLIENT_SECRET`。`ENTRA_TENANT_ID` と `ENTRA_CLIENT_ID` は概要のページから
 3. アプリ ロール `admin` があること(`Main` には既にある)
 4. エンタープライズ アプリケーション → 同じアプリ → ユーザーとグループ → 使う人に `admin` を割り当てる。**テナントに P1 が無いのでグループは割り当てられない。人ごとに割り当てる**
-5. `SESSION_SECRET` に 32 文字以上の乱数(`openssl rand -base64 48`)、`ORIGIN` に公開の URL
+5. `session-secret` に 32 文字以上の乱数(`openssl rand -base64 48`)
 
 ロールが無い人は「アプリロール admin が割り当てられていない」で 403 になる。テナントの全員に開けるなら `ENTRA_ROLE=`(空)。
 
@@ -46,9 +60,12 @@ doany.io の他のアプリと同じ作り。共有のアプリ登録 `Main` に
 | --- | --- | --- |
 | ブログ(`rss`) | 無し。`https://doany.io/rss.xml` のような公開のフィード | 404 なら URL を直す(記事一覧のページではなくフィードの URL)。ログインが要るフィードは読めない |
 | GitHub(`github`) | 無くても 1 時間 60 回まで読める。回数の上限に当たったら鍵を足す | <https://github.com/settings/personal-access-tokens/new> で fine-grained token を作る。Repository access は **Public repositories**、権限は**何も付けない**。`GITHUB_TOKEN` に入れる |
+| Forgejo(`forgejo`) | **鍵が要る**(非公開リポジトリの動きも読むため) | <https://fj.doany.io/user/settings/applications> でアクセストークンを作る。権限は **read:user と read:repository だけ**(書き込みは付けない)→ Infisical の `forgejo-token`。宛先はクラスタの中の Service(`FORGEJO_URL`、ノードから Gateway の 443 に折り返せないため) |
 | X(`x`) | **有料の API の鍵が要る**(ページの取り込みは規約に反するのでしない) | <https://developer.x.com/en/portal/dashboard> で Project と App を作り、ユーザーのポストを読めるプランにして Bearer Token を発行 → `X_BEARER_TOKEN`。読まないなら `feeds` から外す |
 
-GitHub で読むのは公開イベント(push・PR・issue・スター・fork・リリース)だけ。Forgejo(fj.doany.io)の非公開リポジトリの動きは、今は読まない(読ませるなら Forgejo のトークンと、クラスタの中から Forgejo に届く経路が要る)。
+GitHub で読むのは公開イベント(push・PR・issue・スター・fork・リリース)、Forgejo は push・PR・issue・コメント・スター・リリース。
+
+`FORGEJO_URL` だけは、人が決めた宛先なのでプライベートアドレスでも読む。そのかわり転送は追わない(鍵を付けたまま別の先へ飛ばされないため)。頭が選ぶ fetch_url のガードは変わらない。
 
 ## 頭が歩いていて弾かれたとき
 

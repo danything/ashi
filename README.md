@@ -61,19 +61,21 @@ Give your AI legs.
 | `walk.json` `budget.json` | 足 | 歩数・直近のテーマ・次に起きる時刻、今日使った額 |
 | `log.jsonl` `chat.jsonl` | 足 | 出来事、対話 |
 
-足跡の書き方(`ashi.json`):
+足跡の書き方(`ashi.json`。環境変数 `ASHI_FEEDS` に同じ配列を JSON で入れると、そちらが勝つ。クラスタでは `deploy/deployment.yaml` に書いてある):
 
 ```json
 {
 	"feeds": [
 		{ "id": "blog", "kind": "rss", "target": "https://doany.io/rss.xml", "title": "ブログ" },
 		{ "id": "github", "kind": "github", "target": "5ym" },
+		{ "id": "forgejo", "kind": "forgejo", "target": "yui" },
 		{ "id": "x", "kind": "x", "target": "<X のユーザー名>" }
 	]
 }
 ```
 
 - GitHub は公開イベント(push・PR・issue・スター・fork・リリース)。`GITHUB_TOKEN` があれば使う(無くても 1 時間 60 回まで読める)
+- Forgejo は非公開リポジトリの動きも読む。`FORGEJO_URL`(クラスタの中の Service)と `FORGEJO_TOKEN`(read:user・read:repository)が要る
 - X は公式 API だけを使う(ページの取り込みは規約に反するのでしない)。読むには `X_BEARER_TOKEN`(有料の API)が要る。無ければ「失敗」として残して飛ばす
 
 ## 画面
@@ -102,12 +104,16 @@ SvelteKit。ログインは Entra ID で、同じプロセスが歩みも回す(
 | `ORIGIN` | 公開する URL(adapter-node。リダイレクト URI の組み立てに使う) |
 | `ASHI_HOME` | 状態ディレクトリ(イメージでは `/data`) |
 | `ASHI_WALK` | `0` なら歩かず画面だけ |
-| `GITHUB_TOKEN` `X_BEARER_TOKEN` | 足跡の巡回(任意) |
+| `GITHUB_TOKEN` `X_BEARER_TOKEN` `FORGEJO_URL` `FORGEJO_TOKEN` | 足跡の巡回(任意) |
 | `NOTIFY_WEBHOOK_URL` | 弾かれたことの通知(Mattermost / Slack の incoming webhook、任意) |
 
 どの権限をどう付けるか、弾かれたときにどう直すかは [docs/permissions.md](docs/permissions.md) にまとめてある。
 
 頭のモデルは `ashi.json` の `model`(既定 `claude-opus-5`、effort `high`)。拒否されたときはサーバー側のフォールバック(`fallbacks: "default"`)で別のモデルが答え直す。
+
+## デプロイ
+
+lgtm と同じ形。`deploy/argocd.yaml` を ArgoCD の ApplicationSet が拾い、`deploy/` を namespace `ashi` に同期する。公開は <https://as.doany.io>(HTTPRoute を Cilium Gateway に付ける)。main に push すると `docker-publish.yml` が ghcr.io/danything/ashi を焼き、イメージのタグを差し替える PR を作って自分でマージする。秘密は Infisical の `/ashi/ashi-secrets`(鍵の一覧は [docs/permissions.md](docs/permissions.md))。状態ディレクトリは PVC `ashi-data`(k8up がファイルとして取る)。Pod は 1 つで Recreate(歩くのは 1 プロセスだけ)。
 
 ## 手元で
 

@@ -239,8 +239,23 @@ export class Store {
 
 	// ---- 中身
 
+	/**
+	 * 設定。足跡の一覧だけは環境変数 ASHI_FEEDS(JSON の配列)があればそちらを使う。
+	 * クラスタでは状態ディレクトリの ashi.json を書き換えにくいので、deploy/deployment.yaml に書いて git で持つ
+	 */
 	config(): Config {
-		return normalizeConfig(this.readJson<unknown>("ashi.json", {}));
+		const raw = this.readJson<Record<string, unknown>>("ashi.json", {});
+		const feeds = process.env.ASHI_FEEDS?.trim();
+		if (feeds) {
+			try {
+				raw.feeds = JSON.parse(feeds);
+			} catch {
+				console.warn(
+					"[ashi] ASHI_FEEDS が JSON として読めない。ashi.json の feeds を使う",
+				);
+			}
+		}
+		return normalizeConfig(raw);
 	}
 
 	core(): string {

@@ -121,6 +121,24 @@ export function feedBlockage(
 				"Bearer Token が失効したか、プランが users/:id/tweets を読めない。developer.x.com で鍵を作り直すかプランを確かめ、`X_BEARER_TOKEN` を差し替える。",
 		};
 	}
+	if (feed.kind === "forgejo") {
+		if (/FORGEJO_(URL|TOKEN)/.test(error) || /40[13]/.test(error)) {
+			return {
+				key,
+				title: "Forgejo を読む鍵が無いか、通らない",
+				detail: error,
+				remedy:
+					"https://fj.doany.io/user/settings/applications でアクセストークンを作る(権限は read:user と read:repository だけ)。Infisical の /ashi/ashi-secrets に `forgejo-token` として入れる。`FORGEJO_URL` は deploy/deployment.yaml に書いてある(クラスタの中の Service)。",
+			};
+		}
+		return {
+			key,
+			title: `Forgejo の ${feed.target} を読めない`,
+			detail: error,
+			remedy:
+				"ユーザー名が合っているか ashi.json の feeds を、Forgejo が動いているかを確かめる。",
+		};
+	}
 	if (feed.kind === "github") {
 		if (/40[13]|429/.test(error)) {
 			return {

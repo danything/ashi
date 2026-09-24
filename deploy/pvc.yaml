@@ -1,0 +1,17 @@
+# 状態ディレクトリ(ASHI_HOME)。問い・ノート・日記・自己記述・持ち主の地図など、Ashi が歩いて貯めたもの全部。
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ashi-data
+  namespace: ashi
+  annotations:
+    # ファイルとして k8up に取らせる(apps/k8up の Schedule が拾う)。
+    # JSON と Markdown で、書くときは一時ファイルから差し替えるので、途中の形は残らない。
+    k8up.io/backup: "true"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path-retain
+  resources:
+    requests:
+      storage: 2Gi

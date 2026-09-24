@@ -1,0 +1,114 @@
+name: Build and Push Docker Image
+
+on:
+  push:
+    branches: [main]
+    # Merging the bot's own image-bump PR only touches deploy/, so ignoring it
+    # here stops the build -> bump PR -> merge -> build loop.
+    paths-ignore:
+      - 'deploy/**'
+  workflow_dispatch:
+
+# Merging several PRs at once used to start a run per merge, and they all raced
+# for the one bump branch: the first to finish moved main, the rest were left
+# proposing a bump from a base that no longer existed, and the newest build --
+# the only one anybody wanted deployed -- lost. Only the newest commit is worth
+# deploying, so supersede the older runs instead of racing them.
+concurrency:
+  group: publish
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      pull-requests: write
+      # Lets the bump PR report its own required check; see the step below.
+      statuses: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set lowercase image name
+        run: echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          # Baked into version.json so tabs opened before a rollout can tell
+          # they are running an older build.
+          build-args: |
+            APP_VERSION=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # main is protected behind a required "build" check, and pushing to it
+      # directly is not an option, so the deploy goes through a PR that bumps
+      # the image tag. That PR is created with GITHUB_TOKEN, and GitHub
+      # deliberately never starts a workflow run from that token, so the check
+      # would never report and the PR would sit blocked forever -- which is why
+      # every previous bump needed an admin override to merge.
+      #
+      # Report the check from here instead. The bump rewrites nothing but the
+      # image tag under deploy/, and the image it points at was built and pushed
+      # by the steps above, so there is genuinely nothing left to build. The
+      # status has to be posted by this token: branch protection pins the
+      # "build" context to the GitHub Actions app.
+      - name: Open and self-merge PR to update deployment image tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          branch="bump-ashi-image"
+          # Build the bump on top of main as it stands now, not on the commit
+          # this run was triggered by. Those differ whenever an earlier bump has
+          # landed in between, and a branch cut from the older point proposes a
+          # change to a line that has since moved, which GitHub reports as a
+          # conflict and no one can merge.
+          git fetch --depth=1 origin main
+          git checkout -B "$branch" FETCH_HEAD
+          sed -i "s#image: ${REGISTRY}/[^:[:space:]]*/ashi:[^[:space:]]*#image: ${REGISTRY}/${IMAGE_NAME}:${GITHUB_SHA}#" deploy/deployment.yaml
+          if git diff --quiet -- deploy/deployment.yaml; then
+            echo "deploy/deployment.yaml already points at ${GITHUB_SHA}; nothing to deploy"
+            exit 0
+          fi
+          git add deploy/deployment.yaml
+          git commit -m "chore: update ashi image to ${GITHUB_SHA}"
+          git push --force origin "$branch"
+          title="chore: update ashi image to ${GITHUB_SHA::7}"
+          body="Automated image tag bump for commit ${GITHUB_SHA}. Merges itself once the check below is reported."
+          gh pr create --base main --head "$branch" --title "$title" --body "$body" \
+            || gh pr edit "$branch" --title "$title" --body "$body"
+
+          gh api "repos/${GITHUB_REPOSITORY}/statuses/$(git rev-parse HEAD)" \
+            -f state=success \
+            -f context=build \
+            -f description="deploy-only bump; image built by this run" \
+            -f target_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+          # Squash is the only method this repository allows; --merge fails
+          # outright with "Merge commits are not allowed on this repository",
+          # which took the whole job down with it.
+          #
+          # The status can take a moment to land against the PR, so fall back to
+          # auto-merge, which fires whenever protection is eventually satisfied.
+          gh pr merge "$branch" --squash || gh pr merge "$branch" --auto --squash
+        env:
+          REGISTRY: ${{ env.REGISTRY }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -110,6 +110,56 @@ export function describeGithubEvent(e: GhEvent): string | undefined {
 	}
 }
 
+interface ForgejoActivity {
+	id: number;
+	op_type: string;
+	repo?: { full_name: string };
+	ref_name?: string;
+	content?: string;
+	comment?: { body?: string };
+	created?: string;
+}
+
+/** Forgejo の動きを 1 行ずつの文に。content は種類ごとに形が違う(push は JSON、issue は "番号|題") */
+export function describeForgejoActivity(
+	a: ForgejoActivity,
+): string | undefined {
+	const r = a.repo?.full_name ?? "?";
+	const after = (s = "") => s.slice(s.indexOf("|") + 1);
+	switch (a.op_type) {
+		case "commit_repo": {
+			try {
+				const c = JSON.parse(a.content ?? "{}") as {
+					Commits?: { Message?: string }[];
+				};
+				const msgs = (c.Commits ?? [])
+					.map((x) => (x.Message ?? "").split("\n")[0])
+					.filter(Boolean);
+				return msgs.length ? `${r} に push: ${msgs.join(" / ")}` : undefined;
+			} catch {
+				return undefined;
+			}
+		}
+		case "create_pull_request":
+			return `${r} に PR: ${after(a.content)}`;
+		case "merge_pull_request":
+			return `${r} の PR をマージ: ${after(a.content)}`;
+		case "create_issue":
+			return `${r} に issue: ${after(a.content)}`;
+		case "comment_issue":
+		case "comment_pull":
+			return `${r} にコメント: ${(a.comment?.body ?? after(a.content)).slice(0, 1000)}`;
+		case "create_repo":
+			return `${r} を作った`;
+		case "star_repo":
+			return `${r} にスターを付けた`;
+		case "publish_release":
+			return `${r} をリリース: ${a.ref_name ?? ""}`;
+		default:
+			return undefined;
+	}
+}
+
 type Env = Record<string, string | undefined>;
 
 export async function crawlFeed(
@@ -146,6 +196,34 @@ export async function crawlFeed(
 								title: text.split("\n")[0] ?? "",
 								body: text,
 								at: e.created_at,
+							},
+						]
+					: [];
+			});
+		}
+		case "forgejo": {
+			// 宛先は人が決めた FORGEJO_URL(クラスタの中の Service)。非公開の動きも読むので鍵が要る
+			const base = env.FORGEJO_URL?.replace(/\/+$/, "");
+			const token = env.FORGEJO_TOKEN;
+			if (!base || !token)
+				throw new Error("FORGEJO_URL か FORGEJO_TOKEN が無い");
+			const r = await safeGet(
+				`${base}/api/v1/users/${encodeURIComponent(feed.target)}/activities/feeds?limit=50&only-performed-by=true`,
+				cfg,
+				deps,
+				{ authorization: `token ${token}`, accept: "application/json" },
+				true,
+			);
+			if (r.status !== 200) throw new Error(`Forgejo ${r.status}`);
+			return (JSON.parse(r.body) as ForgejoActivity[]).flatMap((a) => {
+				const text = describeForgejoActivity(a);
+				return text
+					? [
+							{
+								key: `fj:${a.id}`,
+								title: text.split("\n")[0] ?? "",
+								body: text,
+								at: a.created,
 							},
 						]
 					: [];
@@ -275,7 +353,8 @@ function ingest(store: Store, feed: Feed, items: FeedItem[], now: Date): void {
 		}
 		return;
 	}
-	const label = feed.kind === "github" ? "GitHub" : "X";
+	const label =
+		{ github: "GitHub", x: "X", forgejo: "Forgejo" }[feed.kind] ?? feed.kind;
 	const body = items
 		.map((i) => `- ${i.at ?? ""} ${i.body.replace(/\n+/g, " ")}`)
 		.join("\n");

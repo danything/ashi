@@ -7,6 +7,8 @@ ENV NODE_ENV=production
 COPY package.json bun.lock ./
 RUN bun i --frozen-lockfile
 COPY . .
+# 公開のワークフローがコミットを渡す。いまは使っていないが、lgtm と同じ形にしておく
+ARG APP_VERSION
 RUN bun run build
 
 # 実行時の依存は無い: dependencies を空にしてあるので、Anthropic の SDK も含めて

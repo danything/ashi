@@ -46,6 +46,13 @@ export function isPrivateAddress(ip: string): boolean {
 	return true;
 }
 
+function trustedUrl(raw: string): URL {
+	const url = new URL(raw);
+	if (url.protocol !== "http:" && url.protocol !== "https:")
+		throw new Error("http と https だけ読める");
+	return url;
+}
+
 /** ガードレールで止めた(プライベートアドレス) */
 export class PrivateNetworkError extends Error {}
 
@@ -114,9 +121,16 @@ export async function safeGet(
 	cfg: Pick<Config, "fetch">,
 	deps: GetDeps = {},
 	headers: Record<string, string> = {},
+	/**
+	 * 人が環境変数で決めた宛先(クラスタの中の Forgejo など)。プライベートアドレスでも読むが、
+	 * 転送は追わない(鍵を付けたまま別の先へ飛ばされないように)。頭が選んだ URL には使わない
+	 */
+	trusted = false,
 ): Promise<GetResult> {
 	const doFetch = deps.fetch ?? fetch;
-	let url = await assertPublicUrl(raw, deps.resolve);
+	let url = trusted
+		? trustedUrl(raw)
+		: await assertPublicUrl(raw, deps.resolve);
 	for (let hop = 0; hop <= 5; hop++) {
 		const res = await doFetch(url, {
 			method: "GET",
@@ -130,6 +144,8 @@ export async function safeGet(
 		});
 		const loc = res.headers.get("location");
 		if (res.status >= 300 && res.status < 400 && loc) {
+			if (trusted)
+				throw new Error(`${url.host} が別の先へ転送した(${res.status})`);
 			url = await assertPublicUrl(new URL(loc, url).toString(), deps.resolve);
 			continue;
 		}

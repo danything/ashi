@@ -1,0 +1,125 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ashi
+  namespace: ashi
+  annotations:
+    # 参照している Secret を Infisical operator が同期したら、自動でローリング再起動する
+    secrets.infisical.com/auto-reload: "true"
+spec:
+  replicas: 1
+  # **Recreate。2 つの Pod を同時に立てない。** 画面のサーバーが歩みも回していて、状態ファイルを
+  # 書くのは 1 プロセスだけという前提(walk.lock)。ロックは pid で見るので、Pod をまたぐと
+  # 相手が生きているか分からず、入れ替わりの間に 2 つが同時に歩いて状態を書き合う。
+  # 入れ替わりの数秒は画面が落ちるが、持ち主しか見ないので構わない
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ashi
+  template:
+    metadata:
+      labels:
+        app: ashi
+    spec:
+      # イメージは uid 1000 (bun) で動く。ボリュームをその group に揃える
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: ashi
+          image: ghcr.io/danything/ashi:latest
+          ports:
+            - containerPort: 3000
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            periodSeconds: 2
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            periodSeconds: 5
+            failureThreshold: 2
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            periodSeconds: 10
+            failureThreshold: 6
+          env:
+            # 公開の URL。Entra のリダイレクト URI(/auth/callback)と、通知に付ける /blocked のリンクに使う
+            - name: ORIGIN
+              value: https://as.doany.io
+            - name: ASHI_HOME
+              value: /data
+            # 足跡の Forgejo はクラスタの中の Service へ直接行く(ノードから Gateway の 443 に折り返せないため)。
+            # 人が決めた宛先なので、プライベートアドレスでも読む(頭の fetch_url は読まない)
+            - name: FORGEJO_URL
+              value: http://forgejo-web.forgejo.svc:3000
+            # 持ち主の足跡。いつ読むかは頭が決める。鍵の要るもの(X・Forgejo)は鍵が無ければ /blocked に出る
+            - name: ASHI_FEEDS
+              value: >-
+                [{"id":"blog","kind":"rss","target":"https://doany.io/rss.xml","title":"ブログ"},
+                {"id":"github","kind":"github","target":"5ym","title":"GitHub"},
+                {"id":"forgejo","kind":"forgejo","target":"yui","title":"Forgejo"}]
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ashi-secrets
+                  key: anthropic-api-key
+            - name: ENTRA_TENANT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: ashi-secrets
+                  key: entra-tenant-id
+            - name: ENTRA_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: ashi-secrets
+                  key: entra-client-id
+            - name: ENTRA_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: ashi-secrets
+                  key: entra-client-secret
+            - name: SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: ashi-secrets
+                  key: session-secret
+            # ここから下は無くても動く(弾かれたことは /blocked に出る)
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ashi-secrets
+                  key: github-token
+                  optional: true
+            - name: X_BEARER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ashi-secrets
+                  key: x-bearer-token
+                  optional: true
+            - name: FORGEJO_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ashi-secrets
+                  key: forgejo-token
+                  optional: true
+            - name: NOTIFY_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ashi-secrets
+                  key: notify-webhook-url
+                  optional: true
+          volumeMounts:
+            - name: ashi-data
+              mountPath: /data
+      volumes:
+        - name: ashi-data
+          persistentVolumeClaim:
+            claimName: ashi-data

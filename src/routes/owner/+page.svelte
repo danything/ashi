@@ -31,7 +31,7 @@ let { data, form } = $props();
 		<h2>足跡</h2>
 		<p class="small muted">
 			いつ読みに行くかは Ashi の頭が歩くたびに決める。足は同じ足跡を {data.feedMinHours} 時間空けずには読まない。
-			足跡を増やすときは状態ディレクトリの ashi.json の <code>feeds</code> に書く。
+			足跡を増やすときは deploy/deployment.yaml の <code>ASHI_FEEDS</code>(手元なら ashi.json の <code>feeds</code>)に書く。
 		</p>
 		{#each data.feeds as f (f.id)}
 			<div class="cluster small">

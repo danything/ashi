@@ -1,0 +1,26 @@
+name: Docker Build Check
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # The image-bump PRs only touch deploy/, so there is nothing to build. Note
+    # that this skip never actually fires for them: they are opened with
+    # GITHUB_TOKEN, which by design starts no workflow run at all, so nothing
+    # here reports and docker-publish.yml posts their "build" status itself.
+    # The guard stays as a safety net for a bump PR opened by anyone else.
+    if: github.head_ref != 'bump-ashi-image'
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

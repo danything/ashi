@@ -104,6 +104,7 @@ SvelteKit。ログインは Entra ID で、同じプロセスが歩みも回す(
 | `ORIGIN` | 公開する URL(adapter-node。リダイレクト URI の組み立てに使う) |
 | `ASHI_HOME` | 状態ディレクトリ(イメージでは `/data`) |
 | `ASHI_WALK` | `0` なら歩かず画面だけ |
+| `ASHI_CONFIG` | `ashi.json` の上に重ねる設定(JSON)。例 `{"budget":{"dailyUsd":5}}`。クラスタでは `deploy/deployment.yaml` に書く |
 | `GITHUB_TOKEN` `X_BEARER_TOKEN` `FORGEJO_URL` `FORGEJO_TOKEN` | 足跡の巡回(任意) |
 | `NOTIFY_WEBHOOK_URL` | 弾かれたことの通知(Mattermost / Slack の incoming webhook、任意) |
 

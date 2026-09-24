@@ -240,21 +240,29 @@ export class Store {
 	// ---- 中身
 
 	/**
-	 * 設定。足跡の一覧だけは環境変数 ASHI_FEEDS(JSON の配列)があればそちらを使う。
-	 * クラスタでは状態ディレクトリの ashi.json を書き換えにくいので、deploy/deployment.yaml に書いて git で持つ
+	 * 設定。ashi.json の上に、環境変数 ASHI_CONFIG(JSON のオブジェクト)と ASHI_FEEDS(足跡の配列)を重ねる。
+	 * クラスタでは状態ディレクトリの ashi.json を書き換えにくいので、deploy/deployment.yaml に書いて git で持つ。
+	 * どこから来た値も normalizeConfig で範囲に丸める
 	 */
 	config(): Config {
 		const raw = this.readJson<Record<string, unknown>>("ashi.json", {});
-		const feeds = process.env.ASHI_FEEDS?.trim();
-		if (feeds) {
-			try {
-				raw.feeds = JSON.parse(feeds);
-			} catch {
-				console.warn(
-					"[ashi] ASHI_FEEDS が JSON として読めない。ashi.json の feeds を使う",
-				);
+		const over = envJson("ASHI_CONFIG");
+		if (over && typeof over === "object" && !Array.isArray(over)) {
+			for (const [k, v] of Object.entries(over)) {
+				// budget・sleep・fetch は中の一部だけ書けばよい
+				const prev = raw[k];
+				raw[k] =
+					v &&
+					typeof v === "object" &&
+					!Array.isArray(v) &&
+					prev &&
+					typeof prev === "object"
+						? { ...prev, ...v }
+						: v;
 			}
 		}
+		const feeds = envJson("ASHI_FEEDS");
+		if (feeds !== undefined) raw.feeds = feeds;
 		return normalizeConfig(raw);
 	}
 
@@ -480,5 +488,16 @@ function alive(pid: number): boolean {
 		return true;
 	} catch {
 		return false;
+	}
+}
+
+function envJson(name: string): unknown {
+	const v = process.env[name]?.trim();
+	if (!v) return undefined;
+	try {
+		return JSON.parse(v);
+	} catch {
+		console.warn(`[ashi] ${name} が JSON として読めない。使わない`);
+		return undefined;
 	}
 }

@@ -165,3 +165,28 @@ describe("ASHI_FEEDS", () => {
 		}
 	});
 });
+
+describe("ASHI_CONFIG", () => {
+	test("ashi.json の上に重ね、入れ子は一部だけ書けばよい", async () => {
+		const { freshStore } = await import("./helpers.ts");
+		const store = freshStore();
+		store.writeText(
+			"ashi.json",
+			JSON.stringify({
+				budget: { dailyUsd: 2, stepUsd: 0.5 },
+				reflectEvery: 7,
+			}),
+		);
+		process.env.ASHI_CONFIG = '{"budget":{"dailyUsd":5}}';
+		try {
+			const c = store.config();
+			expect(c.budget).toEqual({ dailyUsd: 5, stepUsd: 0.5 });
+			expect(c.reflectEvery).toBe(7);
+			// 範囲の外は丸める
+			process.env.ASHI_CONFIG = '{"budget":{"dailyUsd":99999}}';
+			expect(store.config().budget.dailyUsd).toBe(1000);
+		} finally {
+			delete process.env.ASHI_CONFIG;
+		}
+	});
+});

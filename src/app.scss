@@ -1,0 +1,296 @@
+/*
+ * 見た目は Pico CSS(v2)。色は Pico の既定のまま、共通クラスだけここに置き、画面固有は各画面の <style> に閉じる。
+ * フォントは束ねず OS のものを使う。
+ */
+@use "@picocss/pico/scss/pico" with (
+	$enable-semantic-container: false,
+	$enable-responsive-typography: false,
+	$enable-responsive-spacings: false,
+	$modules: (
+		"content/figure": false,
+		"forms/input-color": false,
+		"forms/input-range": false,
+		"forms/input-file": false,
+		"components/accordion": false,
+		"components/dropdown": false,
+		"components/tooltip": false
+	)
+);
+
+:root {
+	--pico-font-family-sans-serif: "BIZ UDPGothic", "Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", system-ui,
+		sans-serif;
+	--pico-font-size: 16px;
+	--pico-line-height: 1.7;
+	--pico-border-radius: 0.6rem;
+	--ui-muted: var(--pico-muted-color);
+	--ui-line: var(--pico-muted-border-color);
+	--ui-surface: var(--pico-card-background-color);
+	--ui-shadow: var(--pico-card-box-shadow);
+}
+
+/* 注意の色だけ Pico に相当が無いので自前。明暗で持ち替える */
+:root:not([data-theme="dark"]) {
+	--ui-ok: #1f7a4d;
+	--ui-ok-bg: #e5f4ea;
+	--ui-warn: #a45a06;
+	--ui-warn-bg: #fdf1df;
+	--ui-err: #b3261e;
+	--ui-err-bg: #fbeae9;
+	--ui-info: #1d4ed8;
+	--ui-info-bg: #e8eefc;
+}
+@mixin dark {
+	--ui-ok: #6ee7a8;
+	--ui-ok-bg: #16301f;
+	--ui-warn: #fbbf24;
+	--ui-warn-bg: #33270f;
+	--ui-err: #fca5a5;
+	--ui-err-bg: #341a19;
+	--ui-info: #93c5fd;
+	--ui-info-bg: #16233f;
+}
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) {
+		@include dark;
+	}
+}
+[data-theme="dark"] {
+	@include dark;
+}
+
+body {
+	margin: 0;
+	word-break: auto-phrase;
+	line-break: strict;
+}
+
+/* 並べ方は各画面の gap で決めるので、Pico の下マージンは外す */
+p,
+ul,
+ol,
+dl,
+h1,
+h2,
+h3,
+h4,
+table,
+pre,
+blockquote,
+details,
+hgroup,
+fieldset,
+input:not([type="checkbox"], [type="radio"]),
+select,
+textarea,
+button,
+[type="submit"],
+[role="button"] {
+	margin-bottom: 0;
+}
+h1 {
+	font-size: 1.5rem;
+}
+h2 {
+	font-size: 1.15rem;
+}
+h3 {
+	font-size: 1rem;
+}
+button[type="submit"] {
+	width: auto;
+}
+button,
+[type="submit"],
+a.button {
+	min-height: 2.5rem;
+}
+
+.page {
+	max-width: 60rem;
+	margin: 0 auto;
+	padding: 1.25rem 1rem 3rem;
+}
+.prose {
+	max-width: 44rem;
+}
+.prose :is(h1, h2, h3) {
+	margin-top: 1rem;
+}
+.prose :is(p, ul, ol, pre, blockquote, table) {
+	margin-bottom: 0.75rem;
+}
+.prose pre {
+	white-space: pre-wrap;
+}
+
+.panel {
+	border: 1px solid var(--ui-line);
+	border-radius: var(--pico-border-radius);
+	background: var(--ui-surface);
+	box-shadow: var(--ui-shadow);
+}
+.panel.pad {
+	padding: 1rem;
+}
+.panel.body {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+	padding: 1rem;
+}
+
+.note {
+	border-left: 4px solid var(--ui-muted);
+	border-radius: var(--pico-border-radius);
+	background: var(--pico-code-background-color);
+	padding: 0.7rem 0.9rem;
+	font-size: 0.9rem;
+}
+.note.ok {
+	border-left-color: var(--ui-ok);
+	background: var(--ui-ok-bg);
+}
+.note.warn {
+	border-left-color: var(--ui-warn);
+	background: var(--ui-warn-bg);
+}
+.note.err {
+	border-left-color: var(--ui-err);
+	background: var(--ui-err-bg);
+}
+.note.info {
+	border-left-color: var(--ui-info);
+	background: var(--ui-info-bg);
+}
+
+/* 札。淡い地 + 濃い文字 */
+.tag {
+	display: inline-flex;
+	align-items: center;
+	border: 1px solid var(--ui-line);
+	border-radius: 999px;
+	padding: 0.05rem 0.55rem;
+	color: var(--ui-muted);
+	font-size: 0.78rem;
+	font-weight: 600;
+	white-space: nowrap;
+}
+.tag.ok {
+	border-color: transparent;
+	background: var(--ui-ok-bg);
+	color: var(--ui-ok);
+}
+.tag.warn {
+	border-color: transparent;
+	background: var(--ui-warn-bg);
+	color: var(--ui-warn);
+}
+.tag.info {
+	border-color: transparent;
+	background: var(--ui-info-bg);
+	color: var(--ui-info);
+}
+
+a.button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	border: var(--pico-border-width) solid var(--pico-primary-border);
+	border-radius: var(--pico-border-radius);
+	padding: var(--pico-form-element-spacing-vertical) var(--pico-form-element-spacing-horizontal);
+	background: var(--pico-primary-background);
+	color: var(--pico-primary-inverse);
+	text-decoration: none;
+}
+a.button.outline,
+button.outline {
+	background: transparent;
+	color: var(--pico-primary);
+}
+a.button.big {
+	min-height: 3rem;
+	font-size: 1.05rem;
+}
+button.mini,
+a.button.mini {
+	min-height: 2rem;
+	padding: 0.15rem 0.6rem;
+	font-size: 0.8rem;
+}
+
+.field {
+	display: flex;
+	flex-direction: column;
+	gap: 0.2rem;
+}
+.field > .lab {
+	color: var(--ui-muted);
+	font-size: 0.8rem;
+	font-weight: 600;
+}
+
+.scroll-x {
+	overflow-x: auto;
+}
+.scroll-x > table {
+	min-width: 36rem;
+}
+table {
+	font-size: 0.9rem;
+}
+
+details.fold {
+	border: 1px solid var(--ui-line);
+	border-radius: var(--pico-border-radius);
+	padding: 0.6rem 0.9rem;
+}
+details.fold > summary {
+	font-weight: 600;
+}
+details.fold > .inner {
+	padding-top: 0.75rem;
+}
+
+.muted {
+	color: var(--ui-muted);
+}
+.small {
+	font-size: 0.875rem;
+}
+.tiny {
+	font-size: 0.78rem;
+}
+.nums {
+	font-variant-numeric: tabular-nums;
+}
+.stack {
+	display: flex;
+	flex-direction: column;
+	gap: 1.25rem;
+}
+.stack.tight {
+	gap: 0.6rem;
+}
+.cluster {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.6rem;
+}
+.grow {
+	flex: 1 1 auto;
+}
+.spin {
+	width: 1rem;
+	height: 1rem;
+	border: 2px solid var(--ui-info);
+	border-right-color: transparent;
+	border-radius: 999px;
+	animation: ui-spin 0.8s linear infinite;
+}
+@keyframes ui-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}

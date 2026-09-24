@@ -1,0 +1,26 @@
+name: Check
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+# 警告もエラーも落とす: biome は --error-on-warnings、svelte-check は --fail-on-warnings、
+# ビルドは vite.config.ts で警告を失敗に
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - run: bun i --frozen-lockfile
+      - run: bunx biome ci --error-on-warnings
+      - run: bunx svelte-kit sync && bunx svelte-check --tsconfig ./tsconfig.json --tsgo --fail-on-warnings
+      - run: bun test tests
+      - run: bun run build

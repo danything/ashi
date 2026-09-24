@@ -1,0 +1,33 @@
+{
+	"name": "ashi",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"description": "AIに、足を。 Give your AI legs.",
+	"scripts": {
+		"dev": "bunx --bun vite dev",
+		"build": "bunx --bun vite build && bun build src/cli.ts --target=bun --outfile=build/cli.js",
+		"start": "bun build/index.js",
+		"ashi": "bun src/cli.ts",
+		"test": "bun test tests",
+		"check": "biome check --write --error-on-warnings && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --tsgo --fail-on-warnings"
+	},
+	"dependencies": {},
+	"devDependencies": {
+		"@anthropic-ai/sdk": "^0.128.0",
+		"@biomejs/biome": "^2.5.14",
+		"@picocss/pico": "^2.1.1",
+		"@sveltejs/adapter-node": "^5.5.7",
+		"@sveltejs/kit": "^2.70.3",
+		"@sveltejs/vite-plugin-svelte": "^7.3.1",
+		"@types/bun": "^1.4.2",
+		"@types/node": "^26.6.2",
+		"@typescript/native": "npm:typescript@7",
+		"marked": "^18.0.14",
+		"sass-embedded": "^1.105.0",
+		"svelte": "^5.57.1",
+		"svelte-check": "^4.7.6",
+		"typescript": "~6",
+		"vite": "^8.3.1"
+	}
+}

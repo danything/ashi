@@ -1,0 +1,466 @@
+import {
+	addUsage,
+	type Head,
+	HeadError,
+	noUsage,
+	type Tool,
+	type Usage,
+} from "../head/head.ts";
+import {
+	EXPLORE_SCHEMA,
+	type ExploreAnswer,
+	explorePrompt,
+	type Material,
+	PROFILE_SCHEMA,
+	type ProfileAnswer,
+	profilePrompt,
+	REFLECT_SCHEMA,
+	type ReflectAnswer,
+	reflectPrompt,
+	SEED_SCHEMA,
+	type SeedAnswer,
+	seedPrompt,
+	system,
+} from "../prompts.ts";
+import { hashText, localDay, newId, type Store } from "../state.ts";
+import { crawlRequested, feedStatus } from "./feeds.ts";
+import {
+	acceptNewQuestions,
+	acceptSelf,
+	allowance,
+	clampSleep,
+	nextMidnight,
+	trimOpenQuestions,
+	unit,
+} from "./guard.ts";
+import { selectQuestion, themeStreak } from "./select.ts";
+import type { GetDeps } from "./tools.ts";
+
+/**
+ * 足の 1 歩。状態を読み、行き先を選び、頭に考えさせ、ガードレールを通して書き戻し、休む。
+ * 1 歩の中の順番: (頭が前の歩みで頼んだ足跡の巡回) → (持ち主の地図の書き直し) → 問いを歩く or 問いを探す → (内省)
+ */
+
+export interface Legs {
+	store: Store;
+	head: Head;
+	tools: Tool[];
+	now?: () => Date;
+	rng?: () => number;
+	/** 足跡を読むときの通信(テストで差し替える) */
+	net?: GetDeps;
+	env?: Record<string, string | undefined>;
+}
+
+/** 頭の crawl を受け取る形に。id の照合と間隔の下限は巡回するときに足が見る */
+export const crawlIds = (v: unknown): string[] =>
+	Array.isArray(v)
+		? v.filter((x): x is string => typeof x === "string").slice(0, 10)
+		: [];
+
+export type StepOutcome =
+	| {
+			kind: "walked";
+			questionId: string;
+			reason: "score" | "detour";
+			noteId: string;
+			profiled: boolean;
+			reflected: boolean;
+			wakeAt: Date;
+	  }
+	| {
+			kind: "seeded";
+			added: number;
+			profiled: boolean;
+			reflected: boolean;
+			wakeAt: Date;
+	  }
+	| { kind: "asleep"; wakeAt: Date }
+	| { kind: "broke"; wakeAt: Date }
+	| { kind: "failed"; error: string; wakeAt: Date }
+	/** core.md が人の承認なしに変わった。人が `ashi core --accept` するまで歩かない */
+	| { kind: "core-changed" };
+
+/** 疲れがこれ以上なら、内省の順番を待たずに立ち止まる */
+const TIRED = 0.8;
+/** 地図を書くときに読む材料の上限(文字) */
+const MATERIAL_CHARS = 60_000;
+
+/** 持ち主の材料。新しいものから上限まで、古い順に並べ直して渡す */
+export function gatherMaterials(store: Store): Material[] {
+	const chats: Material[] = store
+		.recentChats(200)
+		.map((c) => ({ kind: "chat" as const, title: c.at, body: c.question }));
+	const sources: Material[] = store
+		.sources()
+		.slice(-30)
+		.reverse()
+		.map((s) => ({
+			kind: "source" as const,
+			title: s.title,
+			body: (store.sourceBody(s.id) ?? "").slice(0, 8_000),
+		}));
+	const out: Material[] = [];
+	let total = 0;
+	// 文章と対話を交互に取り、片方で上限を使い切らない
+	for (let i = 0; i < Math.max(chats.length, sources.length); i++) {
+		for (const m of [sources[i], chats[i]]) {
+			if (!m || total + m.body.length > MATERIAL_CHARS) continue;
+			out.push(m);
+			total += m.body.length;
+		}
+	}
+	return out.reverse();
+}
+
+export async function step(legs: Legs): Promise<StepOutcome> {
+	const { store, head } = legs;
+	const now = legs.now?.() ?? new Date();
+	const rng = legs.rng ?? Math.random;
+	const cfg = store.config();
+	const walk = store.walk();
+	const core = store.core();
+
+	if (hashText(core) !== walk.coreHash) {
+		store.log("core-changed");
+		return { kind: "core-changed" };
+	}
+	if (walk.sleepingUntil && new Date(walk.sleepingUntil) > now) {
+		return { kind: "asleep", wakeAt: new Date(walk.sleepingUntil) };
+	}
+
+	const today = localDay(now);
+	let left = allowance(store.budget(today), cfg);
+	const sleepUntil = (wakeAt: Date) => {
+		store.saveWalk({ ...store.walk(), sleepingUntil: wakeAt.toISOString() });
+		return wakeAt;
+	};
+	if (left <= 0) {
+		store.log("broke", { spentUsd: store.budget(today).spentUsd });
+		return { kind: "broke", wakeAt: sleepUntil(nextMidnight(now)) };
+	}
+
+	// 前の歩みで頭が読みたいと言った足跡を読む(GET だけ。頭は呼ばないので予算は使わない)
+	if (walk.crawlRequests.length > 0) {
+		store.saveWalk({ ...store.walk(), crawlRequests: [] });
+		await crawlRequested(store, walk.crawlRequests, now, legs.net, legs.env);
+	}
+
+	// 読み取り専用の道具しか頭に渡さない
+	const tools = legs.tools.filter((t) => t.readOnly === true);
+	let spent = noUsage();
+	const charge = (u: Usage) => {
+		spent = addUsage(spent, u);
+		left -= u.costUsd;
+	};
+	const sys = () => system(core, store.self(), store.owner());
+	const minutes = (m: number) => new Date(now.getTime() + m * 60_000);
+
+	try {
+		// 持ち主の材料が増えていたら、順番が来たとき(初めてなら今すぐ)地図を書き直す
+		let profiled = false;
+		const materials = store.materialCount();
+		if (
+			materials > walk.profiledMaterials &&
+			(walk.lastProfileStep === 0 ||
+				walk.steps - walk.lastProfileStep >= cfg.profileEvery)
+		) {
+			const { output, usage } = await head.think<ProfileAnswer>({
+				task: "profile",
+				system: sys(),
+				prompt: profilePrompt(gatherMaterials(store), store.questions()),
+				schema: PROFILE_SCHEMA,
+				maxCostUsd: left,
+			});
+			charge(usage);
+			const owner = acceptSelf(output.owner, 8000);
+			if (owner) store.saveOwner(owner);
+			// 地図から出た問いは先回りの系統に固定する
+			const raw = (output.new_questions ?? []).map((q) => ({
+				...q,
+				track: "owner",
+			}));
+			let added = 0;
+			store.updateQuestions((qs) => {
+				const got = acceptNewQuestions(raw, qs, cfg, undefined, now);
+				added = got.length;
+				return trimOpenQuestions([...qs, ...got], cfg);
+			});
+			store.saveWalk({
+				...store.walk(),
+				lastProfileStep: Math.max(1, walk.steps),
+				profiledMaterials: materials,
+			});
+			store.log("profiled", {
+				ownerUpdated: Boolean(owner),
+				added,
+				usd: usage.costUsd,
+			});
+			profiled = true;
+		}
+
+		const questions = store.questions();
+		const choice =
+			left > 0 ? selectQuestion(questions, walk.recentThemes, cfg, rng) : null;
+		let outcome: StepOutcome;
+		let tiredness = 0;
+
+		if (left <= 0) {
+			// 地図を書いたところで予算が尽きた
+			outcome = { kind: "broke", wakeAt: nextMidnight(now) };
+		} else if (!choice) {
+			// 歩ける問いが無い(尽きた、または同じテーマが続いて休ませている)。頭に問いを出させる
+			const streak = themeStreak(walk.recentThemes);
+			const avoid =
+				streak.count >= cfg.themeStreakLimit ? streak.theme : undefined;
+			const { output, usage } = await head.think<SeedAnswer>({
+				task: "seed",
+				system: sys(),
+				prompt: seedPrompt(
+					store.notes(),
+					questions,
+					feedStatus(store, now),
+					avoid,
+				),
+				schema: SEED_SCHEMA,
+				maxCostUsd: left,
+			});
+			charge(usage);
+			let added: string[] = [];
+			store.updateQuestions((qs) => {
+				let got = acceptNewQuestions(
+					output.new_questions,
+					qs,
+					cfg,
+					undefined,
+					now,
+				);
+				// 休ませているテーマは、頭がまた出してきても受け取らない
+				if (avoid) got = got.filter((q) => q.theme !== avoid);
+				added = got.map((q) => q.text);
+				return trimOpenQuestions([...qs, ...got], cfg);
+			});
+			// 問いを考えただけの歩みも 1 歩。テーマの連続はここで切れる
+			store.saveWalk({
+				...store.walk(),
+				steps: walk.steps + 1,
+				recentThemes: ["(問いを探す)", ...walk.recentThemes].slice(0, 20),
+				crawlRequests: crawlIds(output.crawl),
+			});
+			store.log("seeded", { added, usd: usage.costUsd });
+			tiredness = unit(output.tiredness);
+			outcome = {
+				kind: "seeded",
+				added: added.length,
+				profiled,
+				reflected: false,
+				wakeAt: minutes(clampSleep(output.sleep_minutes, cfg)),
+			};
+		} else {
+			const q = choice.question;
+			const { output, usage } = await head.think<ExploreAnswer>({
+				task: "explore",
+				system: sys(),
+				prompt: explorePrompt(
+					q,
+					choice.reason,
+					store.notes(),
+					questions,
+					feedStatus(store, now),
+				),
+				schema: EXPLORE_SCHEMA,
+				tools,
+				allowWeb: cfg.allowWeb,
+				maxToolRounds: cfg.maxToolRounds,
+				maxCostUsd: left,
+			});
+			charge(usage);
+
+			const noteId = newId();
+			const title = String(output.title || q.text).slice(0, 200);
+			const summary = String(output.summary ?? "").slice(0, 500);
+			store.addNote(
+				{
+					id: noteId,
+					title,
+					theme: q.theme,
+					questionId: q.id,
+					summary,
+					createdAt: now.toISOString(),
+				},
+				`# ${title}\n\n問い: ${q.text}\n\n${String(output.findings ?? "").trim()}\n`,
+			);
+			let added: string[] = [];
+			store.updateQuestions((qs) => {
+				const updated = qs.map((x) =>
+					x.id === q.id
+						? {
+								...x,
+								visits: x.visits + 1,
+								lastVisitedAt: now.toISOString(),
+								status:
+									output.answered === true ? ("answered" as const) : x.status,
+							}
+						: x,
+				);
+				const got = acceptNewQuestions(
+					output.new_questions,
+					updated,
+					cfg,
+					q.id,
+					now,
+				);
+				added = got.map((a) => a.text);
+				return trimOpenQuestions([...updated, ...got], cfg);
+			});
+			store.saveWalk({
+				...store.walk(),
+				steps: walk.steps + 1,
+				recentThemes: [q.theme, ...walk.recentThemes].slice(0, 20),
+				crawlRequests: crawlIds(output.crawl),
+			});
+			store.log("walked", {
+				question: q.text,
+				theme: q.theme,
+				track: q.track,
+				reason: choice.reason,
+				score: choice.score,
+				noteId,
+				answered: output.answered === true,
+				added,
+				usd: usage.costUsd,
+			});
+			tiredness = unit(output.tiredness);
+			outcome = {
+				kind: "walked",
+				questionId: q.id,
+				reason: choice.reason,
+				noteId,
+				profiled,
+				reflected: false,
+				wakeAt: minutes(clampSleep(output.sleep_minutes, cfg)),
+			};
+		}
+
+		// 内省。順番が来たか、疲れていたら。予算が残っていなければ次へ持ち越す
+		const w = store.walk();
+		if (
+			outcome.kind !== "broke" &&
+			(w.steps - w.lastReflectStep >= cfg.reflectEvery || tiredness >= TIRED) &&
+			left > 0
+		) {
+			const { output, usage } = await head.think<ReflectAnswer>({
+				task: "reflect",
+				system: sys(),
+				prompt: reflectPrompt(
+					store.notes(),
+					store.diary(today),
+					w.recentThemes.slice(0, 10),
+				),
+				schema: REFLECT_SCHEMA,
+				maxCostUsd: left,
+			});
+			charge(usage);
+			const diary =
+				typeof output.diary === "string"
+					? output.diary.trim().slice(0, 8000)
+					: "";
+			if (diary)
+				store.appendDiary(
+					today,
+					`## ${now.toTimeString().slice(0, 5)}\n\n${diary}`,
+				);
+			const self = acceptSelf(output.self);
+			if (self) store.saveSelf(self);
+			store.saveWalk({ ...store.walk(), lastReflectStep: w.steps });
+			store.log("reflected", {
+				selfUpdated: Boolean(self),
+				usd: usage.costUsd,
+			});
+			if (outcome.kind === "walked" || outcome.kind === "seeded")
+				outcome = { ...outcome, reflected: true };
+		}
+
+		// 疲れていたら上限まで休む
+		if (tiredness >= TIRED && "wakeAt" in outcome) {
+			const long = minutes(cfg.sleep.maxMinutes);
+			if (outcome.wakeAt < long) outcome = { ...outcome, wakeAt: long };
+		}
+		if ("wakeAt" in outcome) sleepUntil(outcome.wakeAt);
+		return outcome;
+	} catch (e) {
+		if (e instanceof HeadError) charge(e.usage);
+		const error = e instanceof Error ? e.message : String(e);
+		store.log("failed", { error, usd: spent.costUsd });
+		return {
+			kind: "failed",
+			error,
+			wakeAt: sleepUntil(minutes(cfg.sleep.minMinutes)),
+		};
+	} finally {
+		// 失敗した歩みの分も必ず数える
+		store.charge(today, spent);
+	}
+}
+
+/** 止められるまで歩き続ける。休んでいる間は眠る。wake() で早く起こせる */
+export class Walker {
+	private wakeEarly: (() => void) | undefined;
+	running = false;
+
+	constructor(
+		private readonly legs: Legs,
+		private readonly onStep?: (o: StepOutcome) => void,
+	) {}
+
+	async run(signal?: AbortSignal): Promise<void> {
+		this.running = true;
+		try {
+			while (!signal?.aborted) {
+				let o: StepOutcome;
+				try {
+					o = await step(this.legs);
+				} catch (e) {
+					// 状態ファイルが読めない等。1 歩を落としても歩き続ける
+					this.legs.store.log("crashed", {
+						error: e instanceof Error ? e.message : String(e),
+					});
+					o = {
+						kind: "failed",
+						error: String(e),
+						wakeAt: new Date(Date.now() + 60_000),
+					};
+				}
+				this.onStep?.(o);
+				if (o.kind === "core-changed") return;
+				const ms =
+					o.wakeAt.getTime() - (this.legs.now?.() ?? new Date()).getTime();
+				if (ms > 0) await this.sleep(ms, signal);
+			}
+		} finally {
+			this.running = false;
+		}
+	}
+
+	/** 休みを切り上げて、すぐ次の 1 歩へ */
+	wake(): void {
+		const w = this.legs.store.walk();
+		this.legs.store.saveWalk({ ...w, sleepingUntil: undefined });
+		this.wakeEarly?.();
+	}
+
+	private sleep(ms: number, signal?: AbortSignal): Promise<void> {
+		return new Promise((resolve) => {
+			const done = () => {
+				clearTimeout(t);
+				signal?.removeEventListener("abort", done);
+				this.wakeEarly = undefined;
+				resolve();
+			};
+			// setTimeout の上限(約 24.8 日)を超えないように
+			const t = setTimeout(done, Math.min(ms, 2 ** 31 - 1));
+			this.wakeEarly = done;
+			signal?.addEventListener("abort", done, { once: true });
+		});
+	}
+}

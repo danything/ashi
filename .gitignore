@@ -1,0 +1,9 @@
+/node_modules
+.env*
+*.tsbuildinfo
+.DS_Store
+# 手元で歩かせたときの状態
+/data/
+/tests/.tmp/
+/.svelte-kit/
+/build/

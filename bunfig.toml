@@ -1,0 +1,3 @@
+[test]
+# 状態ディレクトリを一時ディレクトリに向ける(tests/setup.ts)
+preload = ["./tests/setup.ts"]

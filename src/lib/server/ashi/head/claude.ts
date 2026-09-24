@@ -217,6 +217,15 @@ export function claudeBlockage(e: unknown): Blockage | undefined {
 	if (!(e instanceof Anthropic.APIError)) return undefined;
 	const msg = e.message;
 	if (e instanceof Anthropic.AuthenticationError) {
+		// サブスク(Pro / Max)の OAuth トークン(claude setup-token が出すもの)は API キーとして通らない
+		if (process.env.ANTHROPIC_API_KEY?.startsWith("sk-ant-oat")) {
+			return {
+				key: "head:auth",
+				title: "Claude のサブスクのトークンが入っている(API キーではない)",
+				detail: msg,
+				remedy: `\`sk-ant-oat\` で始まるのは Claude Code のサブスク用のトークンで、Messages API には使えない。${CONSOLE}/settings/keys で従量課金の API キー(\`sk-ant-api\` で始まる)を作って差し替える。`,
+			};
+		}
 		return {
 			key: "head:auth",
 			title: "Claude API の鍵が通らない",

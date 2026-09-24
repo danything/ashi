@@ -221,3 +221,20 @@ describe("答えの形", () => {
 		},
 	);
 });
+
+test("サブスクのトークンが入っていたら、そう言う", () => {
+	const prev = process.env.ANTHROPIC_API_KEY;
+	process.env.ANTHROPIC_API_KEY = "sk-ant-oat01-xxxx";
+	try {
+		const e = Anthropic.APIError.generate(
+			401,
+			{ error: { message: "API key is invalid." } },
+			"invalid",
+			new Headers(),
+		);
+		expect(claudeBlockage(e)?.title).toContain("サブスク");
+	} finally {
+		if (prev === undefined) delete process.env.ANTHROPIC_API_KEY;
+		else process.env.ANTHROPIC_API_KEY = prev;
+	}
+});

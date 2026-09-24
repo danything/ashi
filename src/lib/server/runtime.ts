@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
-import { ClaudeHead } from "./ashi/head/claude.ts";
 import type { Head, Tool } from "./ashi/head/head.ts";
+import { makeHead } from "./ashi/head/make.ts";
 import {
 	fetchBlockage,
 	raiseBlocker,
@@ -19,11 +19,11 @@ export const store = new Store(resolve(process.env.ASHI_HOME || "data"));
 if (!store.exists()) store.init();
 
 let head: Head | undefined;
-/** 頭。モデルと effort は ashi.json から(変えたら再起動) */
+/** 頭。繋ぎ方・モデル・effort は設定から(変えたら再起動) */
 export function getHead(): Head {
 	if (!head) {
 		const cfg = store.config();
-		head = new ClaudeHead({ model: cfg.model, effort: cfg.effort });
+		head = makeHead(cfg, store.home);
 	}
 	return head;
 }

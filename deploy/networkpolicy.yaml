@@ -1,0 +1,59 @@
+# Pod の外向きの通信を、公開のインターネットと、要る 2 つの中の宛先だけにする。
+#
+# 頭を Claude Code の CLI にすると、頭の web の読み込みは CLI の WebFetch になり、Ashi の
+# fetch_url のガードレール(プライベートアドレスを読まない)が効かない。web のページに仕込まれた
+# 指示で、クラスタの中(Infisical・Forgejo の API・k8s の API)や家の LAN を覗かせないよう、
+# ネットワークの側で止める。
+#
+# 通すもの: DNS(kube-dns)、Forgejo(足跡の巡回。FORGEJO_URL)、プライベートでないアドレス全部
+# (Claude の API・ブログ・GitHub・X・web)。受ける側(Gateway からの HTTP)は絞らない。
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ashi-egress
+  namespace: ashi
+spec:
+  podSelector:
+    matchLabels:
+      app: ashi
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: forgejo
+          podSelector:
+            matchLabels:
+              app: forgejo
+      ports:
+        - protocol: TCP
+          port: 3000
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 100.64.0.0/10
+              - 169.254.0.0/16
+              - 127.0.0.0/8
+        - ipBlock:
+            cidr: ::/0
+            except:
+              - fc00::/7
+              - fe80::/10
+              - ::1/128

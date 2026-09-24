@@ -15,9 +15,16 @@ export interface Feed {
 }
 
 export interface Config {
+	/**
+	 * 頭の繋ぎ方。api: Messages API を API キーで(従量課金)/
+	 * claude-code: Claude Code の CLI をサブスクのトークンで(head/claude-code.ts)
+	 */
+	head: "api" | "claude-code";
 	/** 頭に使うモデル */
 	model: string;
 	effort: "low" | "medium" | "high" | "xhigh" | "max";
+	/** 1 日(ローカル時刻の 0 時区切り)に歩いてよい歩数。サブスクはドルで測れないので、これで止める */
+	maxStepsPerDay: number;
 	budget: {
 		/** 1 日(ローカル時刻の 0 時区切り)に使ってよい額(ドル) */
 		dailyUsd: number;
@@ -62,7 +69,9 @@ export interface Config {
 }
 
 export const DEFAULT_CONFIG: Config = {
+	head: "api",
 	model: "claude-opus-5-5",
+	maxStepsPerDay: 30,
 	effort: "high",
 	budget: { dailyUsd: 2, stepUsd: 0.5 },
 	sleep: { minMinutes: 10, maxMinutes: 360 },
@@ -103,7 +112,11 @@ export function normalizeConfig(raw: unknown): Config {
 	const minMinutes = clamp(r.sleep?.minMinutes, 1, 24 * 60, d.sleep.minMinutes);
 	const dailyUsd = clamp(r.budget?.dailyUsd, 0, 1000, d.budget.dailyUsd);
 	return {
+		head: r.head === "claude-code" ? "claude-code" : "api",
 		model: typeof r.model === "string" && r.model ? r.model : d.model,
+		maxStepsPerDay: Math.round(
+			clamp(r.maxStepsPerDay, 1, 1000, d.maxStepsPerDay),
+		),
 		effort: EFFORTS.includes(r.effort as Config["effort"])
 			? (r.effort as Config["effort"])
 			: d.effort,

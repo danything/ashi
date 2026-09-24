@@ -6,7 +6,8 @@ Ashi が自分で学ぶために要る権限と、弾かれたときの直し方
 
 | Infisical の鍵 | 環境変数 | |
 | --- | --- | --- |
-| `anthropic-api-key` | `ANTHROPIC_API_KEY` | 必須 |
+| `claude-code-oauth-token` | `CLAUDE_CODE_OAUTH_TOKEN` | 必須(頭を `claude-code` にしているとき)。`claude setup-token` の出力 |
+| `anthropic-api-key` | `ANTHROPIC_API_KEY` | 頭を `api` にするときだけ |
 | `entra-client-secret` | `ENTRA_CLIENT_SECRET` | 必須。値は `${prod.auth.auth-secrets.oidc-client-secret}`(Main のシークレットへの参照) |
 | `session-secret` | `SESSION_SECRET` | 必須。`openssl rand -base64 48` |
 | `github-token` | `GITHUB_TOKEN` | 任意 |
@@ -18,11 +19,31 @@ Ashi が自分で学ぶために要る権限と、弾かれたときの直し方
 
 ## 最初に要るもの
 
-### 1. Claude API(頭)
+### 1. 頭
+
+頭の繋ぎ方は 2 つある(`ASHI_CONFIG` の `head`)。クラスタでは `claude-code` にしてある。
+
+| `head` | 払い方 | 鍵 | 止め方 |
+| --- | --- | --- | --- |
+| `claude-code` | Claude のサブスク(Pro / Max) | `claude-code-oauth-token` | 1 日の歩数(`maxStepsPerDay`、既定 30) |
+| `api` | platform.claude.com の従量課金 | `anthropic-api-key` | 1 日と 1 歩の額(`budget`) |
+
+#### サブスク(`claude-code`)
+
+1. 手元で `claude setup-token` を実行する(ブラウザでログイン)。出てきた `sk-ant-oat…`(1 年有効)を Infisical の `claude-code-oauth-token` に入れる
+2. 5 時間ごと・週ごとの上限は、手元の Claude Code と共有する。当たると「サブスクの使用量の上限に当たった」が `/blocked` に出て、Ashi は長く休む
+3. 頭の web の読み込みは Claude Code の WebFetch になるので、プライベートアドレスを読まない制限は `deploy/networkpolicy.yaml`(Pod の外向きの通信)で掛けている。ノートを読む Read は状態ディレクトリの `notes/` の中だけ
 
 | 弾かれ方 | `/blocked` の題 | 付け方 |
 | --- | --- | --- |
-| 401 | Claude API の鍵が通らない | <https://platform.claude.com/settings/keys> で API キーを作り、`ANTHROPIC_API_KEY` に入れる |
+| 401 | Claude Code のサブスクのトークンが通らない | `claude setup-token` で出し直して差し替える |
+| 429・上限 | サブスクの使用量の上限に当たった | 戻るのを待つ。減らすなら `maxStepsPerDay` を下げる |
+
+#### 従量課金(`api`)
+
+| 弾かれ方 | `/blocked` の題 | 付け方 |
+| --- | --- | --- |
+| 401 | Claude API の鍵が通らない(`sk-ant-oat…` なら「サブスクのトークンが入っている」) | <https://platform.claude.com/settings/keys> で API キーを作り、`ANTHROPIC_API_KEY` に入れる |
 | 残高不足 | Claude API の残高が足りない | <https://platform.claude.com/settings/billing> でクレジットを足す。自動チャージも設定できる |
 | web 検索が使えない | Claude の web 検索が組織で許可されていない | Console の組織の設定(Settings → Privacy)で web search を有効にする。使わせないなら `ashi.json` の `allowWeb: false` |
 | 403 | Claude API で権限が足りない | キーのワークスペースで `ashi.json` の `model`(既定 `claude-opus-5-5`)が使えるか確かめる |

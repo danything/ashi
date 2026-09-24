@@ -103,7 +103,8 @@ export type StepOutcome =
 			wakeAt: Date;
 	  }
 	| { kind: "asleep"; wakeAt: Date }
-	| { kind: "broke"; wakeAt: Date }
+	/** usd: 今日の予算を使い切った / steps: 今日の歩数の上限に来た */
+	| { kind: "broke"; reason: "usd" | "steps"; wakeAt: Date }
 	| { kind: "failed"; error: string; wakeAt: Date }
 	/** core.md が人の承認なしに変わった。人が `ashi core --accept` するまで歩かない */
 	| { kind: "core-changed" };
@@ -165,7 +166,19 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 	};
 	if (left <= 0) {
 		store.log("broke", { spentUsd: store.budget(today).spentUsd });
-		return { kind: "broke", wakeAt: sleepUntil(nextMidnight(now)) };
+		return {
+			kind: "broke",
+			reason: "usd",
+			wakeAt: sleepUntil(nextMidnight(now)),
+		};
+	}
+	if ((store.budget(today).steps ?? 0) >= cfg.maxStepsPerDay) {
+		store.log("broke", { steps: cfg.maxStepsPerDay });
+		return {
+			kind: "broke",
+			reason: "steps",
+			wakeAt: sleepUntil(nextMidnight(now)),
+		};
 	}
 
 	// 前の歩みで頭が読みたいと言った足跡を読む(GET だけ。頭は呼ばないので予算は使わない)
@@ -185,7 +198,9 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 	const tools = legs.tools.filter((t) => t.readOnly === true);
 	let spent = noUsage();
 	// 頭が答えたら、頭の側で弾かれていたこと(鍵・課金)は片づいている
+	let thought = false;
 	const charge = (u: Usage) => {
+		thought = true;
 		spent = addUsage(spent, u);
 		left -= u.costUsd;
 		resolveBlockers(store, "head:", now);
@@ -244,7 +259,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 
 		if (left <= 0) {
 			// 地図を書いたところで予算が尽きた
-			outcome = { kind: "broke", wakeAt: nextMidnight(now) };
+			outcome = { kind: "broke", reason: "usd", wakeAt: nextMidnight(now) };
 		} else if (!choice) {
 			// 歩ける問いが無い(尽きた、または同じテーマが続いて休ませている)。頭に問いを出させる
 			const streak = themeStreak(walk.recentThemes);
@@ -431,21 +446,26 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 		return outcome;
 	} catch (e) {
 		if (e instanceof HeadError) {
+			thought = true;
 			spent = addUsage(spent, e.usage);
 		}
+		// サブスクの上限に当たったら、戻るまで何度叩いても同じなので上限まで休む
+		let rest = cfg.sleep.minMinutes;
 		if (e instanceof HeadAccessError) {
 			await raiseBlocker(store, "head", e.blockage, now, notify);
+			if (e.blockage.key === "head:subscription-limit")
+				rest = cfg.sleep.maxMinutes;
 		}
 		const error = e instanceof Error ? e.message : String(e);
 		store.log("failed", { error, usd: spent.costUsd });
 		return {
 			kind: "failed",
 			error,
-			wakeAt: sleepUntil(minutes(cfg.sleep.minMinutes)),
+			wakeAt: sleepUntil(minutes(rest)),
 		};
 	} finally {
-		// 失敗した歩みの分も必ず数える
-		store.charge(today, spent);
+		// 失敗した歩みの分も必ず数える。頭を呼んだら 1 歩
+		store.charge(today, spent, thought);
 	}
 }
 

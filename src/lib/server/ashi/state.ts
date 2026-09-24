@@ -104,6 +104,8 @@ export interface Budget {
 	spentUsd: number;
 	inputTokens: number;
 	outputTokens: number;
+	/** 頭を呼んだ歩数(maxStepsPerDay で止める) */
+	steps?: number;
 }
 
 export const DEFAULT_CORE = `# コア原則
@@ -396,10 +398,11 @@ export class Store {
 	}
 
 	/** 使った分を今日の予算に付ける */
-	charge(today: string, u: Usage): void {
+	charge(today: string, u: Usage, step = false): void {
 		const b = this.budget(today);
 		this.saveBudget({
 			...b,
+			steps: (b.steps ?? 0) + (step ? 1 : 0),
 			spentUsd: b.spentUsd + u.costUsd,
 			inputTokens: b.inputTokens + u.inputTokens,
 			outputTokens: b.outputTokens + u.outputTokens,

@@ -60,11 +60,12 @@ spec:
             # 人が決めた宛先なので、プライベートアドレスでも読む(頭の fetch_url は読まない)
             - name: FORGEJO_URL
               value: http://forgejo-web.forgejo.svc:3000
-            # ashi.json の上に重ねる設定(config.ts)。頭は Opus 5.5、予算は 1 日 5 ドル・1 歩 1 ドル。
-            # model も書くのは、PVC の ashi.json が作ったときの既定(claude-opus-5)を持っているため
+            # ashi.json の上に重ねる設定(config.ts)。頭は Claude Code の CLI をサブスクで(Opus 5.5)、
+            # 1 日 30 歩まで。サブスクはドルで測れないので budget は効かない(API キーに戻すと効く)。
+            # model も書くのは、PVC の ashi.json が作ったときの既定を持っているため
             - name: ASHI_CONFIG
               value: >-
-                {"model":"claude-opus-5-5","budget":{"dailyUsd":5,"stepUsd":1}}
+                {"head":"claude-code","model":"claude-opus-5-5","maxStepsPerDay":30,"budget":{"dailyUsd":5,"stepUsd":1}}
             # 持ち主の足跡。いつ読むかは頭が決める。鍵の要るもの(X・Forgejo)は鍵が無ければ /blocked に出る
             - name: ASHI_FEEDS
               value: >-
@@ -72,11 +73,12 @@ spec:
                 {"id":"github","kind":"github","target":"5ym","title":"GitHub"},
                 {"id":"forgejo","kind":"forgejo","target":"yui","title":"Forgejo"},
                 {"id":"x","kind":"x","target":"5yuim","title":"X"}]
-            - name: ANTHROPIC_API_KEY
+            # 頭(head: claude-code)。`claude setup-token` で出すサブスクのトークン
+            - name: CLAUDE_CODE_OAUTH_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: ashi-secrets
-                  key: anthropic-api-key
+                  key: claude-code-oauth-token
             # Entra ID は doany.io の共有のアプリ登録 Main(oauth2-proxy・ArgoCD・Headlamp と同じ)。
             # ID は秘密ではないので平文。リダイレクト URI https://as.doany.io/auth/callback は Main に登録済み。
             # 通すのはアプリロール admin を割り当てられた人だけ(ENTRA_ROLE の既定)
@@ -95,6 +97,13 @@ spec:
                   name: ashi-secrets
                   key: session-secret
             # ここから下は無くても動く(弾かれたことは /blocked に出る)
+            # 頭を head: api(従量課金)に戻すときの API キー
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ashi-secrets
+                  key: anthropic-api-key
+                  optional: true
             - name: GITHUB_TOKEN
               valueFrom:
                 secretKeyRef:

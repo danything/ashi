@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { ClaudeHead } from "./lib/server/ashi/head/claude.ts";
+import { makeHead } from "./lib/server/ashi/head/make.ts";
 import { fetchUrlTool, noteTools } from "./lib/server/ashi/legs/tools.ts";
 import {
 	type Legs,
@@ -39,7 +39,7 @@ function legs(): Legs {
 	const cfg = store.config();
 	return {
 		store,
-		head: new ClaudeHead({ model: cfg.model, effort: cfg.effort }),
+		head: makeHead(cfg, store.home),
 		tools: [fetchUrlTool(cfg), ...noteTools(store)],
 	};
 }
@@ -53,7 +53,7 @@ function describe(o: StepOutcome): string {
 		case "asleep":
 			return `休んでいる(${o.wakeAt.toLocaleString()} まで)`;
 		case "broke":
-			return `今日の予算を使い切った → ${o.wakeAt.toLocaleString()} まで休む`;
+			return `${o.reason === "steps" ? "今日の歩数の上限に来た" : "今日の予算を使い切った"} → ${o.wakeAt.toLocaleString()} まで休む`;
 		case "failed":
 			return `つまずいた: ${o.error}`;
 		case "core-changed":

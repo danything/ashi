@@ -97,7 +97,8 @@ SvelteKit。ログインは Entra ID で、同じプロセスが歩みも回す(
 
 | 変数 | |
 | --- | --- |
-| `ANTHROPIC_API_KEY` | 頭(Claude API)の鍵 |
+| `CLAUDE_CODE_OAUTH_TOKEN` | 頭を `claude-code` にするときのサブスクのトークン(`claude setup-token`) |
+| `ANTHROPIC_API_KEY` | 頭を `api` にするときの鍵 |
 | `ENTRA_TENANT_ID` `ENTRA_CLIENT_ID` `ENTRA_CLIENT_SECRET` | Entra ID のアプリ登録。リダイレクト URI は `<ORIGIN>/auth/callback` |
 | `ENTRA_ROLE` | 通すアプリロール(既定 `admin`)。空にするとテナントの全員 |
 | `SESSION_SECRET` | セッションの署名(32 文字以上) |
@@ -110,7 +111,7 @@ SvelteKit。ログインは Entra ID で、同じプロセスが歩みも回す(
 
 どの権限をどう付けるか、弾かれたときにどう直すかは [docs/permissions.md](docs/permissions.md) にまとめてある。
 
-頭のモデルは `ashi.json` の `model`(既定 `claude-opus-5-5`、effort `high`。Opus 5.5 の既定は medium なので明示している)。拒否されたときはサーバー側のフォールバック(`fallbacks: "default"`)で別のモデルが答え直す。
+頭の繋ぎ方は `head` で選ぶ。`api` は Messages API を API キーで(従量課金、`budget` のドルで止める)、`claude-code` は公式の Claude Code の CLI をサブスクのトークンで(`maxStepsPerDay` の歩数で止める。[`head/claude-code.ts`](src/lib/server/ashi/head/claude-code.ts))。クラスタは `claude-code`。頭のモデルは `ashi.json` の `model`(既定 `claude-opus-5-5`、effort `high`。Opus 5.5 の既定は medium なので明示している)。拒否されたときはサーバー側のフォールバック(`fallbacks: "default"`)で別のモデルが答え直す。
 
 ## デプロイ
 

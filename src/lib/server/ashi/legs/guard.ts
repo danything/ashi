@@ -1,5 +1,5 @@
 import type { Config } from "../config.ts";
-import { type Budget, newId, type Question } from "../state.ts";
+import { type Budget, newId, type Proposal, type Question } from "../state.ts";
 import { score } from "./select.ts";
 
 /**
@@ -119,4 +119,56 @@ export function nextMidnight(now: Date): Date {
 	const d = new Date(now);
 	d.setHours(24, 0, 0, 0);
 	return d;
+}
+
+const normTitle = (t: string) =>
+	t.normalize("NFKC").replace(/\s+/g, "").toLowerCase();
+
+/**
+ * 内省で出た改善案を受け取る。1 回 3 件まで、長さを切り、同じ題の案(未処理)は数を足すだけにする。
+ * 見送った案と同じ題がまた出たら、もう一度開く(また困っているので)
+ */
+export function acceptProposals(
+	raw: unknown,
+	existing: Proposal[],
+	now: Date,
+): { proposals: Proposal[]; added: string[] } {
+	const list = Array.isArray(raw) ? raw : [];
+	const out = existing.map((p) => ({ ...p }));
+	const added: string[] = [];
+	for (const r of list.slice(0, 3) as Partial<
+		Record<"title" | "why" | "idea", unknown>
+	>[]) {
+		if (typeof r?.title !== "string" || !r.title.trim()) continue;
+		const title = r.title.trim().slice(0, 120);
+		const why = String(r.why ?? "")
+			.trim()
+			.slice(0, 2000);
+		const idea = String(r.idea ?? "")
+			.trim()
+			.slice(0, 2000);
+		const same = out.find(
+			(p) => normTitle(p.title) === normTitle(title) && p.status !== "filed",
+		);
+		if (same) {
+			same.count += 1;
+			same.lastAt = now.toISOString();
+			if (same.status === "dismissed") same.status = "open";
+			if (why) same.why = why;
+			if (idea) same.idea = idea;
+			continue;
+		}
+		out.push({
+			id: newId(),
+			title,
+			why,
+			idea,
+			status: "open",
+			count: 1,
+			createdAt: now.toISOString(),
+			lastAt: now.toISOString(),
+		});
+		added.push(title);
+	}
+	return { proposals: out, added };
 }

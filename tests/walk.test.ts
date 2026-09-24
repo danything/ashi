@@ -437,3 +437,42 @@ describe("橋渡し", () => {
 		expect(head.calls).toHaveLength(1);
 	});
 });
+
+describe("改善案", () => {
+	test("内省で出た改善案を残し、足どりに書く", async () => {
+		const store = freshStore(["a"]);
+		store.saveWalk({ ...store.walk(), steps: 4 });
+		const head = new FakeHead({
+			explore: () => explore(),
+			reflect: (req) => {
+				expect(req.prompt).toContain("proposals");
+				return {
+					diary: "歩いた",
+					self: "私は寄り道が好きな歩き手で、問いの連鎖を追うのが楽しい。",
+					proposals: [
+						{
+							title: "読みたい論文が有料で読めない",
+							why: "IEEE で止まった",
+							idea: "arXiv を先に探す",
+						},
+					],
+				};
+			},
+		});
+		await step({
+			store,
+			head,
+			tools: [],
+			now: () => new Date("2026-09-25T12:00:00"),
+			rng: () => 0.99,
+		});
+		expect(store.proposals()[0]).toMatchObject({
+			title: "読みたい論文が有料で読めない",
+			status: "open",
+			count: 1,
+		});
+		expect(
+			store.recentLog(5).find((e) => e.event === "reflected")?.proposed,
+		).toEqual(["読みたい論文が有料で読めない"]);
+	});
+});

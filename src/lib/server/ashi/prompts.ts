@@ -274,9 +274,16 @@ ${openList(questions)}
 ${feedsBlock(feeds)}`;
 }
 
+export interface ProposalDraft {
+	title: string;
+	why: string;
+	idea: string;
+}
+
 export interface ReflectAnswer {
 	diary: string;
 	self: string;
+	proposals: ProposalDraft[];
 }
 
 export const REFLECT_SCHEMA: JsonSchema = {
@@ -291,8 +298,33 @@ export const REFLECT_SCHEMA: JsonSchema = {
 			description:
 				"書き直した自己記述(Markdown、全文)。何に惹かれ、どう歩く者か。持ち主と違う自分の見方を書く。コア原則は含めない",
 		},
+		proposals: {
+			type: "array",
+			description:
+				"自分(Ashi)の仕組みへの改善案。足の動き・道具・プロンプト・画面で困ったこと、こうなれば歩きやすいこと。持ち主が読んで直すかを決める。無ければ空",
+			items: {
+				type: "object",
+				properties: {
+					title: {
+						type: "string",
+						description: "改善案の題(issue の題になる)。1 行で",
+					},
+					why: {
+						type: "string",
+						description: "何に困ったか。歩いていて実際に起きたことを具体的に",
+					},
+					idea: {
+						type: "string",
+						description:
+							"どう変えればよさそうか。分からなければ分からないと書く",
+					},
+				},
+				required: ["title", "why", "idea"],
+				additionalProperties: false,
+			},
+		},
 	},
-	required: ["diary", "self"],
+	required: ["diary", "self", "proposals"],
 	additionalProperties: false,
 };
 
@@ -304,6 +336,9 @@ export function reflectPrompt(
 	return `立ち止まって内省してください。日記を書き、自己記述を書き直してください。道具は使えません。
 自己記述は持ち主の地図の写しにしないでください。持ち主に無い発想や、self の問いで育った見方を、あなたの個性として書いてください。
 個性の側から持ち主の側へ橋渡しした問いがあれば、日記にどうつながったかを書いてください。
+歩いていて、自分の仕組み(足の動き・道具・プロンプト・画面)に困ったことがあれば proposals に改善案を書いてください。
+例: 同じテーマをぐるぐる回った、読みたいページが読めなかった、問いの選び方が偏っていた。
+ガードレールやコア原則を変える提案もしてよいが、理由をはっきり書くこと(決めるのは持ち主)。無理に作らないこと。
 
 最近歩いたテーマ(新しい順): ${recentThemes.join(" / ") || "(無い)"}
 

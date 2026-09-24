@@ -29,6 +29,7 @@ import { raiseBlocker, resolveBlockers, webhookNotify } from "./blockers.ts";
 import { crawlRequested, feedStatus } from "./feeds.ts";
 import {
 	acceptNewQuestions,
+	acceptProposals,
 	acceptSelf,
 	allowance,
 	clampSleep,
@@ -436,9 +437,16 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 				);
 			const self = acceptSelf(output.self);
 			if (self) store.saveSelf(self);
+			const { proposals, added: proposed } = acceptProposals(
+				output.proposals,
+				store.proposals(),
+				now,
+			);
+			store.saveProposals(proposals);
 			store.saveWalk({ ...store.walk(), lastReflectStep: w.steps });
 			store.log("reflected", {
 				selfUpdated: Boolean(self),
+				proposed,
 				usd: usage.costUsd,
 			});
 			if (outcome.kind === "walked" || outcome.kind === "seeded")

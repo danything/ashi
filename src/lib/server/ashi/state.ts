@@ -23,6 +23,7 @@ import type { FeedState } from "./legs/feeds.ts";
  *   self.md         自己記述(内省のたびに頭が書き直す)。持ち主に無い発想を個性として育てる
  *   owner.md        持ち主の興味の地図(持ち主の発言と渡された文章から頭が書き直す)
  *   sources/<id>.md 持ち主が渡した文章と、足跡(ブログ・GitHub・X)から読んだもの。目録は sources.json
+ *   proposals.json  Ashi が内省で出した自分の仕組みへの改善案(持ち主が GitHub の issue にする)
  *   blockers.json   弾かれたこと(権限・鍵・課金・巡回の失敗)と、その直し方
  *   feeds.json      足跡ごとの、最後に読んだ時刻と取り込み済みの鍵
  *   questions.json  問い
@@ -70,6 +71,20 @@ export interface Note {
 	questionId: string;
 	summary: string;
 	createdAt: string;
+}
+
+export interface Proposal {
+	id: string;
+	title: string;
+	why: string;
+	idea: string;
+	/** open: 未処理 / filed: issue にした / dismissed: 見送った */
+	status: "open" | "filed" | "dismissed";
+	/** 同じ題の案が何度出たか(何度も困っているなら大事) */
+	count: number;
+	createdAt: string;
+	lastAt: string;
+	issueUrl?: string;
 }
 
 export interface Source {
@@ -315,6 +330,14 @@ export class Store {
 			this.sources().filter((s) => s.id !== id),
 		);
 		// 本文のファイルは残す(消すのは人が手で。誤って消したときに戻せるように)
+	}
+
+	proposals(): Proposal[] {
+		return this.readJson<Proposal[]>("proposals.json", []);
+	}
+
+	saveProposals(ps: Proposal[]): void {
+		this.writeJson("proposals.json", ps);
 	}
 
 	blockers(): Record<string, BlockerRecord> {

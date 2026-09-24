@@ -143,6 +143,7 @@ const EVENTS: Record<string, string> = {
 							{#if e.event === "seeded" && (e.track === "owner" || e.track === "self")}<span> {TRACK_LABEL[e.track]}</span>{/if}
 							{#if typeof e.question === "string"}<span> {e.question}</span>{/if}
 							{#if typeof e.title === "string"}<span> {e.title}</span>{/if}
+							{#if Array.isArray(e.proposed) && e.proposed.length}<a class="tag" href="/proposals">改善案</a><span class="muted"> {e.proposed.join(" / ")}</span>{/if}
 							{#if Array.isArray(e.bridged) && e.bridged.length}<span class="tag accent">橋渡し</span><span class="muted"> {e.bridged.join(" / ")}</span>{/if}
 							{#if typeof e.error === "string"}<span class="muted"> {e.error}</span>{/if}
 						</span>

@@ -16,6 +16,7 @@ const NAV: [string, string, IconName][] = [
 	["/diary", "日記", "calendar"],
 	["/owner", "持ち主", "user"],
 	["/context", "頭の中", "brain"],
+	["/proposals", "改善案", "wrench"],
 ];
 const here = (href: string) =>
 	(
@@ -40,7 +41,10 @@ const here = (href: string) =>
 				<div class="grow"></div>
 				<div class="nav-wide">
 					{#each NAV as [href, label, icon] (href)}
-						<a class="button ghost small" aria-current={here(href)} {href}><Icon name={icon} size={1} />{label}</a>
+						<a class="button ghost small" aria-current={here(href)} {href}>
+							<Icon name={icon} size={1} />{label}
+							{#if href === "/proposals" && data.proposals > 0}<span class="count">{data.proposals}</span>{/if}
+						</a>
 					{/each}
 				</div>
 				<!-- 狭い画面: 全部メニューに畳む -->
@@ -129,6 +133,16 @@ const here = (href: string) =>
 	.nav-narrow {
 		margin: 0;
 	}
+	.count {
+		min-width: 1.2rem;
+		border-radius: 999px;
+		background: var(--ui-accent);
+		padding: 0 0.35rem;
+		color: #fff;
+		font-size: 0.7rem;
+		line-height: 1.2rem;
+		text-align: center;
+	}
 	.nav-narrow > summary::after {
 		display: none;
 	}
@@ -140,7 +154,7 @@ const here = (href: string) =>
 	.nav-narrow ul li a[aria-current] {
 		font-weight: 700;
 	}
-	@media (min-width: 900px) {
+	@media (min-width: 1000px) {
 		.nav-wide {
 			display: flex;
 		}

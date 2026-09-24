@@ -190,3 +190,59 @@ describe("ASHI_CONFIG", () => {
 		}
 	});
 });
+
+describe("acceptProposals", () => {
+	const now = new Date("2026-09-25T12:00:00Z");
+	test("3 件まで、同じ題は数を足し、見送った案がまた出たら開き直す", async () => {
+		const { acceptProposals } = await import(
+			"../src/lib/server/ashi/legs/guard.ts"
+		);
+		const first = acceptProposals(
+			[
+				{
+					title: "同じテーマを回りすぎる",
+					why: "k8s が続いた",
+					idea: "連続の上限を下げる",
+				},
+				{ title: "", why: "x", idea: "y" },
+				{ title: 1 },
+			],
+			[],
+			now,
+		);
+		expect(first.added).toEqual(["同じテーマを回りすぎる"]);
+		const again = acceptProposals(
+			[{ title: "同じ テーマを回りすぎる", why: "また", idea: "" }],
+			first.proposals,
+			now,
+		);
+		expect(again.added).toEqual([]);
+		expect(again.proposals[0]).toMatchObject({
+			count: 2,
+			why: "また",
+			idea: "連続の上限を下げる",
+		});
+
+		const dismissed = again.proposals.map((p) => ({
+			...p,
+			status: "dismissed" as const,
+		}));
+		const reopened = acceptProposals(
+			[{ title: "同じテーマを回りすぎる", why: "", idea: "" }],
+			dismissed,
+			now,
+		);
+		expect(reopened.proposals[0]?.status).toBe("open");
+
+		const many = acceptProposals(
+			Array.from({ length: 5 }, (_, i) => ({
+				title: `案${i}`,
+				why: "",
+				idea: "",
+			})),
+			[],
+			now,
+		);
+		expect(many.added).toHaveLength(3);
+	});
+});

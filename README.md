@@ -110,7 +110,7 @@ SvelteKit。ログインは Entra ID で、同じプロセスが歩みも回す(
 
 どの権限をどう付けるか、弾かれたときにどう直すかは [docs/permissions.md](docs/permissions.md) にまとめてある。
 
-頭のモデルは `ashi.json` の `model`(既定 `claude-opus-5`、effort `high`)。拒否されたときはサーバー側のフォールバック(`fallbacks: "default"`)で別のモデルが答え直す。
+頭のモデルは `ashi.json` の `model`(既定 `claude-opus-5-5`、effort `high`。Opus 5.5 の既定は medium なので明示している)。拒否されたときはサーバー側のフォールバック(`fallbacks: "default"`)で別のモデルが答え直す。
 
 ## デプロイ
 

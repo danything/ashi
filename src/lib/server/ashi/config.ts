@@ -62,7 +62,7 @@ export interface Config {
 }
 
 export const DEFAULT_CONFIG: Config = {
-	model: "claude-opus-5",
+	model: "claude-opus-5-5",
 	effort: "high",
 	budget: { dailyUsd: 2, stepUsd: 0.5 },
 	sleep: { minMinutes: 10, maxMinutes: 360 },

@@ -11,11 +11,14 @@ import {
 	type Usage,
 } from "./head.ts";
 
-/** 1M トークンあたりのドル(入力, 出力)。キャッシュの読みは入力の 0.1 倍、書きは 1.25 倍 */
-const PRICES: Record<string, [number, number]> = {
-	"claude-fable-5-1": [10, 50],
+/**
+ * 1M トークンあたりのドル(入力, 出力, キャッシュの読み)。キャッシュの読みを書いていなければ入力の 0.1 倍、
+ * 書きは 1.25 倍
+ */
+const PRICES: Record<string, [number, number, number?]> = {
+	"claude-fable-5-1": [10, 50, 0.25],
 	"claude-fable-5": [10, 50],
-	"claude-opus-5-5": [4, 20],
+	"claude-opus-5-5": [4, 20, 0.2],
 	"claude-opus-5": [5, 25],
 	"claude-opus-4-8": [5, 25],
 	"claude-sonnet-5": [2, 10],
@@ -43,7 +46,7 @@ export class ClaudeHead implements Head {
 	private readonly effort: NonNullable<ClaudeHeadOptions["effort"]>;
 
 	constructor(opts: ClaudeHeadOptions = {}) {
-		this.name = opts.model ?? "claude-opus-5";
+		this.name = opts.model ?? "claude-opus-5-5";
 		this.effort = opts.effort ?? "high";
 		// 鍵は ANTHROPIC_API_KEY か `ant auth login` のプロファイルから SDK が拾う
 		this.client = opts.client ?? new Anthropic();
@@ -81,7 +84,8 @@ export class ClaudeHead implements Head {
 				(req.maxCostUsd !== undefined && usage.costUsd >= req.maxCostUsd);
 			const res = await this.create(usage, {
 				model: this.name,
-				max_tokens: 16000,
+				// 考える分も max_tokens に数える(Opus 5.5 は考えるのを止められない)。長いのでストリームで受ける
+				max_tokens: 64000,
 				betas: [FALLBACK_BETA],
 				fallbacks: "default",
 				cache_control: { type: "ephemeral" },
@@ -181,7 +185,7 @@ export class ClaudeHead implements Head {
 		params: Anthropic.Beta.MessageCreateParamsNonStreaming,
 	): Promise<Anthropic.Beta.BetaMessage> {
 		try {
-			return await this.client.beta.messages.create(params);
+			return await this.client.beta.messages.stream(params).finalMessage();
 		} catch (e) {
 			const b = claudeBlockage(e);
 			if (b) throw new HeadAccessError(b.title, usage, b);
@@ -190,14 +194,15 @@ export class ClaudeHead implements Head {
 	}
 
 	private price(res: Anthropic.Beta.BetaMessage): Usage {
-		const [inUsd, outUsd] = PRICES[res.model] ?? PRICES[this.name] ?? [5, 25];
+		const [inUsd, outUsd, readUsd = inUsd * 0.1] = PRICES[res.model] ??
+			PRICES[this.name] ?? [5, 25];
 		const u = res.usage;
 		const cacheRead = u.cache_read_input_tokens ?? 0;
 		const cacheWrite = u.cache_creation_input_tokens ?? 0;
 		const searches = u.server_tool_use?.web_search_requests ?? 0;
 		const costUsd =
 			(u.input_tokens * inUsd +
-				cacheRead * inUsd * 0.1 +
+				cacheRead * readUsd +
 				cacheWrite * inUsd * 1.25 +
 				u.output_tokens * outUsd) /
 				1_000_000 +
@@ -258,7 +263,7 @@ export function claudeBlockage(e: unknown): Blockage | undefined {
 			key: "head:permission",
 			title: "Claude API で権限が足りない",
 			detail: msg,
-			remedy: `API キーの属するワークスペースで、ashi.json の model(既定 claude-opus-5)が使えるか ${CONSOLE}/settings/workspaces で確かめる。`,
+			remedy: `API キーの属するワークスペースで、ashi.json の model(既定 claude-opus-5-5)が使えるか ${CONSOLE}/settings/workspaces で確かめる。`,
 		};
 	}
 	return undefined;

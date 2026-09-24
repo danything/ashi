@@ -139,7 +139,7 @@ describe("normalizeConfig", () => {
 		expect(c.effort).toBe("high");
 	});
 	test("空なら既定", () => {
-		expect(normalizeConfig(undefined).model).toBe("claude-opus-5");
+		expect(normalizeConfig(undefined).model).toBe("claude-opus-5-5");
 	});
 });
 

@@ -60,10 +60,11 @@ spec:
             # 人が決めた宛先なので、プライベートアドレスでも読む(頭の fetch_url は読まない)
             - name: FORGEJO_URL
               value: http://forgejo-web.forgejo.svc:3000
-            # ashi.json の上に重ねる設定(config.ts)。予算は 1 日 5 ドル・1 歩 1 ドル
+            # ashi.json の上に重ねる設定(config.ts)。頭は Opus 5.5、予算は 1 日 5 ドル・1 歩 1 ドル。
+            # model も書くのは、PVC の ashi.json が作ったときの既定(claude-opus-5)を持っているため
             - name: ASHI_CONFIG
               value: >-
-                {"budget":{"dailyUsd":5,"stepUsd":1}}
+                {"model":"claude-opus-5-5","budget":{"dailyUsd":5,"stepUsd":1}}
             # 持ち主の足跡。いつ読むかは頭が決める。鍵の要るもの(X・Forgejo)は鍵が無ければ /blocked に出る
             - name: ASHI_FEEDS
               value: >-

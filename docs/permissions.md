@@ -25,7 +25,7 @@ Ashi が自分で学ぶために要る権限と、弾かれたときの直し方
 | 401 | Claude API の鍵が通らない | <https://platform.claude.com/settings/keys> で API キーを作り、`ANTHROPIC_API_KEY` に入れる |
 | 残高不足 | Claude API の残高が足りない | <https://platform.claude.com/settings/billing> でクレジットを足す。自動チャージも設定できる |
 | web 検索が使えない | Claude の web 検索が組織で許可されていない | Console の組織の設定(Settings → Privacy)で web search を有効にする。使わせないなら `ashi.json` の `allowWeb: false` |
-| 403 | Claude API で権限が足りない | キーのワークスペースで `ashi.json` の `model`(既定 `claude-opus-5`)が使えるか確かめる |
+| 403 | Claude API で権限が足りない | キーのワークスペースで `ashi.json` の `model`(既定 `claude-opus-5-5`)が使えるか確かめる |
 
 使う額の上限は Ashi の側でも決めている(`ashi.json` の `budget.dailyUsd`、既定 2 ドル / 日)。Console のワークスペースにも月の上限を付けておくと二重に止まる。
 

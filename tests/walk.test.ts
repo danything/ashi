@@ -346,3 +346,94 @@ describe("空の系統", () => {
 		).toBe("self");
 	});
 });
+
+describe("橋渡し", () => {
+	test("個性の問いを歩いたら橋渡しを頼み、生まれた先回りの問いは元の問いを親に持つ", async () => {
+		const store = freshStore();
+		const selfQ = q({ track: "self", text: "イルカの片半球睡眠" });
+		store.saveQuestions([selfQ]);
+		const head = new FakeHead({
+			explore: (req) => {
+				expect(req.prompt).toContain("橋渡し");
+				return explore({
+					new_questions: [
+						{
+							text: "常駐エージェントは一部だけ休ませて見張りを残せるか",
+							theme: "自律エージェント",
+							track: "owner",
+							interest: 0.8,
+							importance: 0.8,
+							feasibility: 0.8,
+						},
+						{
+							text: "鳥の渡りと睡眠",
+							theme: "睡眠の生物学",
+							track: "self",
+							interest: 0.8,
+							importance: 0.5,
+							feasibility: 0.8,
+						},
+					],
+				});
+			},
+		});
+		await step({
+			store,
+			head,
+			tools: [],
+			now: () => new Date("2026-09-25T12:00:00"),
+			rng: () => 0.99,
+		});
+		const bridge = store
+			.questions()
+			.find((x) => x.text.startsWith("常駐エージェント"));
+		expect(bridge).toMatchObject({ track: "owner", parentId: selfQ.id });
+		const log = store.recentLog(5).find((e) => e.event === "walked");
+		expect(log?.bridged).toEqual([
+			"常駐エージェントは一部だけ休ませて見張りを残せるか",
+		]);
+	});
+
+	test("先回りの問いを歩いたときは橋渡しを頼まない", async () => {
+		const store = freshStore();
+		store.saveQuestions([q({ track: "owner" })]);
+		const head = new FakeHead({
+			explore: (req) => {
+				expect(req.prompt).not.toContain("橋渡し");
+				return explore();
+			},
+		});
+		await step({
+			store,
+			head,
+			tools: [],
+			now: () => new Date("2026-09-25T12:00:00"),
+			rng: () => 0.1,
+		});
+		expect(head.calls).toHaveLength(1);
+	});
+
+	test("個性の問いを探させるときは、地図の一歩外から", async () => {
+		const store = freshStore();
+		const head = new FakeHead({
+			seed: (req) => {
+				expect(req.prompt).toContain("一歩外れた");
+				expect(req.system).toContain("橋渡し");
+				return {
+					new_questions: [],
+					crawl: [],
+					tiredness: 0,
+					sleep_minutes: 20,
+				};
+			},
+		});
+		await step({
+			store,
+			head,
+			tools: [],
+			now: () => new Date("2026-09-25T12:00:00"),
+			rng: () => 0.99,
+		});
+		expect(head.calls).toHaveLength(1);
+	});
+});

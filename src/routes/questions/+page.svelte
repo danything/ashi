@@ -12,7 +12,7 @@ let { data } = $props();
 			<h1>問い</h1>
 			<p>
 				点数は頭の見立て(惹かれる・価値・進めやすさ)に、まだ歩いていない分を足し、何度も歩いた分を引いたもの。
-				どちらの系統を歩くかは足がさいころで決め、ときどき寄り道する。
+				どちらの系統を歩くかは足がさいころで決め、ときどき寄り道する。個性の問いで得た見方が持ち主の関心に効くと、先回りの問いにして持ち帰る(橋渡し)。
 			</p>
 		</hgroup>
 	</div>
@@ -29,7 +29,14 @@ let { data } = $props();
 						{#each data.open as q (q.id)}
 							<tr>
 								<td><span class="tag {q.track === 'owner' ? 'info' : 'accent'}">{TRACK_LABEL[q.track]}</span></td>
-								<td>{q.text}</td>
+								<td>
+									{q.text}
+									{#if q.bridgedFrom}
+										<div class="tiny muted bridge">
+											<span class="tag accent">橋渡し</span> 個性の問い「{q.bridgedFrom}」から
+										</div>
+									{/if}
+								</td>
 								<td class="muted small">{q.theme}</td>
 								<td class="r nums">
 									{q.score.toFixed(2)}
@@ -63,6 +70,9 @@ let { data } = $props();
 </div>
 
 <style>
+	.bridge {
+		margin-top: 0.25rem;
+	}
 	.r {
 		text-align: right;
 	}

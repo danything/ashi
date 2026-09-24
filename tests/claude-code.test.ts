@@ -39,12 +39,27 @@ console.log(JSON.stringify({
 	},
 }));`;
 
+/**
+ * 偽の claude は全部ここで先に書いておく。書いた直後に実行すると、ほかの子プロセスの起動と
+ * 重なったときに Linux が ETXTBSY(text file busy)で実行を拒むことがあり、テストがまれに落ちた
+ */
+const BIN = {
+	echo: fakeClaude(ECHO),
+	unauthorized: fakeClaude(
+		`console.log(JSON.stringify({ is_error: true, api_error_status: 401, result: "Failed to authenticate. API Error: 401 OAuth access token is invalid." })); process.exit(1);`,
+	),
+	notJson: fakeClaude(`console.log("oops")`),
+	noShape: fakeClaude(
+		`console.log(JSON.stringify({ is_error: false, result: "text" }))`,
+	),
+};
+
 describe("ClaudeCodeHead", () => {
 	test("プロンプトは標準入力、道具は notes/ の Read と web だけ、API キーと要らない秘密は渡さない", async () => {
 		const home = mkdtempSync(join(TMP, "home-"));
 		const head = new ClaudeCodeHead({
 			home,
-			bin: fakeClaude(ECHO),
+			bin: BIN.echo,
 			env: {
 				PATH: process.env.PATH,
 				ANTHROPIC_API_KEY: "sk-ant-api-x",
@@ -94,7 +109,7 @@ describe("ClaudeCodeHead", () => {
 	test("道具の要らない頼みには道具を渡さない", async () => {
 		const head = new ClaudeCodeHead({
 			home: TMP,
-			bin: fakeClaude(ECHO),
+			bin: BIN.echo,
 			env: { PATH: process.env.PATH },
 		});
 		const { output } = await head.think<{ args: string[] }>({
@@ -108,9 +123,7 @@ describe("ClaudeCodeHead", () => {
 	});
 
 	test("サブスクのトークンが通らなければ、付け方つきで弾かれたことにする", async () => {
-		const bin = fakeClaude(
-			`console.log(JSON.stringify({ is_error: true, api_error_status: 401, result: "Failed to authenticate. API Error: 401 OAuth access token is invalid." })); process.exit(1);`,
-		);
+		const bin = BIN.unauthorized;
 		const head = new ClaudeCodeHead({
 			home: TMP,
 			bin,
@@ -128,7 +141,7 @@ describe("ClaudeCodeHead", () => {
 	test("JSON でない出力や、形の無い答えはつまずきにする", async () => {
 		const head = new ClaudeCodeHead({
 			home: TMP,
-			bin: fakeClaude(`console.log("oops")`),
+			bin: BIN.notJson,
 			env: { PATH: process.env.PATH },
 		});
 		expect(
@@ -138,9 +151,7 @@ describe("ClaudeCodeHead", () => {
 		).toBeInstanceOf(HeadError);
 		const head2 = new ClaudeCodeHead({
 			home: TMP,
-			bin: fakeClaude(
-				`console.log(JSON.stringify({ is_error: false, result: "text" }))`,
-			),
+			bin: BIN.noShape,
 			env: { PATH: process.env.PATH },
 		});
 		expect(

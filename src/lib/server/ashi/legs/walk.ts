@@ -346,6 +346,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 				`# ${title}\n\n問い: ${q.text}\n\n${String(output.findings ?? "").trim()}\n`,
 			);
 			let added: string[] = [];
+			let bridged: string[] = [];
 			store.updateQuestions((qs) => {
 				const updated = qs.map((x) =>
 					x.id === q.id
@@ -366,6 +367,9 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 					now,
 				);
 				added = got.map((a) => a.text);
+				// 個性の問いから生まれた先回りの問い = 個性で得た見方を持ち主の側へ持ち帰ったもの
+				if (q.track === "self")
+					bridged = got.filter((a) => a.track === "owner").map((a) => a.text);
 				return trimOpenQuestions([...updated, ...got], cfg);
 			});
 			store.saveWalk({
@@ -387,6 +391,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 				noteId,
 				answered: output.answered === true,
 				added,
+				bridged,
 				usd: usage.costUsd,
 			});
 			tiredness = unit(output.tiredness);

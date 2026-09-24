@@ -71,16 +71,13 @@ spec:
                 secretKeyRef:
                   name: ashi-secrets
                   key: anthropic-api-key
+            # Entra ID は doany.io の共有のアプリ登録 Main(oauth2-proxy・ArgoCD・Headlamp と同じ)。
+            # ID は秘密ではないので平文。リダイレクト URI https://as.doany.io/auth/callback は Main に登録済み。
+            # 通すのはアプリロール admin を割り当てられた人だけ(ENTRA_ROLE の既定)
             - name: ENTRA_TENANT_ID
-              valueFrom:
-                secretKeyRef:
-                  name: ashi-secrets
-                  key: entra-tenant-id
+              value: 22ac977d-b140-4dc8-8150-90d645d3475b
             - name: ENTRA_CLIENT_ID
-              valueFrom:
-                secretKeyRef:
-                  name: ashi-secrets
-                  key: entra-client-id
+              value: b0fa498f-7e6a-4fe1-a1c6-16fbbb6f397e
             - name: ENTRA_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:

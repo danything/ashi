@@ -7,16 +7,14 @@ Ashi が自分で学ぶために要る権限と、弾かれたときの直し方
 | Infisical の鍵 | 環境変数 | |
 | --- | --- | --- |
 | `anthropic-api-key` | `ANTHROPIC_API_KEY` | 必須 |
-| `entra-tenant-id` | `ENTRA_TENANT_ID` | 必須 |
-| `entra-client-id` | `ENTRA_CLIENT_ID` | 必須 |
-| `entra-client-secret` | `ENTRA_CLIENT_SECRET` | 必須 |
+| `entra-client-secret` | `ENTRA_CLIENT_SECRET` | 必須。値は `${prod.auth.auth-secrets.oidc-client-secret}`(Main のシークレットへの参照) |
 | `session-secret` | `SESSION_SECRET` | 必須。`openssl rand -base64 48` |
 | `github-token` | `GITHUB_TOKEN` | 任意 |
 | `x-bearer-token` | `X_BEARER_TOKEN` | 任意 |
 | `forgejo-token` | `FORGEJO_TOKEN` | 任意 |
 | `notify-webhook-url` | `NOTIFY_WEBHOOK_URL` | 任意 |
 
-必須のものが無いと Pod は起動しない(CreateContainerConfigError)。任意のものは無くても動き、使う場面で `/blocked` に出る。`ORIGIN`(https://as.doany.io)と `FORGEJO_URL` は秘密ではないので `deploy/deployment.yaml` に直接書いてある。
+必須のものが無いと Pod は起動しない(CreateContainerConfigError)。任意のものは無くても動き、使う場面で `/blocked` に出る。`ENTRA_TENANT_ID`・`ENTRA_CLIENT_ID`・`ORIGIN`(https://as.doany.io)・`FORGEJO_URL` は秘密ではないので `deploy/deployment.yaml` に直接書いてある。
 
 ## 最初に要るもの
 
@@ -33,10 +31,10 @@ Ashi が自分で学ぶために要る権限と、弾かれたときの直し方
 
 ### 2. Entra ID(画面のログイン)
 
-doany.io の他のアプリと同じ作り。共有のアプリ登録 `Main` に足すか、Ashi 用に新しく登録する。
+doany.io の他のアプリと同じく、共有のアプリ登録 `Main`(クライアント ID `b0fa498f-…`)を使う。
 
-1. Entra 管理センター → アプリの登録 → (`Main` か新規)→ 認証 → Web のリダイレクト URI に `https://as.doany.io/auth/callback` を足す
-2. 証明書とシークレット → クライアント シークレットを作る → `ENTRA_CLIENT_SECRET`。`ENTRA_TENANT_ID` と `ENTRA_CLIENT_ID` は概要のページから
+1. リダイレクト URI `https://as.doany.io/auth/callback` は `Main` に登録済み(2026-09-24、`az ad app update --web-redirect-uris` で既存の一覧に足した。この az は一覧を丸ごと置き換えるので、足すときは今の一覧を読んでから全部渡す)
+2. クライアントシークレットは写さず、Infisical で `entra-client-secret` に `${prod.auth.auth-secrets.oidc-client-secret}` と書いて参照する
 3. アプリ ロール `admin` があること(`Main` には既にある)
 4. エンタープライズ アプリケーション → 同じアプリ → ユーザーとグループ → 使う人に `admin` を割り当てる。**テナントに P1 が無いのでグループは割り当てられない。人ごとに割り当てる**
 5. `session-secret` に 32 文字以上の乱数(`openssl rand -base64 48`)

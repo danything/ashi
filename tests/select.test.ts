@@ -6,6 +6,12 @@ import {
 } from "../src/lib/server/ashi/legs/select.ts";
 import { q } from "./helpers.ts";
 
+/** 歩いた(問いを選んだ)ほうの答えだけを取り出す */
+const walked = (c: ReturnType<typeof selectQuestion>) => {
+	if (!("question" in c)) throw new Error(`問いを探させた: ${c.seed}`);
+	return c;
+};
+
 const cfg = { themeStreakLimit: 3, detourRate: 0, ownerShare: 0.5 };
 /** 決まった順に値を返すさいころ */
 const dice = (...xs: number[]) => {
@@ -32,41 +38,46 @@ describe("selectQuestion", () => {
 		const hi = q({ interest: 1, importance: 1 });
 		const lo = q({ interest: 0 });
 		const c = selectQuestion([lo, hi], [], cfg, dice(0.9));
-		expect(c?.question.id).toBe(hi.id);
-		expect(c?.reason).toBe("score");
-		expect(c?.track).toBe("self");
+		expect(walked(c).question.id).toBe(hi.id);
+		expect(walked(c).reason).toBe("score");
+		expect(walked(c).track).toBe("self");
 	});
 
 	test("さいころで先回りの系統を選ぶ", () => {
 		const own = q({ track: "owner", interest: 0 });
 		const self = q({ track: "self", interest: 1 });
-		expect(selectQuestion([own, self], [], cfg, dice(0.1))?.question.id).toBe(
-			own.id,
-		);
-		expect(selectQuestion([own, self], [], cfg, dice(0.9))?.question.id).toBe(
-			self.id,
-		);
+		expect(
+			walked(selectQuestion([own, self], [], cfg, dice(0.1))).question.id,
+		).toBe(own.id);
+		expect(
+			walked(selectQuestion([own, self], [], cfg, dice(0.9))).question.id,
+		).toBe(self.id);
 	});
 
-	test("出た系統が空なら、もう一方を歩く", () => {
+	test("出た系統が空なら、もう一方には回さず、その系統の問いを探させる", () => {
 		const self = q({ track: "self" });
-		const c = selectQuestion([self], [], cfg, dice(0.1));
-		expect(c?.question.id).toBe(self.id);
-		expect(c?.track).toBe("self");
+		expect(selectQuestion([self], [], cfg, dice(0.1))).toEqual({
+			seed: "owner",
+		});
+		expect(selectQuestion([q({ track: "owner" })], [], cfg, dice(0.9))).toEqual(
+			{ seed: "self" },
+		);
 	});
 
 	test("同じテーマが上限まで続いたら、そのテーマは選ばない", () => {
 		const same = q({ theme: "a", interest: 1, importance: 1 });
 		const other = q({ theme: "b", interest: 0 });
 		const c = selectQuestion([same, other], ["a", "a", "a"], cfg, dice(0.9));
-		expect(c?.question.id).toBe(other.id);
+		expect("question" in c && c.question.id).toBe(other.id);
 	});
 
-	test("選べるものが無ければ null", () => {
+	test("選べるものが無ければ、出た系統の問いを探させる", () => {
 		expect(
-			selectQuestion([q({ theme: "a" })], ["a", "a", "a"], cfg),
-		).toBeNull();
-		expect(selectQuestion([q({ status: "answered" })], [], cfg)).toBeNull();
+			selectQuestion([q({ theme: "a" })], ["a", "a", "a"], cfg, dice(0.9)),
+		).toEqual({ seed: "self" });
+		expect(
+			selectQuestion([q({ status: "answered" })], [], cfg, dice(0.9)),
+		).toEqual({ seed: "self" });
 	});
 
 	test("寄り道は一番以外から選ぶ", () => {
@@ -78,7 +89,7 @@ describe("selectQuestion", () => {
 			{ ...cfg, detourRate: 1 },
 			dice(0.9, 0, 0),
 		);
-		expect(c?.reason).toBe("detour");
-		expect(c?.question.id).toBe(a.id);
+		expect(walked(c).reason).toBe("detour");
+		expect(walked(c).question.id).toBe(a.id);
 	});
 });

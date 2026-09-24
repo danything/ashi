@@ -140,6 +140,7 @@ const EVENTS: Record<string, string> = {
 						<span class="when muted nums tiny">{when(e.at).slice(5)}</span>
 						<span class="what">
 							<strong>{EVENTS[e.event] ?? e.event}</strong>
+							{#if e.event === "seeded" && (e.track === "owner" || e.track === "self")}<span> {TRACK_LABEL[e.track]}</span>{/if}
 							{#if typeof e.question === "string"}<span> {e.question}</span>{/if}
 							{#if typeof e.title === "string"}<span> {e.title}</span>{/if}
 							{#if typeof e.error === "string"}<span class="muted"> {e.error}</span>{/if}

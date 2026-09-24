@@ -243,20 +243,27 @@ export const SEED_SCHEMA: JsonSchema = {
 	additionalProperties: false,
 };
 
+const SEED_HINT: Record<Track, string> = {
+	owner:
+		"先回り(owner)の問いが尽きました。持ち主の地図の「まだ知らなそうなこと」と最近の足跡から、持ち主がいつか聞いてきそうな問いを出してください。",
+	self: "個性(self)の問いが尽きました。持ち主の地図の外、持ち主の「発想の癖」が向かわない方向から、あなた自身が惹かれる問いを出してください。持ち主の興味に寄せる必要はありません。",
+};
+
 export function seedPrompt(
 	notes: Note[],
 	questions: Question[],
 	feeds: string,
+	track: Track,
 	avoidTheme?: string,
 ): string {
-	return `歩ける問いがありません${avoidTheme ? `(「${avoidTheme}」が続いたので、足がそのテーマを休ませています)` : ""}。
-持ち主の地図・自己記述・これまでのノートを手がかりに、次に歩きたい問いを owner と self の両方から出してください。${avoidTheme ? `「${avoidTheme}」以外のテーマにしてください。` : ""}
+	return `${SEED_HINT[track]}
+出す問いの track はすべて ${track} にしてください。${avoidTheme ? `「${avoidTheme}」が続いたので、足がそのテーマを休ませています。「${avoidTheme}」以外のテーマにしてください。` : ""}
 道具は使えません。
 
 最近のノート:
 ${recentNotes(notes)}
 
-抱えている問い:
+抱えている問い(重ねて出さないこと):
 ${openList(questions)}
 
 ${feedsBlock(feeds)}`;

@@ -32,11 +32,16 @@ export function themeStreak(recentThemes: string[]): {
 
 export interface Choice {
 	question: Question;
-	/** さいころで決めた系統(その系統に歩ける問いが無ければ、もう一方) */
+	/** さいころで決めた系統 */
 	track: Track;
 	/** score: 点数の順 / detour: 寄り道 */
 	reason: "score" | "detour";
 	score: number;
+}
+
+/** さいころで決めた系統に歩ける問いが無い。その系統の問いを頭に探させる */
+export interface SeedNeeded {
+	seed: Track;
 }
 
 export function selectQuestion(
@@ -44,29 +49,26 @@ export function selectQuestion(
 	recentThemes: string[],
 	cfg: Pick<Config, "themeStreakLimit" | "detourRate" | "ownerShare">,
 	rng: () => number = Math.random,
-): Choice | null {
+): Choice | SeedNeeded {
 	const streak = themeStreak(recentThemes);
 	// 同じテーマが上限まで続いたら、そのテーマは今回は選べない
 	const banned =
 		streak.count >= cfg.themeStreakLimit ? streak.theme : undefined;
-	const walkable = questions.filter(
-		(q) => q.status === "open" && q.theme !== banned,
-	);
-	// 先に系統を決める。その系統が空なら、もう一方を歩く
-	const want: Track = rng() < cfg.ownerShare ? "owner" : "self";
-	const other: Track = want === "owner" ? "self" : "owner";
-	for (const track of [want, other]) {
-		const candidates = walkable
-			.filter((q) => q.track === track)
-			.map((q) => ({ question: q, score: score(q) }))
-			.sort((a, b) => b.score - a.score);
-		const [top, ...rest] = candidates;
-		if (!top) continue;
-		if (rest.length > 0 && rng() < cfg.detourRate) {
-			const pick = rest[Math.floor(rng() * rest.length)] ?? top;
-			return { ...pick, track, reason: "detour" };
-		}
-		return { ...top, track, reason: "score" };
+	// 先に系統を決める。**その系統が空でも、もう一方には回さない。** 回すと、問いのある系統ばかり
+	// 歩いて割合(ownerShare)が効かず、空の系統はいつまでも育たない(2026-09-25、最初の歩みで先回りの
+	// 問いだけができ、個性がずっと 0 のままになりかけた)
+	const track: Track = rng() < cfg.ownerShare ? "owner" : "self";
+	const candidates = questions
+		.filter(
+			(q) => q.status === "open" && q.theme !== banned && q.track === track,
+		)
+		.map((q) => ({ question: q, score: score(q) }))
+		.sort((a, b) => b.score - a.score);
+	const [top, ...rest] = candidates;
+	if (!top) return { seed: track };
+	if (rest.length > 0 && rng() < cfg.detourRate) {
+		const pick = rest[Math.floor(rng() * rest.length)] ?? top;
+		return { ...pick, track, reason: "detour" };
 	}
-	return null;
+	return { ...top, track, reason: "score" };
 }

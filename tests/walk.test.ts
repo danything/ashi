@@ -306,3 +306,43 @@ describe("chat", () => {
 		expect(head.calls).toHaveLength(0);
 	});
 });
+
+describe("空の系統", () => {
+	test("さいころで個性が出て個性の問いが無ければ、先回りに回さず個性の問いを探させる", async () => {
+		const store = freshStore();
+		store.saveQuestions([q({ track: "owner", text: "先回りの問い" })]);
+		const head = new FakeHead({
+			seed: (req) => {
+				expect(req.prompt).toContain("個性(self)の問いが尽きました");
+				return {
+					// 頭が owner を付けてきても、探させた系統(self)に揃える
+					new_questions: [
+						{
+							text: "葦はなぜ折れにくい",
+							theme: "植物",
+							track: "owner",
+							interest: 1,
+							importance: 1,
+							feasibility: 1,
+						},
+					],
+					crawl: [],
+					tiredness: 0,
+					sleep_minutes: 20,
+				};
+			},
+		});
+		const o = await step({
+			store,
+			head,
+			tools: [],
+			now: () => new Date("2026-09-25T12:00:00"),
+			rng: () => 0.99,
+		});
+		expect(o).toMatchObject({ kind: "seeded", track: "self", added: 1 });
+		expect(head.calls.map((c) => c.task)).toEqual(["seed"]);
+		expect(
+			store.questions().find((x) => x.text === "葦はなぜ折れにくい")?.track,
+		).toBe("self");
+	});
+});

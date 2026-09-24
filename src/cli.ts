@@ -49,7 +49,7 @@ function describe(o: StepOutcome): string {
 		case "walked":
 			return `歩いた(${o.reason === "detour" ? "寄り道" : "点数順"})ノート ${o.noteId}${o.profiled ? "・地図を書き直した" : ""}${o.reflected ? "・内省した" : ""} → ${o.wakeAt.toLocaleString()} まで休む`;
 		case "seeded":
-			return `問いを ${o.added} 個探した${o.reflected ? "・内省した" : ""} → ${o.wakeAt.toLocaleString()} まで休む`;
+			return `${o.track === "owner" ? "先回り" : "個性"}の問いを ${o.added} 個探した${o.reflected ? "・内省した" : ""} → ${o.wakeAt.toLocaleString()} まで休む`;
 		case "asleep":
 			return `休んでいる(${o.wakeAt.toLocaleString()} まで)`;
 		case "broke":

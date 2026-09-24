@@ -24,7 +24,7 @@ import {
 	seedPrompt,
 	system,
 } from "../prompts.ts";
-import { hashText, localDay, newId, type Store } from "../state.ts";
+import { hashText, localDay, newId, type Store, type Track } from "../state.ts";
 import { raiseBlocker, resolveBlockers, webhookNotify } from "./blockers.ts";
 import { crawlRequested, feedStatus } from "./feeds.ts";
 import {
@@ -97,6 +97,8 @@ export type StepOutcome =
 	  }
 	| {
 			kind: "seeded";
+			/** 探させた系統 */
+			track: Track;
 			added: number;
 			profiled: boolean;
 			reflected: boolean;
@@ -252,8 +254,9 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 		}
 
 		const questions = store.questions();
-		const choice =
+		const pick =
 			left > 0 ? selectQuestion(questions, walk.recentThemes, cfg, rng) : null;
+		const choice = pick && "question" in pick ? pick : null;
 		let outcome: StepOutcome;
 		let tiredness = 0;
 
@@ -261,7 +264,9 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 			// 地図を書いたところで予算が尽きた
 			outcome = { kind: "broke", reason: "usd", wakeAt: nextMidnight(now) };
 		} else if (!choice) {
-			// 歩ける問いが無い(尽きた、または同じテーマが続いて休ませている)。頭に問いを出させる
+			// さいころで決めた系統に歩ける問いが無い(尽きた、または同じテーマが続いて休ませている)。
+			// その系統の問いを頭に出させる
+			const track = pick && "seed" in pick ? pick.seed : "self";
 			const streak = themeStreak(walk.recentThemes);
 			const avoid =
 				streak.count >= cfg.themeStreakLimit ? streak.theme : undefined;
@@ -272,6 +277,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 					store.notes(),
 					questions,
 					feedStatus(store, now),
+					track,
 					avoid,
 				),
 				schema: SEED_SCHEMA,
@@ -280,13 +286,9 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 			charge(usage);
 			let added: string[] = [];
 			store.updateQuestions((qs) => {
-				let got = acceptNewQuestions(
-					output.new_questions,
-					qs,
-					cfg,
-					undefined,
-					now,
-				);
+				// 頭が別の系統を付けてきても、探させた系統に揃える
+				const raw = (output.new_questions ?? []).map((q) => ({ ...q, track }));
+				let got = acceptNewQuestions(raw, qs, cfg, undefined, now);
 				// 休ませているテーマは、頭がまた出してきても受け取らない
 				if (avoid) got = got.filter((q) => q.theme !== avoid);
 				added = got.map((q) => q.text);
@@ -299,10 +301,11 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 				recentThemes: ["(問いを探す)", ...walk.recentThemes].slice(0, 20),
 				crawlRequests: crawlIds(output.crawl),
 			});
-			store.log("seeded", { added, usd: usage.costUsd });
+			store.log("seeded", { track, added, usd: usage.costUsd });
 			tiredness = unit(output.tiredness);
 			outcome = {
 				kind: "seeded",
+				track,
 				added: added.length,
 				profiled,
 				reflected: false,

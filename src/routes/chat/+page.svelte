@@ -1,5 +1,7 @@
 <script lang="ts">
 import { tick, untrack } from "svelte";
+import Icon from "$lib/components/Icon.svelte";
+import Logo from "$lib/components/Logo.svelte";
 import { when } from "$lib/format";
 
 let { data } = $props();
@@ -78,57 +80,128 @@ function onKey(e: KeyboardEvent) {
 
 <svelte:head><title>話す | Ashi</title></svelte:head>
 
-<main class="page stack">
-	<hgroup>
-		<h1>話す</h1>
-		<p class="small muted">
-			何を学んだか、どこを歩いているかを聞けます。「これを調べておいて」と頼むと問いに加わり、足が後で歩きます。
-			ここでの発言は、持ち主の興味の地図の材料にもなります。
-			{#if data.past.length}<br />前回({when(data.past.at(-1)?.at)})からの続きです。{/if}
-		</p>
-	</hgroup>
+<div class="chat">
+	<div class="head">
+		<hgroup>
+			<h1>話す</h1>
+			<p>
+				何を学んだか、どこを歩いているかを聞ける。「これを調べておいて」と頼むと問いに加わり、足が後で歩く。
+				ここでの発言は、持ち主の興味の地図の材料にもなる。
+			</p>
+		</hgroup>
+	</div>
 
-	<div class="stack tight">
+	<div class="log">
+		{#if data.past.length}
+			<p class="divider tiny muted"><span>前回({when(data.past.at(-1)?.at)})からの続き</span></p>
+		{:else if msgs.length === 0}
+			<div class="panel soft hello small">
+				<p>たとえば:</p>
+				<ul>
+					<li>最近何を覚えた?</li>
+					<li>先回りして調べてあることはある?</li>
+					<li>Talos のバックアップの取り方を調べておいて</li>
+				</ul>
+			</div>
+		{/if}
 		{#each msgs as m, i (i)}
 			{#if m.role === "user"}
 				<div class="me">{m.text}</div>
 			{:else}
-				<div class="panel pad prose ashi">
-					{@html m.html ?? m.text}
-					{#if m.added?.length}
-						<p class="note info small">問いに加えた: {m.added.join(" / ")}</p>
-					{/if}
+				<div class="ashi">
+					<span class="avatar"><Logo /></span>
+					<div class="panel bubble">
+						<div class="prose">{@html m.html ?? m.text}</div>
+						{#if m.added?.length}
+							<p class="note info tiny">問いに加えた: {m.added.join(" / ")}</p>
+						{/if}
+					</div>
 				</div>
 			{/if}
 		{/each}
 		{#if busy}
-			<div class="cluster small muted"><span class="spin"></span>考えている(ノートを引いていると数十秒かかる)</div>
+			<div class="ashi">
+				<span class="avatar"><Logo /></span>
+				<div class="panel bubble cluster small muted"><span class="spin"></span>考えている(ノートを引いていると数十秒かかる)</div>
+			</div>
 		{/if}
 		<div bind:this={bottom}></div>
 	</div>
 
-	{#if problem}<p class="note err small">{problem}</p>{/if}
-
-	<form class="stack tight" onsubmit={send}>
-		<textarea bind:value={input} rows="3" placeholder="最近何を覚えた?" onkeydown={onKey} disabled={busy}></textarea>
+	<form class="composer panel" onsubmit={send}>
+		{#if problem}<p class="note err small">{problem}</p>{/if}
+		<textarea bind:value={input} rows="2" placeholder="最近何を覚えた?" onkeydown={onKey} disabled={busy} aria-label="話しかける"></textarea>
 		<div class="cluster">
-			<button type="submit" disabled={busy || !input.trim()}>送る</button>
-			<span class="tiny muted">Ctrl + Enter でも送れる</span>
+			<span class="tiny muted grow">Ctrl + Enter でも送れる</span>
+			<button type="submit" class="small" disabled={busy || !input.trim()}><Icon name="send" size={1} />送る</button>
 		</div>
 	</form>
-</main>
+</div>
 
 <style>
+	.chat {
+		display: flex;
+		max-width: 48rem;
+		flex-direction: column;
+		gap: 1rem;
+		margin-inline: auto;
+	}
+	.log {
+		display: flex;
+		flex-direction: column;
+		gap: 0.9rem;
+	}
+	.divider {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+	}
+	.divider::before,
+	.divider::after {
+		content: "";
+		flex: 1;
+		border-top: 1px solid var(--ui-base-300);
+	}
+	.hello ul {
+		margin: 0.25rem 0 0;
+		padding-left: 1.2rem;
+	}
 	.me {
 		align-self: flex-end;
-		max-width: 85%;
-		border-radius: var(--pico-border-radius);
+		max-width: 80%;
+		border-radius: 1rem 1rem 0.25rem 1rem;
 		background: var(--pico-primary-background);
-		padding: 0.5rem 0.8rem;
+		padding: 0.6rem 0.9rem;
 		color: var(--pico-primary-inverse);
 		white-space: pre-wrap;
 	}
 	.ashi {
+		display: flex;
+		align-items: flex-start;
+		gap: 0.6rem;
 		max-width: 92%;
+	}
+	.avatar {
+		display: inline-flex;
+		margin-top: 0.2rem;
+		color: var(--pico-primary);
+	}
+	.bubble {
+		min-width: 0;
+		border-top-left-radius: 0.25rem;
+		padding: 0.75rem 1rem;
+	}
+	/* 入力欄は画面の下に貼り付ける */
+	.composer {
+		position: sticky;
+		bottom: 1rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+		padding: 0.75rem;
+	}
+	.composer textarea {
+		margin: 0;
+		resize: vertical;
 	}
 </style>

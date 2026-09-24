@@ -11,9 +11,13 @@ export const load: PageServerLoad = () => {
 		walk: store.walk(),
 		walking: isWalking(),
 		budget: store.budget(localDay(new Date())),
-		dailyUsd: cfg.budget.dailyUsd,
-		model: cfg.model,
-		ownerShare: cfg.ownerShare,
+		cfg: {
+			head: cfg.head,
+			model: cfg.model,
+			dailyUsd: cfg.budget.dailyUsd,
+			maxStepsPerDay: cfg.maxStepsPerDay,
+			ownerShare: cfg.ownerShare,
+		},
 		counts: {
 			open: open.length,
 			owner: open.filter((q) => q.track === "owner").length,
@@ -24,9 +28,9 @@ export const load: PageServerLoad = () => {
 		next: open
 			.map((q) => ({ ...q, score: score(q) }))
 			.sort((a, b) => b.score - a.score)
-			.slice(0, 5),
-		notes: store.notes().slice(-5).reverse(),
-		log: store.recentLog(15),
+			.slice(0, 6),
+		notes: store.notes().slice(-6).reverse(),
+		log: store.recentLog(12),
 	};
 };
 

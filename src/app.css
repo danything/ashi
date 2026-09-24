@@ -1,7 +1,7 @@
 /*
- * 見た目は Pico CSS(v2)の出来合いの CSS(+layout.svelte で読む)。色は Pico の既定のまま、
- * 共通クラスだけここに置き、画面固有は各画面の <style> に閉じる。フォントは束ねず OS のものを使う。
- * SCSS で部品を削る作りはやめた(sass-embedded を入れるほど削るものが無い)
+ * 見た目は Pico CSS(v2)の出来合いの CSS(+layout.svelte で読む)に、ここの共通クラスを足す。
+ * 画面固有は各画面の <style> に閉じる。組み立て方はトドロク(app.scss)に合わせた。
+ * 色は Pico の既定(azure)のまま。差し色だけ葦の緑を置く。フォントは束ねず OS のものを使う。
  */
 
 :root {
@@ -9,27 +9,49 @@
 		"BIZ UDPGothic", "Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", system-ui,
 		sans-serif;
 	--pico-font-size: 16px;
-	--pico-line-height: 1.7;
-	--pico-border-radius: 0.6rem;
-	--ui-muted: var(--pico-muted-color);
-	--ui-line: var(--pico-muted-border-color);
-	--ui-surface: var(--pico-card-background-color);
-	--ui-shadow: var(--pico-card-box-shadow);
+	--pico-line-height: 1.65;
+	--pico-spacing: 1rem;
+	--pico-typography-spacing-vertical: 0.75rem;
+	--pico-form-element-spacing-vertical: 0.45rem;
+	--pico-form-element-spacing-horizontal: 0.7rem;
+	--pico-border-radius: 0.5rem;
+	/* ヘッダーの高さ。貼り付くものはこの下から */
+	--ui-header-h: 3.5rem;
+	/* サイト全体の幅。読む文章は .prose で絞る */
+	--site-width: 64rem;
+	--page-width: 46rem;
 }
 
-/* 注意の色だけ Pico に相当が無いので自前。明暗で持ち替える */
+/* ---- 色。明るいほう ---- */
 :root:not([data-theme="dark"]) {
+	--ui-surface: #fff;
+	--ui-bg: #f6f7f9;
+	--ui-base-200: #eef1f5;
+	--ui-base-300: #dde2ea;
+	--ui-muted: #5d6778;
+	--ui-accent: #5f8f3e;
+	--ui-accent-bg: #edf4e6;
 	--ui-ok: #1f7a4d;
 	--ui-ok-bg: #e5f4ea;
-	--ui-warn: #a45a06;
+	--ui-warn: #9a5a06;
 	--ui-warn-bg: #fdf1df;
 	--ui-err: #b3261e;
 	--ui-err-bg: #fbeae9;
-	--ui-info: #1d4ed8;
-	--ui-info-bg: #e8eefc;
+	--ui-info: #1d5fb8;
+	--ui-info-bg: #e7effb;
+	--ui-shadow: 0 1px 2px rgb(20 26 40 / 0.04), 0 2px 8px rgb(20 26 40 / 0.04);
+	--ui-header-bg: rgb(255 255 255 / 0.88);
 }
+/* 暗いほう。地を沈めて、札は明暗で持ち替える(固定の色だと暗いほうで沈む) */
 @media (prefers-color-scheme: dark) {
 	:root:not([data-theme="light"]) {
+		--ui-surface: #1a1f28;
+		--ui-bg: #13171e;
+		--ui-base-200: #222834;
+		--ui-base-300: #313949;
+		--ui-muted: #a2abbd;
+		--ui-accent: #9ccc76;
+		--ui-accent-bg: #223020;
 		--ui-ok: #6ee7a8;
 		--ui-ok-bg: #16301f;
 		--ui-warn: #fbbf24;
@@ -38,9 +60,18 @@
 		--ui-err-bg: #341a19;
 		--ui-info: #93c5fd;
 		--ui-info-bg: #16233f;
+		--ui-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
+		--ui-header-bg: rgb(19 23 30 / 0.88);
 	}
 }
 [data-theme="dark"] {
+	--ui-surface: #1a1f28;
+	--ui-bg: #13171e;
+	--ui-base-200: #222834;
+	--ui-base-300: #313949;
+	--ui-muted: #a2abbd;
+	--ui-accent: #9ccc76;
+	--ui-accent-bg: #223020;
 	--ui-ok: #6ee7a8;
 	--ui-ok-bg: #16301f;
 	--ui-warn: #fbbf24;
@@ -49,12 +80,24 @@
 	--ui-err-bg: #341a19;
 	--ui-info: #93c5fd;
 	--ui-info-bg: #16233f;
+	--ui-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
+	--ui-header-bg: rgb(19 23 30 / 0.88);
 }
 
+html {
+	font-size: var(--pico-font-size);
+}
 body {
 	margin: 0;
+	background: var(--ui-bg);
+	/* 日本語を文節で折り返す */
 	word-break: auto-phrase;
 	line-break: strict;
+}
+p,
+li,
+dd {
+	text-wrap: pretty;
 }
 
 /* 並べ方は各画面の gap で決めるので、Pico の下マージンは外す */
@@ -72,6 +115,7 @@ blockquote,
 details,
 hgroup,
 fieldset,
+article,
 input:not([type="checkbox"], [type="radio"]),
 select,
 textarea,
@@ -80,62 +124,252 @@ button,
 [role="button"] {
 	margin-bottom: 0;
 }
+h1,
+h2,
+h3 {
+	--pico-font-weight: 700;
+	line-height: 1.35;
+}
 h1 {
-	font-size: 1.5rem;
+	font-size: 1.45rem;
 }
 h2 {
-	font-size: 1.15rem;
+	font-size: 1.05rem;
 }
 h3 {
-	font-size: 1rem;
+	font-size: 0.95rem;
+}
+
+/* ---- ボタン。押すものは 40px 以上 ---- */
+button,
+[type="submit"],
+[role="button"],
+a.button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.4rem;
+	min-height: 2.5rem;
+	font-size: 0.925rem;
+	font-weight: 600;
+	white-space: nowrap;
 }
 button[type="submit"] {
 	width: auto;
 }
-button,
-[type="submit"],
 a.button {
-	min-height: 2.5rem;
+	border: var(--pico-border-width) solid var(--pico-primary-border);
+	border-radius: var(--pico-border-radius);
+	padding: var(--pico-form-element-spacing-vertical)
+		var(--pico-form-element-spacing-horizontal);
+	background: var(--pico-primary-background);
+	color: var(--pico-primary-inverse);
+	text-decoration: none;
+}
+a.button:hover {
+	background: var(--pico-primary-hover-background);
+	color: var(--pico-primary-inverse);
+}
+a.button.outline,
+button.outline {
+	background: transparent;
+	color: var(--pico-primary);
+}
+/* 地も枠も無し。ヘッダーの並びと、小さな操作 */
+a.button.ghost,
+button.ghost,
+summary[role="button"].ghost {
+	border-color: transparent;
+	background: transparent;
+	color: inherit;
+}
+a.button.ghost:hover,
+button.ghost:hover,
+summary[role="button"].ghost:hover {
+	background: var(--ui-base-200);
+}
+a.button.ghost[aria-current="page"] {
+	background: var(--ui-base-200);
+	color: var(--pico-primary);
+}
+a.button.small,
+button.small {
+	padding: 0.3rem 0.7rem;
+	font-size: 0.875rem;
+}
+a.button.mini,
+button.mini {
+	min-height: 2rem;
+	padding: 0.15rem 0.6rem;
+	font-size: 0.8rem;
+}
+a.button.big {
+	min-height: 3rem;
+	padding-inline: 1.25rem;
+	font-size: 1.05rem;
 }
 
-.page {
-	max-width: 60rem;
-	margin: 0 auto;
-	padding: 1.25rem 1rem 3rem;
+/* ---- 並べる ---- */
+.page-container {
+	width: 100%;
+	max-width: var(--site-width);
+	margin-inline: auto;
 }
 .prose {
-	max-width: 44rem;
+	max-width: var(--page-width);
 }
-.prose :is(h1, h2, h3) {
-	margin-top: 1rem;
-}
-.prose :is(p, ul, ol, pre, blockquote, table) {
-	margin-bottom: 0.75rem;
-}
-.prose pre {
-	white-space: pre-wrap;
-}
-
-.panel {
-	border: 1px solid var(--ui-line);
-	border-radius: var(--pico-border-radius);
-	background: var(--ui-surface);
-	box-shadow: var(--ui-shadow);
-}
-.panel.pad {
-	padding: 1rem;
-}
-.panel.body {
+.stack {
 	display: flex;
 	flex-direction: column;
-	gap: 0.75rem;
-	padding: 1rem;
+	gap: var(--gap, 1rem);
+}
+.stack.tight {
+	--gap: 0.5rem;
+}
+.cluster {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--gap, 0.5rem);
+}
+.grow {
+	flex: 1 1 0;
+	min-width: 0;
+}
+/* 2 列(狭ければ 1 列) */
+.two {
+	display: grid;
+	gap: var(--gap, 1rem);
+	align-items: start;
+}
+@media (min-width: 800px) {
+	.two {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
+/* 画面の頭。見出し + 説明 + 右端の操作 */
+.head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-end;
+	gap: 0.5rem 1rem;
+}
+.head > hgroup {
+	flex: 1 1 16rem;
+	margin: 0;
+}
+.head > hgroup > p {
+	margin-top: 0.25rem;
+	color: var(--ui-muted);
+	font-size: 0.9rem;
 }
 
+/* ---- 面 ---- */
+.panel {
+	border: 1px solid var(--ui-base-300);
+	border-radius: 1rem;
+	background: var(--ui-surface);
+	box-shadow: var(--ui-shadow);
+	padding: 1rem 1.1rem;
+}
+.panel.soft {
+	border-color: transparent;
+	background: var(--ui-base-200);
+	box-shadow: none;
+}
+/* 見出しの付いた面。見出しの行と中身の間に線 */
+.panel > .panel-head {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin: -0.15rem 0 0.75rem;
+}
+.panel > .panel-head > h2 {
+	flex: 1 1 auto;
+	font-size: 0.95rem;
+}
+.panel > .panel-head a {
+	font-size: 0.85rem;
+}
+/* 並べた項目。行ごとに薄い線 */
+.rows {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+.rows > li {
+	display: flex;
+	align-items: baseline;
+	gap: 0.6rem;
+	padding: 0.55rem 0;
+	border-top: 1px solid var(--ui-base-200);
+	list-style: none;
+}
+.rows > li:first-child {
+	border-top: 0;
+	padding-top: 0;
+}
+.rows > li:last-child {
+	padding-bottom: 0;
+}
+/* 何も無いとき */
+.empty {
+	padding: 1.25rem 0.5rem;
+	color: var(--ui-muted);
+	font-size: 0.9rem;
+	text-align: center;
+}
+
+/* ---- 数字の札(いまの画面) ---- */
+.stats {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
+	gap: 0.75rem;
+}
+.stat {
+	display: flex;
+	flex-direction: column;
+	gap: 0.15rem;
+	padding: 0.85rem 1rem;
+}
+.stat > .label {
+	display: flex;
+	align-items: center;
+	gap: 0.35rem;
+	color: var(--ui-muted);
+	font-size: 0.78rem;
+	font-weight: 600;
+}
+.stat > .value {
+	font-size: 1.35rem;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+	line-height: 1.3;
+}
+.stat > .sub {
+	color: var(--ui-muted);
+	font-size: 0.8rem;
+}
+/* 使った割合の棒 */
+.meter {
+	height: 0.35rem;
+	margin-top: 0.35rem;
+	overflow: hidden;
+	border-radius: 999px;
+	background: var(--ui-base-200);
+}
+.meter > span {
+	display: block;
+	height: 100%;
+	border-radius: inherit;
+	background: var(--ui-accent);
+}
+
+/* ---- 注意書き ---- */
 .note {
 	border-left: 4px solid var(--ui-muted);
 	border-radius: var(--pico-border-radius);
-	background: var(--pico-code-background-color);
+	background: var(--ui-base-200);
 	padding: 0.7rem 0.9rem;
 	font-size: 0.9rem;
 }
@@ -156,16 +390,18 @@ a.button {
 	background: var(--ui-info-bg);
 }
 
-/* 札。淡い地 + 濃い文字 */
+/* ---- 札。淡い地 + 濃い文字。塗るのは「いま動いているもの」だけ ---- */
 .tag {
 	display: inline-flex;
 	align-items: center;
-	border: 1px solid var(--ui-line);
+	gap: 0.3rem;
+	border: 1px solid var(--ui-base-300);
 	border-radius: 999px;
 	padding: 0.05rem 0.55rem;
 	color: var(--ui-muted);
-	font-size: 0.78rem;
+	font-size: 0.75rem;
 	font-weight: 600;
+	line-height: 1.6;
 	white-space: nowrap;
 }
 .tag.ok {
@@ -183,48 +419,53 @@ a.button {
 	background: var(--ui-info-bg);
 	color: var(--ui-info);
 }
-
-a.button {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	border: var(--pico-border-width) solid var(--pico-primary-border);
-	border-radius: var(--pico-border-radius);
-	padding: var(--pico-form-element-spacing-vertical)
-		var(--pico-form-element-spacing-horizontal);
-	background: var(--pico-primary-background);
-	color: var(--pico-primary-inverse);
-	text-decoration: none;
+.tag.accent {
+	border-color: transparent;
+	background: var(--ui-accent-bg);
+	color: var(--ui-accent);
 }
-a.button.outline,
-button.outline {
-	background: transparent;
-	color: var(--pico-primary);
+/* いま歩いている、の点 */
+.dot {
+	width: 0.5rem;
+	height: 0.5rem;
+	border-radius: 999px;
+	background: currentColor;
 }
-a.button.big {
-	min-height: 3rem;
-	font-size: 1.05rem;
+.dot.live {
+	animation: ui-pulse 1.6s ease-in-out infinite;
 }
-button.mini,
-a.button.mini {
-	min-height: 2rem;
-	padding: 0.15rem 0.6rem;
-	font-size: 0.8rem;
+@keyframes ui-pulse {
+	50% {
+		opacity: 0.35;
+	}
 }
 
+/* ---- 入力 ---- */
 .field {
 	display: flex;
 	flex-direction: column;
-	gap: 0.2rem;
+	gap: 0.25rem;
+	min-width: 0;
 }
 .field > .lab {
 	color: var(--ui-muted);
-	font-size: 0.8rem;
+	font-size: 0.78rem;
 	font-weight: 600;
 }
 
+/* ---- 表 ---- */
 table {
 	font-size: 0.9rem;
+}
+th,
+td {
+	padding: 0.5rem 0.65rem;
+	vertical-align: baseline;
+}
+thead th {
+	color: var(--ui-muted);
+	font-size: 0.78rem;
+	white-space: nowrap;
 }
 .scroll-x {
 	overflow-x: auto;
@@ -233,18 +474,43 @@ table {
 	min-width: 36rem;
 }
 
-details.fold {
-	border: 1px solid var(--ui-line);
-	border-radius: var(--pico-border-radius);
-	padding: 0.6rem 0.9rem;
+/* ---- 読み物(ノート・日記・自己記述) ---- */
+.prose :is(h1, h2, h3) {
+	margin: 1.25rem 0 0.5rem;
 }
-details.fold > summary {
-	font-weight: 600;
+.prose > :first-child {
+	margin-top: 0;
 }
-details.fold > .inner {
-	padding-top: 0.75rem;
+.prose :is(p, ul, ol, pre, blockquote, table) {
+	margin-bottom: 0.8rem;
+}
+.prose > :last-child {
+	margin-bottom: 0;
+}
+.prose pre {
+	white-space: pre-wrap;
+}
+.prose ul,
+.prose ol {
+	padding-left: 1.3rem;
 }
 
+/* ---- 折りたたみ ---- */
+details.fold {
+	border: 1px solid var(--ui-base-300);
+	border-radius: 1rem;
+	background: var(--ui-surface);
+	padding: 0.75rem 1rem;
+}
+details.fold > summary {
+	font-size: 0.9rem;
+	font-weight: 600;
+}
+details.fold[open] > summary {
+	margin-bottom: 0.75rem;
+}
+
+/* ---- 文字 ---- */
 .muted {
 	color: var(--ui-muted);
 }
@@ -257,22 +523,12 @@ details.fold > .inner {
 .nums {
 	font-variant-numeric: tabular-nums;
 }
-.stack {
-	display: flex;
-	flex-direction: column;
-	gap: 1.25rem;
-}
-.stack.tight {
-	gap: 0.6rem;
-}
-.cluster {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: 0.6rem;
-}
-.grow {
-	flex: 1 1 auto;
+.clamp2 {
+	display: -webkit-box;
+	overflow: hidden;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	line-clamp: 2;
 }
 .spin {
 	width: 1rem;

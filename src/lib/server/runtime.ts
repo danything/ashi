@@ -1,4 +1,5 @@
 import { resolve } from "node:path";
+import { stopAllClaudeCode } from "./ashi/head/claude-code.ts";
 import type { Head, Tool } from "./ashi/head/head.ts";
 import { makeHead } from "./ashi/head/make.ts";
 import {
@@ -54,12 +55,23 @@ export function startWalking(): void {
 		return;
 	}
 	process.on("exit", lock.release);
+	const ac = new AbortController();
+	// adapter-node は SIGTERM で受付を閉じ、処理中の要求を待ってから sveltekit:shutdown を出す。
+	// 歩みの休み(タイマー)と頭の CLI が残っているとプロセスが終わらず、Pod が
+	// terminationGracePeriodSeconds(30 秒)いっぱい待って殺される。そのぶんデプロイで画面が落ちていた。
+	// 歩みの途中で止めても、状態ファイルは差し替えで書くので壊れない(その 1 歩が無かったことになるだけ)
+	process.once("sveltekit:shutdown", () => {
+		ac.abort();
+		stopAllClaudeCode();
+		lock.release();
+		process.exit(0);
+	});
 	walker = new Walker({ store, head: getHead(), tools: getTools() }, (o) => {
 		console.log(
 			`[ashi] ${o.kind}${"wakeAt" in o ? ` → ${o.wakeAt.toISOString()}` : ""}`,
 		);
 	});
-	void walker.run();
+	void walker.run(ac.signal);
 }
 
 export function isWalking(): boolean {

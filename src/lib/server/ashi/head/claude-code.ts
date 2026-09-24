@@ -42,6 +42,10 @@ interface CliResult {
 	is_error?: boolean;
 	api_error_status?: number | null;
 	result?: string;
+	/** success / error_max_turns / error_during_execution など */
+	subtype?: string;
+	terminal_reason?: string;
+	num_turns?: number;
 	structured_output?: unknown;
 	usage?: {
 		input_tokens?: number;
@@ -54,6 +58,13 @@ interface CliResult {
 const TOOL_HINT = `
 道具について: 過去のノートは notes/<id>.md にある(id は最近のノートの一覧の [ ] の中)。Read で読める。
 web は WebSearch で探し、WebFetch で読む。ファイルを書く道具やコマンドは無い。`;
+
+/** 動いている CLI。止めるとき(サーバーの終了)にまとめて止める */
+const running = new Set<ReturnType<typeof spawn>>();
+
+export function stopAllClaudeCode(): void {
+	for (const c of running) c.kill("SIGTERM");
+}
 
 export class ClaudeCodeHead implements Head {
 	readonly name: string;
@@ -105,8 +116,10 @@ export class ClaudeCodeHead implements Head {
 				"--strict-mcp-config",
 				"--disable-slash-commands",
 				"--no-session-persistence",
+				// 1 回の道具の呼び出しが 1 ターン。調べ物は検索・読み込みを何度も往復するので多めに
+				// (道具の往復の上限 + 3 にしていたら、最初の調べ物がターン切れで何も残らなかった)
 				"--max-turns",
-				String((req.maxToolRounds ?? 8) + 3),
+				String((req.maxToolRounds ?? 8) * 3 + 5),
 			];
 			// プロンプトは長い(持ち主の材料で 60,000 字になる)ので標準入力から渡す
 			const out = await this.run(args, promptWithHistory(req));
@@ -167,7 +180,9 @@ export class ClaudeCodeHead implements Head {
 					),
 				);
 			});
+			running.add(child);
 			child.on("close", (code) => {
+				running.delete(child);
 				clearTimeout(timer);
 				resolve({ stdout, stderr, code });
 			});
@@ -204,8 +219,16 @@ export class ClaudeCodeHead implements Head {
 				r.result ?? "",
 			);
 			if (b) throw new HeadAccessError(b.title, usage, b);
+			// result が空のことがある(ターンの上限など)。何で止まったかを必ず残す
+			const why = [
+				r.subtype,
+				r.terminal_reason,
+				r.num_turns !== undefined ? `${r.num_turns} ターン` : "",
+			]
+				.filter(Boolean)
+				.join("・");
 			throw new HeadError(
-				`Claude Code がつまずいた: ${(r.result ?? "").slice(0, 300)}`,
+				`Claude Code がつまずいた(${why || "理由なし"}): ${(r.result || out.stderr).slice(0, 300)}`,
 				usage,
 			);
 		}

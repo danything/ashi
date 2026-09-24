@@ -56,6 +56,13 @@ spec:
               value: https://as.doany.io
             - name: ASHI_HOME
               value: /data
+            # 1 日の区切り(予算・歩数・日記の日付)を日本の 0 時にする。無いと UTC で、朝 9 時に切り替わっていた
+            - name: TZ
+              value: Asia/Tokyo
+            # 止めるとき、処理中の要求を待つ上限(秒、adapter-node)。既定の 30 秒だと Gateway との
+            # keep-alive の接続が残って待ち切ることがある。対話の返事を待たせている途中なら切れる
+            - name: SHUTDOWN_TIMEOUT
+              value: "10"
             # 足跡の Forgejo はクラスタの中の Service へ直接行く(ノードから Gateway の 443 に折り返せないため)。
             # 人が決めた宛先なので、プライベートアドレスでも読む(頭の fetch_url は読まない)
             - name: FORGEJO_URL

@@ -1,5 +1,11 @@
 import type { Config, Feed } from "../config.ts";
 import { newId, type Store } from "../state.ts";
+import {
+	feedBlockage,
+	raiseBlocker,
+	resolveBlockers,
+	webhookNotify,
+} from "./blockers.ts";
 import { type GetDeps, htmlToText, safeGet } from "./tools.ts";
 
 /**
@@ -208,6 +214,7 @@ export async function crawlRequested(
 	now: Date,
 	deps: GetDeps = {},
 	env: Env = process.env,
+	notify = webhookNotify,
 ): Promise<{ id: string; added: number; error?: string }[]> {
 	const cfg = store.config();
 	const states = store.feedStates();
@@ -232,6 +239,7 @@ export async function crawlRequested(
 				seen: [...new Set(keys)].slice(-SEEN_MAX),
 			});
 			out.push({ id: feed.id, added: fresh.length });
+			resolveBlockers(store, `feed:${feed.id}`, now);
 		} catch (e) {
 			const error = e instanceof Error ? e.message : String(e);
 			// 失敗しても間隔は空ける(壊れた先を毎歩叩かない)
@@ -242,6 +250,8 @@ export async function crawlRequested(
 				lastError: error,
 			});
 			out.push({ id: feed.id, added: 0, error });
+			// 人が鍵を足すか設定を直すまで進めないので、知らせる
+			await raiseBlocker(store, "feed", feedBlockage(feed, error), now, notify);
 		}
 	}
 	if (out.length) store.log("crawled", { results: out });

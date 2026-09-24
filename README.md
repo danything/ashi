@@ -28,6 +28,7 @@ Give your AI legs.
 | 同じテーマの連続制限。`themeStreakLimit` 歩続いたら、そのテーマは選ばない。頭がまた出してきても受け取らない | `select.ts` / `walk.ts` |
 | 頭の出力の検査。問いの数・長さ・重複、見立ての値の範囲、自己記述と地図の長さ、抱える問いの上限 | `guard.ts` |
 | 足跡の巡回。人が `ashi.json` に書いた先だけを、同じ足跡は `feedMinHours` 時間空けて、1 歩で 3 つまで | `feeds.ts` |
+| 弾かれたら知らせる。権限・鍵・課金・巡回の失敗は `/blocked` に直し方つきで出し、初めて起きたときに通知する。頭が歩いていて気づいた壁(有料の論文など)も同じ | `blockers.ts` |
 
 ## 二つの系統: 先回りと個性
 
@@ -87,6 +88,7 @@ SvelteKit。ログインは Entra ID で、同じプロセスが歩みも回す(
 | `/questions` 問い | 開いている問いと点数、答えた・手放した問い |
 | `/diary` 日記 | 内省で書いた日記 |
 | `/owner` 持ち主 | 持ち主の興味の地図、足跡の様子、文章を渡す |
+| `/blocked` 弾かれたこと | 権限・鍵・課金・巡回の失敗と、その直し方。開いているものがあると全画面の上に帯が出る |
 | `/context` 頭の中 | 自己記述・コア原則と、頭に毎回渡している system の全文、設定 |
 
 ### 環境変数
@@ -101,6 +103,9 @@ SvelteKit。ログインは Entra ID で、同じプロセスが歩みも回す(
 | `ASHI_HOME` | 状態ディレクトリ(イメージでは `/data`) |
 | `ASHI_WALK` | `0` なら歩かず画面だけ |
 | `GITHUB_TOKEN` `X_BEARER_TOKEN` | 足跡の巡回(任意) |
+| `NOTIFY_WEBHOOK_URL` | 弾かれたことの通知(Mattermost / Slack の incoming webhook、任意) |
+
+どの権限をどう付けるか、弾かれたときにどう直すかは [docs/permissions.md](docs/permissions.md) にまとめてある。
 
 頭のモデルは `ashi.json` の `model`(既定 `claude-opus-5`、effort `high`)。拒否されたときはサーバー側のフォールバック(`fallbacks: "default"`)で別のモデルが答え直す。
 

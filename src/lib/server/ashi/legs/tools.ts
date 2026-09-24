@@ -46,6 +46,9 @@ export function isPrivateAddress(ip: string): boolean {
 	return true;
 }
 
+/** ガードレールで止めた(プライベートアドレス) */
+export class PrivateNetworkError extends Error {}
+
 type Resolve = (host: string) => Promise<string[]>;
 
 const resolveAll: Resolve = async (host) =>
@@ -69,7 +72,7 @@ export async function assertPublicUrl(
 	const host = url.hostname.replace(/^\[|\]$/g, "");
 	const addrs = isIP(host) ? [host] : await resolve(host);
 	if (addrs.length === 0 || addrs.some(isPrivateAddress))
-		throw new Error(`手元のネットワークは読まない: ${host}`);
+		throw new PrivateNetworkError(`手元のネットワークは読まない: ${host}`);
 	return url;
 }
 
@@ -148,9 +151,16 @@ export async function safeGet(
 	throw new Error("転送が多すぎる");
 }
 
+/** fetch_url の結果を足に知らせる口(弾かれたら持ち主に知らせ、通ったら片づける) */
+export interface FetchWatch {
+	blocked(host: string, status: number | "private"): void;
+	ok(host: string): void;
+}
+
 export function fetchUrlTool(
 	cfg: Pick<Config, "fetch">,
 	deps: GetDeps = {},
+	watch?: FetchWatch,
 ): Tool {
 	return {
 		name: "fetch_url",
@@ -164,11 +174,16 @@ export function fetchUrlTool(
 		},
 		readOnly: true,
 		async run(input) {
-			const r = await safeGet(
-				String((input as { url?: unknown }).url ?? ""),
-				cfg,
-				deps,
-			);
+			const raw = String((input as { url?: unknown }).url ?? "");
+			let r: GetResult;
+			try {
+				r = await safeGet(raw, cfg, deps);
+			} catch (e) {
+				if (e instanceof PrivateNetworkError) watch?.blocked("", "private");
+				throw e;
+			}
+			if (r.status >= 400) watch?.blocked(r.url.hostname, r.status);
+			else watch?.ok(r.url.hostname);
 			if (!r.body) return `(${r.status} ${r.type}: 文字ではないので読まない)`;
 			const text = /html/.test(r.type) ? htmlToText(r.body) : r.body;
 			return `${r.status} ${r.url}\n\n${text}`;

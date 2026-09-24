@@ -67,6 +67,31 @@ export class HeadError extends Error {
 	}
 }
 
+/**
+ * 弾かれたことの知らせ。権限・鍵・課金が足りず、人が手を打たないと進めないもの。
+ * 足はこれを持ち主に見せ、同じ key が初めて出たときに通知する(legs/blockers.ts)
+ */
+export interface Blockage {
+	/** 同じ原因をまとめる鍵(head:auth・feed:blog・fetch:example.com など) */
+	key: string;
+	title: string;
+	/** 権限の付け方・直し方(Markdown) */
+	remedy: string;
+	detail?: string;
+}
+
+/** 頭の側で弾かれた(鍵が無い・課金・機能が無効)。HeadError と同じく使った分を持つ */
+export class HeadAccessError extends HeadError {
+	constructor(
+		message: string,
+		usage: Usage,
+		readonly blockage: Blockage,
+	) {
+		super(message, usage);
+		this.name = "HeadAccessError";
+	}
+}
+
 export const noUsage = (): Usage => ({
 	inputTokens: 0,
 	outputTokens: 0,

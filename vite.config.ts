@@ -20,12 +20,6 @@ function strictLogger() {
 export default defineConfig(({ command }) => ({
 	customLogger: command === "build" ? strictLogger() : undefined,
 	plugins: [sveltekit({ adapter: adapter() })],
-	css: {
-		preprocessorOptions: {
-			// Pico の SCSS が古い if() を使っている(Pico 側の話で、こちらでは直せない)
-			scss: { silenceDeprecations: ["if-function"] },
-		},
-	},
 	build: {
 		rolldownOptions: {
 			// プラグインにかかった時間の知らせ。警告ではなく目安なので出さない

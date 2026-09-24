@@ -1,24 +1,12 @@
 /*
- * 見た目は Pico CSS(v2)。色は Pico の既定のまま、共通クラスだけここに置き、画面固有は各画面の <style> に閉じる。
- * フォントは束ねず OS のものを使う。
+ * 見た目は Pico CSS(v2)の出来合いの CSS(+layout.svelte で読む)。色は Pico の既定のまま、
+ * 共通クラスだけここに置き、画面固有は各画面の <style> に閉じる。フォントは束ねず OS のものを使う。
+ * SCSS で部品を削る作りはやめた(sass-embedded を入れるほど削るものが無い)
  */
-@use "@picocss/pico/scss/pico" with (
-	$enable-semantic-container: false,
-	$enable-responsive-typography: false,
-	$enable-responsive-spacings: false,
-	$modules: (
-		"content/figure": false,
-		"forms/input-color": false,
-		"forms/input-range": false,
-		"forms/input-file": false,
-		"components/accordion": false,
-		"components/dropdown": false,
-		"components/tooltip": false
-	)
-);
 
 :root {
-	--pico-font-family-sans-serif: "BIZ UDPGothic", "Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", system-ui,
+	--pico-font-family-sans-serif:
+		"BIZ UDPGothic", "Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", system-ui,
 		sans-serif;
 	--pico-font-size: 16px;
 	--pico-line-height: 1.7;
@@ -40,7 +28,19 @@
 	--ui-info: #1d4ed8;
 	--ui-info-bg: #e8eefc;
 }
-@mixin dark {
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) {
+		--ui-ok: #6ee7a8;
+		--ui-ok-bg: #16301f;
+		--ui-warn: #fbbf24;
+		--ui-warn-bg: #33270f;
+		--ui-err: #fca5a5;
+		--ui-err-bg: #341a19;
+		--ui-info: #93c5fd;
+		--ui-info-bg: #16233f;
+	}
+}
+[data-theme="dark"] {
 	--ui-ok: #6ee7a8;
 	--ui-ok-bg: #16301f;
 	--ui-warn: #fbbf24;
@@ -49,14 +49,6 @@
 	--ui-err-bg: #341a19;
 	--ui-info: #93c5fd;
 	--ui-info-bg: #16233f;
-}
-@media (prefers-color-scheme: dark) {
-	:root:not([data-theme="light"]) {
-		@include dark;
-	}
-}
-[data-theme="dark"] {
-	@include dark;
 }
 
 body {
@@ -198,7 +190,8 @@ a.button {
 	justify-content: center;
 	border: var(--pico-border-width) solid var(--pico-primary-border);
 	border-radius: var(--pico-border-radius);
-	padding: var(--pico-form-element-spacing-vertical) var(--pico-form-element-spacing-horizontal);
+	padding: var(--pico-form-element-spacing-vertical)
+		var(--pico-form-element-spacing-horizontal);
 	background: var(--pico-primary-background);
 	color: var(--pico-primary-inverse);
 	text-decoration: none;
@@ -230,14 +223,14 @@ a.button.mini {
 	font-weight: 600;
 }
 
+table {
+	font-size: 0.9rem;
+}
 .scroll-x {
 	overflow-x: auto;
 }
 .scroll-x > table {
 	min-width: 36rem;
-}
-table {
-	font-size: 0.9rem;
 }
 
 details.fold {

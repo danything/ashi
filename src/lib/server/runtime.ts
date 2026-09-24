@@ -1,6 +1,11 @@
 import { resolve } from "node:path";
 import { ClaudeHead } from "./ashi/head/claude.ts";
 import type { Head, Tool } from "./ashi/head/head.ts";
+import {
+	fetchBlockage,
+	raiseBlocker,
+	resolveBlockers,
+} from "./ashi/legs/blockers.ts";
 import { fetchUrlTool, noteTools } from "./ashi/legs/tools.ts";
 import { Walker } from "./ashi/legs/walk.ts";
 import { Store } from "./ashi/state.ts";
@@ -24,7 +29,17 @@ export function getHead(): Head {
 }
 
 export function getTools(): Tool[] {
-	return [fetchUrlTool(store.config()), ...noteTools(store)];
+	// 頭の fetch_url が弾かれたら持ち主に知らせ、同じ先が通ったら片づける
+	const watch = {
+		blocked(host: string, status: number | "private") {
+			const b = fetchBlockage(host, status);
+			if (b) void raiseBlocker(store, "fetch", b, new Date());
+		},
+		ok(host: string) {
+			resolveBlockers(store, `fetch:${host}`, new Date());
+		},
+	};
+	return [fetchUrlTool(store.config(), {}, watch), ...noteTools(store)];
 }
 
 let walker: Walker | undefined;

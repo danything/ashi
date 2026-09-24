@@ -1,5 +1,6 @@
 <script lang="ts">
-import "../app.scss";
+import "@picocss/pico/css/pico.min.css";
+import "../app.css";
 import { page } from "$app/state";
 
 let { data, children } = $props();
@@ -39,9 +40,26 @@ const current = (href: string) =>
 	</header>
 {/if}
 
+{#if data.blocked > 0 && page.url.pathname !== "/blocked"}
+	<div class="blocked-bar">
+		<a href="/blocked">弾かれていることが {data.blocked} 件ある。権限を足すと進める →</a>
+	</div>
+{/if}
+
 {@render children()}
 
 <style>
+	.blocked-bar {
+		background: var(--ui-warn-bg);
+		padding: 0.5rem 1rem;
+		color: var(--ui-warn);
+		font-size: 0.9rem;
+		font-weight: 600;
+		text-align: center;
+	}
+	.blocked-bar a {
+		color: inherit;
+	}
 	.bar {
 		border-bottom: 1px solid var(--ui-line);
 		padding: 0.5rem 1rem;

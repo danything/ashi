@@ -1,6 +1,8 @@
 import {
 	addUsage,
+	type Blockage,
 	type Head,
+	HeadAccessError,
 	HeadError,
 	noUsage,
 	type Tool,
@@ -23,6 +25,7 @@ import {
 	system,
 } from "../prompts.ts";
 import { hashText, localDay, newId, type Store } from "../state.ts";
+import { raiseBlocker, resolveBlockers, webhookNotify } from "./blockers.ts";
 import { crawlRequested, feedStatus } from "./feeds.ts";
 import {
 	acceptNewQuestions,
@@ -50,6 +53,30 @@ export interface Legs {
 	/** 足跡を読むときの通信(テストで差し替える) */
 	net?: GetDeps;
 	env?: Record<string, string | undefined>;
+	/** 弾かれたことの知らせ先(既定は NOTIFY_WEBHOOK_URL) */
+	notify?: (text: string) => Promise<void>;
+}
+
+/** 頭が知らせてきた「弾かれた」を、形を確かめて 1 歩 3 件まで */
+export function reportedBlocks(v: unknown): Blockage[] {
+	if (!Array.isArray(v)) return [];
+	return v
+		.filter(
+			(x): x is { target: string; reason: string; needed: string } =>
+				typeof x?.target === "string" &&
+				x.target.trim() !== "" &&
+				typeof x.needed === "string",
+		)
+		.slice(0, 3)
+		.map((x) => {
+			const target = x.target.trim().slice(0, 100);
+			return {
+				key: `report:${target.toLowerCase()}`,
+				title: `${target} に入れなかった`,
+				detail: String(x.reason ?? "").slice(0, 500),
+				remedy: x.needed.slice(0, 1000),
+			};
+		});
 }
 
 /** 頭の crawl を受け取る形に。id の照合と間隔の下限は巡回するときに足が見る */
@@ -117,6 +144,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 	const { store, head } = legs;
 	const now = legs.now?.() ?? new Date();
 	const rng = legs.rng ?? Math.random;
+	const notify = legs.notify ?? webhookNotify;
 	const cfg = store.config();
 	const walk = store.walk();
 	const core = store.core();
@@ -143,15 +171,24 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 	// 前の歩みで頭が読みたいと言った足跡を読む(GET だけ。頭は呼ばないので予算は使わない)
 	if (walk.crawlRequests.length > 0) {
 		store.saveWalk({ ...store.walk(), crawlRequests: [] });
-		await crawlRequested(store, walk.crawlRequests, now, legs.net, legs.env);
+		await crawlRequested(
+			store,
+			walk.crawlRequests,
+			now,
+			legs.net,
+			legs.env,
+			notify,
+		);
 	}
 
 	// 読み取り専用の道具しか頭に渡さない
 	const tools = legs.tools.filter((t) => t.readOnly === true);
 	let spent = noUsage();
+	// 頭が答えたら、頭の側で弾かれていたこと(鍵・課金)は片づいている
 	const charge = (u: Usage) => {
 		spent = addUsage(spent, u);
 		left -= u.costUsd;
+		resolveBlockers(store, "head:", now);
 	};
 	const sys = () => system(core, store.self(), store.owner());
 	const minutes = (m: number) => new Date(now.getTime() + m * 60_000);
@@ -319,6 +356,10 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 				recentThemes: [q.theme, ...walk.recentThemes].slice(0, 20),
 				crawlRequests: crawlIds(output.crawl),
 			});
+			// 頭が歩いていて弾かれたと知らせてきたもの。持ち主が権限を足せば進めるもの
+			for (const b of reportedBlocks(output.blocked)) {
+				await raiseBlocker(store, "report", b, now, notify);
+			}
 			store.log("walked", {
 				question: q.text,
 				theme: q.theme,
@@ -389,7 +430,12 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 		if ("wakeAt" in outcome) sleepUntil(outcome.wakeAt);
 		return outcome;
 	} catch (e) {
-		if (e instanceof HeadError) charge(e.usage);
+		if (e instanceof HeadError) {
+			spent = addUsage(spent, e.usage);
+		}
+		if (e instanceof HeadAccessError) {
+			await raiseBlocker(store, "head", e.blockage, now, notify);
+		}
 		const error = e instanceof Error ? e.message : String(e);
 		store.log("failed", { error, usd: spent.costUsd });
 		return {

@@ -1,4 +1,10 @@
-import { type Head, HeadError, type Tool, type Turn } from "../head/head.ts";
+import {
+	type Head,
+	HeadAccessError,
+	HeadError,
+	type Tool,
+	type Turn,
+} from "../head/head.ts";
 import {
 	CHAT_SCHEMA,
 	type ChatAnswer,
@@ -6,6 +12,12 @@ import {
 	system,
 } from "../prompts.ts";
 import { localDay, type Store } from "../state.ts";
+import {
+	blockersText,
+	raiseBlocker,
+	resolveBlockers,
+	webhookNotify,
+} from "./blockers.ts";
 import { feedStatus } from "./feeds.ts";
 import { acceptNewQuestions, allowance, trimOpenQuestions } from "./guard.ts";
 import { crawlIds } from "./walk.ts";
@@ -22,7 +34,13 @@ const MAX_TURNS = 20;
 const MAX_CHARS = 4000;
 
 export async function chat(
-	ctx: { store: Store; head: Head; tools: Tool[]; now?: () => Date },
+	ctx: {
+		store: Store;
+		head: Head;
+		tools: Tool[];
+		now?: () => Date;
+		notify?: (text: string) => Promise<void>;
+	},
 	by: string,
 	history: Turn[],
 	message: string,
@@ -61,6 +79,7 @@ export async function chat(
 				store.notes(),
 				store.questions(),
 				feedStatus(store, now),
+				blockersText(store),
 			),
 			schema: CHAT_SCHEMA,
 			tools: ctx.tools.filter((t) => t.readOnly === true),
@@ -68,6 +87,7 @@ export async function chat(
 			maxCostUsd: left,
 		});
 		store.charge(today, usage);
+		resolveBlockers(store, "head:", now);
 		let added: string[] = [];
 		store.updateQuestions((qs) => {
 			const got = acceptNewQuestions(
@@ -101,6 +121,14 @@ export async function chat(
 		return { reply, added, crawl, usd: usage.costUsd };
 	} catch (e) {
 		if (e instanceof HeadError) store.charge(today, e.usage);
+		if (e instanceof HeadAccessError)
+			await raiseBlocker(
+				store,
+				"head",
+				e.blockage,
+				now,
+				ctx.notify ?? webhookNotify,
+			);
 		throw e;
 	}
 }

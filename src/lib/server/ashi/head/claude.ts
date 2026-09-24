@@ -1,7 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
 import {
 	addUsage,
+	type Blockage,
 	type Head,
+	HeadAccessError,
 	HeadError,
 	noUsage,
 	type ThinkRequest,
@@ -77,7 +79,7 @@ export class ClaudeHead implements Head {
 			const tired =
 				rounds >= (req.maxToolRounds ?? 8) ||
 				(req.maxCostUsd !== undefined && usage.costUsd >= req.maxCostUsd);
-			const res = await this.client.beta.messages.create({
+			const res = await this.create(usage, {
 				model: this.name,
 				max_tokens: 16000,
 				betas: [FALLBACK_BETA],
@@ -173,6 +175,20 @@ export class ClaudeHead implements Head {
 		}
 	}
 
+	/** API を呼ぶ。鍵・課金・権限で弾かれたら、人が直せる形(HeadAccessError)に言い換える */
+	private async create(
+		usage: Usage,
+		params: Anthropic.Beta.MessageCreateParamsNonStreaming,
+	): Promise<Anthropic.Beta.BetaMessage> {
+		try {
+			return await this.client.beta.messages.create(params);
+		} catch (e) {
+			const b = claudeBlockage(e);
+			if (b) throw new HeadAccessError(b.title, usage, b);
+			throw e;
+		}
+	}
+
 	private price(res: Anthropic.Beta.BetaMessage): Usage {
 		const [inUsd, outUsd] = PRICES[res.model] ?? PRICES[this.name] ?? [5, 25];
 		const u = res.usage;
@@ -192,4 +208,49 @@ export class ClaudeHead implements Head {
 			costUsd,
 		};
 	}
+}
+
+const CONSOLE = "https://platform.claude.com";
+
+/** Claude API のエラーのうち、人が権限や鍵を足せば直るもの */
+export function claudeBlockage(e: unknown): Blockage | undefined {
+	if (!(e instanceof Anthropic.APIError)) return undefined;
+	const msg = e.message;
+	if (e instanceof Anthropic.AuthenticationError) {
+		return {
+			key: "head:auth",
+			title: "Claude API の鍵が通らない",
+			detail: msg,
+			remedy: `${CONSOLE}/settings/keys で API キーを作り、サーバーの環境変数 \`ANTHROPIC_API_KEY\` に入れて再起動する(クラスタなら Infisical の値を差し替えて rollout restart)。`,
+		};
+	}
+	if (/credit balance|billing|purchase credits/i.test(msg)) {
+		return {
+			key: "head:billing",
+			title: "Claude API の残高が足りない",
+			detail: msg,
+			remedy: `${CONSOLE}/settings/billing でクレジットを足す(自動チャージも設定できる)。Ashi の 1 日の上限は ashi.json の budget.dailyUsd。`,
+		};
+	}
+	if (
+		/web.?search/i.test(msg) &&
+		(e instanceof Anthropic.PermissionDeniedError ||
+			e instanceof Anthropic.BadRequestError)
+	) {
+		return {
+			key: "head:web-search",
+			title: "Claude の web 検索が組織で許可されていない",
+			detail: msg,
+			remedy: `${CONSOLE}/settings/privacy(組織の設定)で web search を有効にする。使わせないなら ashi.json の allowWeb を false にする。`,
+		};
+	}
+	if (e instanceof Anthropic.PermissionDeniedError) {
+		return {
+			key: "head:permission",
+			title: "Claude API で権限が足りない",
+			detail: msg,
+			remedy: `API キーの属するワークスペースで、ashi.json の model(既定 claude-opus-5)が使えるか ${CONSOLE}/settings/workspaces で確かめる。`,
+		};
+	}
+	return undefined;
 }

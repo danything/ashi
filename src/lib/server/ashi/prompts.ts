@@ -78,6 +78,28 @@ const CRAWL_FIELD = {
 	},
 };
 
+const BLOCKED_FIELD = {
+	blocked: {
+		type: "array",
+		description:
+			"調べていて、権限・鍵・ログイン・有料の壁で進めなかったもの。持ち主が権限を足せば進めるなら書く。無ければ空",
+		items: {
+			type: "object",
+			properties: {
+				target: { type: "string", description: "どこ(サイト・API・サービス)" },
+				reason: { type: "string", description: "何に弾かれたか" },
+				needed: {
+					type: "string",
+					description:
+						"持ち主が何をすれば進めるか(鍵の発行・購読・公開の出典など)",
+				},
+			},
+			required: ["target", "reason", "needed"],
+			additionalProperties: false,
+		},
+	},
+};
+
 const SLEEP_FIELDS = {
 	tiredness: {
 		type: "number",
@@ -106,6 +128,7 @@ export interface ExploreAnswer {
 	answered: boolean;
 	new_questions: NewQuestion[];
 	crawl: string[];
+	blocked: { target: string; reason: string; needed: string }[];
 	tiredness: number;
 	sleep_minutes: number;
 }
@@ -129,6 +152,8 @@ export const EXPLORE_SCHEMA: JsonSchema = {
 			items: QUESTION_ITEM,
 			description: "歩いていて浮かんだ次の問い",
 		},
+		...CRAWL_FIELD,
+		...BLOCKED_FIELD,
 		...SLEEP_FIELDS,
 	},
 	required: [
@@ -137,6 +162,8 @@ export const EXPLORE_SCHEMA: JsonSchema = {
 		"findings",
 		"answered",
 		"new_questions",
+		"crawl",
+		"blocked",
 		"tiredness",
 		"sleep_minutes",
 	],
@@ -187,6 +214,7 @@ ${TRACK_HINT[q.track]}
 
 道具で調べ(web 検索・fetch_url・これまでのノートの search_notes / read_note)、分かったことをノートにしてください。
 調べきれなくても構いません。分かったところまでを書き、残りは次の問いにしてください。
+ログイン・鍵・有料の壁で進めなかったところがあれば blocked に書いてください。足が持ち主に知らせます。
 
 最近のノート:
 ${recentNotes(notes)}
@@ -342,8 +370,9 @@ export const CHAT_SCHEMA: JsonSchema = {
 			description:
 				"話していて歩きたくなった問い。持ち主に頼まれた調べ物もここに入れる。無ければ空",
 		},
+		...CRAWL_FIELD,
 	},
-	required: ["reply", "new_questions"],
+	required: ["reply", "new_questions", "crawl"],
 	additionalProperties: false,
 };
 
@@ -352,6 +381,7 @@ export function chatPrompt(
 	notes: Note[],
 	questions: Question[],
 	feeds: string,
+	blockers: string,
 ): string {
 	return `持ち主が話しかけています。いまは歩いておらず、持ち主と話しています。
 何を学んだか、どこを歩いているかを聞かれたら、ノート(search_notes / read_note)を引いて答えてください。
@@ -366,6 +396,9 @@ ${recentNotes(notes)}
 ${openList(questions)}
 
 ${feedsBlock(feeds)}
+
+いま弾かれていること(権限・鍵・課金。聞かれたら、何をすれば進めるかも添えて答える):
+${blockers}
 
 持ち主: ${message}`;
 }

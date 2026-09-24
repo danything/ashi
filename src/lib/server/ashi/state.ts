@@ -12,6 +12,7 @@ import {
 import { join } from "node:path";
 import { type Config, DEFAULT_CONFIG, normalizeConfig } from "./config.ts";
 import type { Usage } from "./head/head.ts";
+import type { BlockerRecord } from "./legs/blockers.ts";
 import type { FeedState } from "./legs/feeds.ts";
 
 /**
@@ -22,6 +23,7 @@ import type { FeedState } from "./legs/feeds.ts";
  *   self.md         自己記述(内省のたびに頭が書き直す)。持ち主に無い発想を個性として育てる
  *   owner.md        持ち主の興味の地図(持ち主の発言と渡された文章から頭が書き直す)
  *   sources/<id>.md 持ち主が渡した文章と、足跡(ブログ・GitHub・X)から読んだもの。目録は sources.json
+ *   blockers.json   弾かれたこと(権限・鍵・課金・巡回の失敗)と、その直し方
  *   feeds.json      足跡ごとの、最後に読んだ時刻と取り込み済みの鍵
  *   questions.json  問い
  *   notes.json      知識のノートの目録。本文は notes/<id>.md
@@ -288,6 +290,14 @@ export class Store {
 			this.sources().filter((s) => s.id !== id),
 		);
 		// 本文のファイルは残す(消すのは人が手で。誤って消したときに戻せるように)
+	}
+
+	blockers(): Record<string, BlockerRecord> {
+		return this.readJson<Record<string, BlockerRecord>>("blockers.json", {});
+	}
+
+	saveBlockers(all: Record<string, BlockerRecord>): void {
+		this.writeJson("blockers.json", all);
 	}
 
 	feedStates(): Record<string, FeedState> {

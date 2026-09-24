@@ -65,7 +65,8 @@ spec:
               value: >-
                 [{"id":"blog","kind":"rss","target":"https://doany.io/rss.xml","title":"ブログ"},
                 {"id":"github","kind":"github","target":"5ym","title":"GitHub"},
-                {"id":"forgejo","kind":"forgejo","target":"yui","title":"Forgejo"}]
+                {"id":"forgejo","kind":"forgejo","target":"yui","title":"Forgejo"},
+                {"id":"x","kind":"x","target":"5yuim","title":"X"}]
             - name: ANTHROPIC_API_KEY
               valueFrom:
                 secretKeyRef:

@@ -1,6 +1,8 @@
+import { fail } from "@sveltejs/kit";
+import { PostRefused, postNow } from "$lib/server/ashi/legs/post-now";
 import { WRITE_USD, xConfigured } from "$lib/server/ashi/legs/x";
 import { localDay } from "$lib/server/ashi/state";
-import { store } from "$lib/server/runtime";
+import { getHead, store } from "$lib/server/runtime";
 import type { Actions, PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = () => {
@@ -30,6 +32,17 @@ export const load: PageServerLoad = () => {
 };
 
 export const actions: Actions = {
+	/** 内省を待たずに、いま 1 件投稿させる(初めてなら自己紹介) */
+	postNow: async () => {
+		try {
+			const r = await postNow({ store, head: getHead() });
+			return { posted: r.text, id: r.id };
+		} catch (e) {
+			return fail(e instanceof PostRefused ? 409 : 502, {
+				message: e instanceof Error ? e.message : String(e),
+			});
+		}
+	},
 	disconnect: () => {
 		store.saveXAccount(undefined);
 		store.log("x-disconnected");

@@ -320,3 +320,41 @@ describe("conversePrompt", () => {
 		expect(p).toContain("思わず答えたくなる問いかけ");
 	});
 });
+
+describe("いま投稿させる", () => {
+	test("初めてなら自己紹介を頼み、投稿して足どりに残す", async () => {
+		const { postNow } = await import("../src/lib/server/ashi/legs/post-now.ts");
+		const store = freshStore();
+		connect(store);
+		const { calls, f } = fakeX(() => Response.json({ data: { id: "first" } }));
+		const head = new FakeHead({
+			post: (req) => {
+				expect(req.prompt).toContain("初めての投稿");
+				expect(req.prompt).toContain("思わず答えたくなる");
+				return {
+					text: "はじめまして、あしです🌱 みんなは最近なにを調べた?",
+					why: "自己紹介",
+				};
+			},
+		});
+		const r = await postNow({ store, head, now: () => now, env, fetch: f });
+		expect(r).toEqual({
+			text: "はじめまして、あしです🌱 みんなは最近なにを調べた?",
+			id: "first",
+		});
+		expect(JSON.parse(String(calls[0]?.init.body))).toEqual({ text: r.text });
+		expect(store.recentLog(1)[0]).toMatchObject({
+			event: "posted",
+			first: true,
+		});
+
+		// 2 回目からは自己紹介ではない
+		const head2 = new FakeHead({
+			post: (req) => {
+				expect(req.prompt).not.toContain("初めての投稿");
+				return { text: "二つ目", why: "w" };
+			},
+		});
+		await postNow({ store, head: head2, now: () => now, env, fetch: f });
+	});
+});

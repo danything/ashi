@@ -220,6 +220,9 @@ export const EXPLORE_SCHEMA: JsonSchema = {
 	additionalProperties: false,
 };
 
+/** 最近のノートの一覧(画面の外から使う口) */
+export const recentNotesText = (notes: Note[]) => recentNotes(notes);
+
 const recentNotes = (notes: Note[]) =>
 	notes.length
 		? notes

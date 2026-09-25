@@ -3,7 +3,8 @@ import { enhance } from "$app/forms";
 import Icon from "$lib/components/Icon.svelte";
 import { usd, when } from "$lib/format";
 
-let { data } = $props();
+let { data, form } = $props();
+let posting = $state(false);
 </script>
 
 <svelte:head><title>X | Ashi</title></svelte:head>
@@ -39,6 +40,27 @@ let { data } = $props();
 				<p class="small muted">
 					メンションを最後に読んだ: {data.account.lastMentionsAt ? when(data.account.lastMentionsAt) : "まだ"}
 				</p>
+				<form
+					method="POST"
+					action="?/postNow"
+					use:enhance={() => {
+						posting = true;
+						return async ({ update }) => {
+							await update();
+							posting = false;
+						};
+					}}
+				>
+					<button type="submit" class="small" aria-busy={posting} disabled={posting}>いま 1 件投稿させる</button>
+				</form>
+				{#if posting}<p class="tiny muted">Ashi が書いている(数十秒かかる)</p>{/if}
+				{#if form?.message}<p class="note err small">{form.message}</p>{/if}
+				{#if form && "posted" in form}
+					<p class="note ok small">
+						投稿した: {form.posted}
+						<a href="https://x.com/{data.account.username}/status/{form.id}" target="_blank" rel="noopener noreferrer">見る</a>
+					</p>
+				{/if}
 				<div class="cluster">
 					<a class="button outline small" href="/x/login" data-sveltekit-reload>つなぎ直す</a>
 					<form method="POST" action="?/disconnect" use:enhance>

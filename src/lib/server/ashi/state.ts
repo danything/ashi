@@ -38,6 +38,7 @@ import type { FeedState } from "./legs/feeds.ts";
  *   budget.json     今日使った額
  *   log.jsonl       出来事の記録
  *   chat.jsonl      人との対話
+ *   dialogues.jsonl よそ者(別のモデル)との対話。学びとして扱い、リセットで archive へ移す
  *
  * 画面(SvelteKit)と歩み(walk.ts)は同じプロセスで動かす。読み書きは同期で済ませ、
  * 頭を待つ間に古くなった値で上書きしないよう、書く直前に読み直す(updateQuestions)。
@@ -68,10 +69,10 @@ export interface Question {
 	lastVisitedAt?: string;
 	/**
 	 * どこで生まれたか。explore: 歩いて / seed: 問いを探して / profile: 持ち主の地図から /
-	 * chat: 持ち主との対話 / x: X の会話(via はそのときの相手)。個性が持ち主にどれだけ引っぱられて
+	 * chat: 持ち主との対話 / x: X の会話(via はそのときの相手)/ stranger: よそ者との対話(via はモデルと分野)。個性が持ち主にどれだけ引っぱられて
 	 * いるかを数えるのに使う(2026-09-25、それまでは記録が無かった)
 	 */
-	source?: "explore" | "seed" | "profile" | "chat" | "x";
+	source?: "explore" | "seed" | "profile" | "chat" | "x" | "stranger";
 	via?: string;
 	/** ほぼ同じ問いが後から出た回数(受け取らずに数だけ足す) */
 	echoes?: number;
@@ -610,10 +611,19 @@ export class Store {
 		return tailJsonl<ChatEntry>(this.path("chat.jsonl"), n);
 	}
 
+	appendDialogue(d: Dialogue): void {
+		appendFileSync(this.path("dialogues.jsonl"), `${JSON.stringify(d)}\n`);
+	}
+
+	/** よそ者との対話の末尾から n 件。新しい順 */
+	recentDialogues(n: number): Dialogue[] {
+		return tailJsonl<Dialogue>(this.path("dialogues.jsonl"), n);
+	}
+
 	/**
 	 * 学んだことを白紙に戻す。**消さずに archive/<時刻>/ へ移す**(戻したくなったら手で戻せる)。
 	 *
-	 * 戻すもの: 問い・ノート・日記・自己記述・橋の候補・次の一歩・歩数と直近のテーマ・足どり(log)
+	 * 戻すもの: 問い・ノート・日記・自己記述・橋の候補・よそ者との対話・次の一歩・歩数と直近のテーマ・足どり(log)
 	 * 残すもの: コア原則・設定・持ち主の地図と材料(渡した文章・足跡・対話)・改善案・弾かれたこと・今日の予算
 	 *   持ち主の地図は Ashi の学びではなく持ち主の写しで、作り直すと材料を読み直すぶん重い。
 	 *   改善案は、直したものの記録として残す
@@ -629,6 +639,7 @@ export class Store {
 			"diary",
 			"self.md",
 			"bridges.json",
+			"dialogues.jsonl",
 			"log.jsonl",
 			"walk.json",
 		]) {
@@ -665,6 +676,20 @@ export interface LogEntry {
 	at: string;
 	event: string;
 	[key: string]: unknown;
+}
+
+/** よそ者との対話 1 回分 */
+export interface Dialogue {
+	at: string;
+	/** 相手のモデル */
+	model: string;
+	/** 足がさいころで選んだ、相手の関心の分野 */
+	field: string;
+	turns: { by: "stranger" | "ashi"; text: string }[];
+	/** Ashi が会話から出して、受け取られた問い */
+	added: string[];
+	/** Ashi が会話から持ち帰ったこと(ひとこと) */
+	takeaway: string;
 }
 
 export interface ChatEntry {

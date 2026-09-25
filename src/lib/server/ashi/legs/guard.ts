@@ -332,6 +332,8 @@ function lineage(
 			.some((v) => handles.has(v.trim().toLowerCase()));
 		return viaOwner ? "owner" : "other";
 	}
+	// よそ者(別のモデル)との対話から生まれたもの。持ち主の関心の外から来た
+	if (root.source === "stranger") return "other";
 	if (root.source === "seed" || !root.source) return "unknown";
 	// 歩いて生まれたのに親が残っていない(リセット前の親など)
 	return "unknown";

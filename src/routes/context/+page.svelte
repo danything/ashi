@@ -1,5 +1,6 @@
 <script lang="ts">
 import { enhance } from "$app/forms";
+import { when } from "$lib/format";
 
 let { data, form } = $props();
 </script>
@@ -71,6 +72,44 @@ let { data, form } = $props();
 		</section>
 	</div>
 
+	<section class="panel">
+		<div class="panel-head">
+			<h2>よそ者との対話</h2>
+			<span class="tag">{data.stranger.enabled ? `内省のたびに ${data.stranger.model} と ${data.stranger.turns} 往復` : "止めている"}</span>
+		</div>
+		<p class="small muted">
+			持ち主の地図を知らない別のモデルと話して、個性の問いの種を外から持ち込む。相手の関心の分野は足がさいころで選ぶ。
+		</p>
+		{#if data.dialogues.length}
+			<div class="stack" style="--gap: 0.5rem">
+				{#each data.dialogues as d (d.at)}
+					<details class="fold dialogue">
+						<summary>
+							<span class="tag accent">{d.field}</span>
+							<span class="grow">{d.takeaway || "持ち帰りは無し"}</span>
+							<span class="tiny muted nums">{when(d.at)}</span>
+						</summary>
+						<div class="stack" style="--gap: 0.5rem">
+							{#each d.turns as t, k (k)}
+								<p class="small turn {t.by}"><strong>{t.by === "ashi" ? "Ashi" : d.field}</strong>{t.text}</p>
+							{/each}
+							{#if d.added.length}
+								<div>
+									<p class="tiny muted">生まれた問い</p>
+									<ul class="rows">
+										{#each d.added as a, k (k)}<li class="small">{a}</li>{/each}
+									</ul>
+								</div>
+							{/if}
+						</div>
+					</details>
+				{/each}
+			</div>
+		{:else}
+			<p class="empty">まだ話していない。次の内省のあとに話す。</p>
+		{/if}
+	</section>
+
 	<details class="fold">
 		<summary>頭に渡している system の全文</summary>
 		<pre class="small">{data.system}</pre>
@@ -117,5 +156,22 @@ let { data, form } = $props();
 	pre {
 		margin: 0;
 		white-space: pre-wrap;
+	}
+	.dialogue summary {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+	.turn {
+		margin: 0;
+		padding: 0.5rem 0.75rem;
+		border-radius: var(--pico-border-radius);
+		background: var(--ui-base-200);
+	}
+	.turn.ashi {
+		background: var(--ui-accent-bg);
+	}
+	.turn strong {
+		margin-right: 0.5rem;
 	}
 </style>

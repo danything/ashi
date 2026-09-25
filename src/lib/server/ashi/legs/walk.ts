@@ -47,6 +47,7 @@ import {
 	unit,
 } from "./guard.ts";
 import { restingThemes, SEEDING, selectQuestion } from "./select.ts";
+import { talkWithStranger } from "./stranger.ts";
 import type { GetDeps } from "./tools.ts";
 import {
 	canPost,
@@ -73,6 +74,8 @@ export interface Legs {
 	env?: Record<string, string | undefined>;
 	/** 弾かれたことの知らせ先(既定は NOTIFY_WEBHOOK_URL) */
 	notify?: (text: string) => Promise<void>;
+	/** よそ者の話し相手(頭と別のモデル)。無ければ話さない */
+	stranger?: Head;
 }
 
 /** 頭が知らせてきた「弾かれた」を、形を確かめて 1 歩 3 件まで */
@@ -592,6 +595,25 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 			});
 			if (outcome.kind === "walked" || outcome.kind === "seeded")
 				outcome = { ...outcome, reflected: true };
+			// 内省のあとに、よそ者と短く話す。つまずいても歩み自体は失敗にしない(個性の種が 1 回減るだけ)
+			if (legs.stranger && cfg.stranger.enabled) {
+				try {
+					const talk = await talkWithStranger({
+						store,
+						head,
+						stranger: legs.stranger,
+						turns: cfg.stranger.turns,
+						now,
+						rng,
+					});
+					charge(talk.usage);
+				} catch (e) {
+					if (e instanceof HeadError) charge(e.usage);
+					store.log("stranger-failed", {
+						error: e instanceof Error ? e.message : String(e),
+					});
+				}
+			}
 		}
 
 		// 疲れていたら上限まで休む

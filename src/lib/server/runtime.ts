@@ -39,6 +39,16 @@ export function getHead(): Head {
 	return head;
 }
 
+let stranger: Head | undefined;
+/** よそ者の話し相手。頭と同じ繋ぎ方で、モデルだけ設定の stranger.model にする */
+export function getStranger(): Head | undefined {
+	const cfg = store.config();
+	if (!cfg.stranger.enabled) return undefined;
+	if (!stranger)
+		stranger = makeHead({ ...cfg, model: cfg.stranger.model }, store.home);
+	return stranger;
+}
+
 export function getTools(): Tool[] {
 	// 頭の fetch_url が弾かれたら持ち主に知らせ、同じ先が通ったら片づける
 	const watch = {
@@ -83,11 +93,14 @@ export function startWalking(): void {
 		lock.release();
 		process.exit(0);
 	});
-	walker = new Walker({ store, head: getHead(), tools: getTools() }, (o) => {
-		console.log(
-			`[ashi] ${o.kind}${"wakeAt" in o ? ` → ${o.wakeAt.toISOString()}` : ""}`,
-		);
-	});
+	walker = new Walker(
+		{ store, head: getHead(), tools: getTools(), stranger: getStranger() },
+		(o) => {
+			console.log(
+				`[ashi] ${o.kind}${"wakeAt" in o ? ` → ${o.wakeAt.toISOString()}` : ""}`,
+			);
+		},
+	);
 	void walker.run(ac.signal);
 	startCleanupTimer();
 	startMentions(ac.signal);

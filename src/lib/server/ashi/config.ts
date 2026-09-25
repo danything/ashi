@@ -75,6 +75,17 @@ export interface Config {
 		/** メンションを読みに行く間隔の下限(分) */
 		mentionsEveryMinutes: number;
 	};
+	/**
+	 * よそ者との対話。内省のたびに、持ち主の地図を知らない別のモデルと短く話し、個性の問いの種にする。
+	 * 個性の問いが全部持ち主の関心から派生していた(2026-09-25、ownerPull 24 / 24)ので、外の関心を持ち込む
+	 */
+	stranger: {
+		enabled: boolean;
+		/** 相手のモデル。頭(Opus)と癖が違えばよく、賢さは要らない */
+		model: string;
+		/** 往復の数(相手 → Ashi で 1 往復) */
+		turns: number;
+	};
 	/** 1 歩で増やしてよい問いの数 */
 	maxNewQuestions: number;
 	/** 開いたまま抱えておける問いの数。超えたら点の低いものから手放す */
@@ -115,6 +126,7 @@ export const DEFAULT_CONFIG: Config = {
 		maxRepliesPerDay: 10,
 		mentionsEveryMinutes: 60,
 	},
+	stranger: { enabled: true, model: "claude-sonnet-5", turns: 3 },
 	maxNewQuestions: 3,
 	maxOpenQuestions: 50,
 	maxToolRounds: 12,
@@ -141,6 +153,7 @@ export function normalizeConfig(raw: unknown): Config {
 		sleep?: Partial<Config["sleep"]>;
 		fetch?: Partial<Config["fetch"]>;
 		x?: Partial<Config["x"]>;
+		stranger?: Partial<Config["stranger"]>;
 	};
 	const d = DEFAULT_CONFIG;
 	const minMinutes = clamp(r.sleep?.minMinutes, 1, 24 * 60, d.sleep.minMinutes);
@@ -202,6 +215,18 @@ export function normalizeConfig(raw: unknown): Config {
 			mentionsEveryMinutes: Math.round(
 				clamp(r.x?.mentionsEveryMinutes, 5, 24 * 60, d.x.mentionsEveryMinutes),
 			),
+		},
+		stranger: {
+			enabled:
+				typeof r.stranger?.enabled === "boolean"
+					? r.stranger.enabled
+					: d.stranger.enabled,
+			model:
+				typeof r.stranger?.model === "string" &&
+				/^claude-[a-z0-9.-]+$/.test(r.stranger.model)
+					? r.stranger.model
+					: d.stranger.model,
+			turns: Math.round(clamp(r.stranger?.turns, 1, 6, d.stranger.turns)),
 		},
 		maxNewQuestions: Math.round(
 			clamp(r.maxNewQuestions, 0, 20, d.maxNewQuestions),

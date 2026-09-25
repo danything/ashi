@@ -62,6 +62,7 @@ const ORIGIN_LABEL: Record<string, string> = {
 	chat: "持ち主との対話",
 	profile: "持ち主の地図",
 	seed: "問い探し",
+	stranger: "よそ者との対話",
 };
 
 const later = (a: string, b: string) => (a > b ? a : b);
@@ -147,7 +148,14 @@ export function buildThoughtMap(
 			id: originId,
 			kind: "origin",
 			label,
-			href: q.source === "x" ? "/x" : q.source === "chat" ? "/chat" : undefined,
+			href:
+				q.source === "x"
+					? "/x"
+					: q.source === "chat"
+						? "/chat"
+						: q.source === "stranger"
+							? "/context"
+							: undefined,
 			weight: 2,
 			at: q.createdAt,
 		});

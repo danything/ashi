@@ -16,6 +16,8 @@ export const load: PageServerLoad = () => {
 		config: JSON.stringify(store.config(), null, 2),
 		intentions: store.walk().intentions ?? [],
 		bridges: store.bridgeIdeas().slice().reverse(),
+		stranger: store.config().stranger,
+		dialogues: store.recentDialogues(5),
 		stepping: isStepping(),
 		counts: {
 			questions: store.questions().length,

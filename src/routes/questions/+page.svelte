@@ -10,6 +10,7 @@ const SOURCE: Record<string, string> = {
 	profile: "持ち主の地図から",
 	chat: "持ち主との対話から",
 	x: "X の会話から",
+	stranger: "よそ者との対話から",
 };
 </script>
 

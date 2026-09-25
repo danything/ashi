@@ -13,10 +13,13 @@ import { crawlRequested } from "../src/lib/server/ashi/legs/feeds.ts";
 import { reportedBlocks, step } from "../src/lib/server/ashi/legs/walk.ts";
 import {
 	CHAT_SCHEMA,
+	DIALOGUE_FINAL_SCHEMA,
+	DIALOGUE_REPLY_SCHEMA,
 	EXPLORE_SCHEMA,
 	PROFILE_SCHEMA,
 	REFLECT_SCHEMA,
 	SEED_SCHEMA,
+	STRANGER_SCHEMA,
 } from "../src/lib/server/ashi/prompts.ts";
 import { explore, FakeHead, freshStore } from "./helpers.ts";
 
@@ -213,6 +216,9 @@ describe("答えの形", () => {
 		["chat", CHAT_SCHEMA, ["crawl"]],
 		["reflect", REFLECT_SCHEMA, []],
 		["profile", PROFILE_SCHEMA, []],
+		["stranger", STRANGER_SCHEMA, ["reply"]],
+		["dialogue", DIALOGUE_REPLY_SCHEMA, ["reply"]],
+		["dialogue-final", DIALOGUE_FINAL_SCHEMA, ["new_questions", "takeaway"]],
 	] as const)(
 		"%s: required と properties が揃い、要る欄がある",
 		(_, schema, must) => {

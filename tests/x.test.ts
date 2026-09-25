@@ -358,3 +358,11 @@ describe("いま投稿させる", () => {
 		await postNow({ store, head: head2, now: () => now, env, fetch: f });
 	});
 });
+
+test("URL 入りの投稿は 0.2 ドルで数える", async () => {
+	const store = freshStore();
+	connect(store);
+	const { f } = fakeX(() => Response.json({ data: { id: "u" } }));
+	await postToX(store, "出典 https://example.com", now, undefined, env, f);
+	expect(store.budget(localDay(now)).xUsd).toBeCloseTo(0.2);
+});

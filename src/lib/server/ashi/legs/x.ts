@@ -14,13 +14,17 @@ import {
  *
  * - 認証は OAuth 2.0 + PKCE(S256)。スコープは tweet.read tweet.write users.read offline.access
  * - トークンは状態ディレクトリの x.json(0600)。頭にも画面にも出さない。401 ならリフレッシュして 1 回だけやり直す
- * - X の API は従量課金(読み 1 件 0.005・投稿 1 件 0.015 ドル)。呼ぶたびに今日の予算の xUsd に付け、
+ * - X の API は従量課金(読み 1 件 0.005・投稿 1 件 0.015 ドル、URL 入りの投稿は 0.2 ドル)。呼ぶたびに今日の予算の xUsd に付け、
  *   設定の x.dailyUsd・投稿と返信の数の上限で止める(guard は canPost / canReply)
  */
 
 const API = "https://api.x.com/2";
 export const READ_USD = 0.005;
 export const WRITE_USD = 0.015;
+/** URL を含む投稿は 1 件 0.2 ドル(普通の投稿の 13 倍、2026-09 の料金表) */
+export const WRITE_URL_USD = 0.2;
+export const writeUsd = (text: string) =>
+	/https?:\/\//i.test(text) ? WRITE_URL_USD : WRITE_USD;
 export const X_SCOPES = "tweet.read tweet.write users.read offline.access";
 
 type Env = Record<string, string | undefined>;
@@ -385,7 +389,7 @@ export async function postToX(
 	);
 	const id = r.data?.id;
 	if (!id) throw new XError("X が投稿の ID を返さなかった", 0);
-	chargeX(store, now, WRITE_USD, replyTo ? "reply" : "post");
+	chargeX(store, now, writeUsd(text), replyTo ? "reply" : "post");
 	const convs = store.conversations();
 	const cid = replyTo?.conversationId ?? id;
 	let c = convs.find((x) => x.id === cid);

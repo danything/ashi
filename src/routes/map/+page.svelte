@@ -245,7 +245,13 @@ onMount(() => {
 			});
 		graph.d3Force("theme", themeForce());
 		apply();
-		setTimeout(() => graph?.zoomToFit(800, 40), 1500);
+		// 配置が落ち着いたところで、全体が入る大きさまで寄せる(決まった時間で寄せると、まだ広がる途中で小さく収まっていた)
+		let fitted = false;
+		graph.onEngineStop(() => {
+			if (fitted) return;
+			fitted = true;
+			graph?.zoomToFit(600, 30);
+		});
 	})();
 	if (el) resize.observe(el);
 	scheme.addEventListener("change", recolor);
@@ -280,100 +286,134 @@ function play() {
 
 <svelte:head><title>つながり | Ashi</title></svelte:head>
 
-<div class="stack" style="--gap: 0.75rem">
+<!-- 図を画面いっぱいにし、操作・凡例・中身は図の上に重ねる(縦も横も図に使う) -->
+{#if all.length}
+	<div class="map-wrap">
+		<div class="canvas" bind:this={el}></div>
 
-	{#if all.length}
-		<section class="panel controls">
-			<div class="cluster">
-				<button type="button" class="small" onclick={play} disabled={steps.length < 2}>
-					<Icon name={playing ? "check" : "arrow-right"} size={1} />{playing ? "止める" : "育ち方を再生"}
+		<div class="overlay controls">
+			<div class="row">
+				<button type="button" class="mini" onclick={play} disabled={steps.length < 2}>
+					<Icon name={playing ? "check" : "arrow-right"} size={0.9} />{playing ? "止める" : "育ち方を再生"}
 				</button>
-				<label class="grow time">
-					<span class="muted tiny nums">{when(steps[step])} まで ・ 点 {shown.nodes} ・ 線 {shown.links}</span>
-					<input type="range" min="0" max={steps.length - 1} bind:value={step} aria-label="いつまでを見せるか" />
-				</label>
+				<span class="tiny muted nums">{when(steps[step])} まで ・ 点 {shown.nodes} ・ 線 {shown.links}</span>
 			</div>
-			<div class="cluster toggles">
+			<input type="range" min="0" max={steps.length - 1} bind:value={step} aria-label="いつまでを見せるか" />
+			<div class="row toggles">
 				<label><input type="checkbox" role="switch" bind:checked={showNear} />ゆるい連想</label>
 				<label><input type="checkbox" role="switch" bind:checked={showNotes} />ノートと橋の候補</label>
 				<label><input type="checkbox" role="switch" bind:checked={showClosed} />閉じた問い</label>
-				<span class="tiny muted">ドラッグで回し、ホイールで寄る。点を押すと中身が出る</span>
 			</div>
-		</section>
-
-		<div class="stage">
-			<div class="canvas" bind:this={el}></div>
-			{#if selected}
-				<aside class="panel detail">
-					<div class="cluster">
-						{#if selected.kind === "question"}
-							<span class="tag {selected.track === 'owner' ? 'info' : 'accent'}">{TRACK_LABEL[selected.track ?? "owner"]}</span>
-							<span class="muted tiny">{STATUS_LABEL[selected.status ?? ""] ?? selected.status}</span>
-						{:else}
-							<span class="tag">{KIND_LABEL[selected.kind]}</span>
-						{/if}
-						<span class="muted tiny grow">{selected.theme ?? ""}</span>
-						<button type="button" class="ghost small close" aria-label="閉じる" onclick={() => (selected = undefined)}>×</button>
-					</div>
-					<p>{selected.label}</p>
-					<div class="cluster">
-						<span class="muted tiny nums grow">{when(selected.at)}</span>
-						{#if selected.href}<a class="small" href={selected.href}>開く<Icon name="arrow-right" size={0.9} /></a>{/if}
-					</div>
-				</aside>
-			{/if}
 		</div>
 
-		<div class="legend cluster">
+		<div class="overlay legend">
 			{#each LEGEND_NODES as [k, label] (k)}
-				<span class="small"><i class="dot {k}"></i>{label}</span>
+				<span><i class="dot k-{k}"></i>{label}</span>
 			{/each}
 			{#each LEGEND_LINKS as [k, label] (k)}
-				<span class="small"><i class="bar {k}"></i>{label}</span>
+				<span><i class="bar k-{k}"></i>{label}</span>
 			{/each}
+			<span class="muted">ドラッグで回す・ホイールで寄る・点を押すと中身</span>
 		</div>
-	{:else}
-		<div class="panel"><p class="empty">まだ問いが無い。</p></div>
-	{/if}
-</div>
+
+		{#if selected}
+			<aside class="overlay detail">
+				<div class="cluster">
+					{#if selected.kind === "question"}
+						<span class="tag {selected.track === 'owner' ? 'info' : 'accent'}">{TRACK_LABEL[selected.track ?? "owner"]}</span>
+						<span class="muted tiny">{STATUS_LABEL[selected.status ?? ""] ?? selected.status}</span>
+					{:else}
+						<span class="tag">{KIND_LABEL[selected.kind]}</span>
+					{/if}
+					<span class="muted tiny grow">{selected.theme ?? ""}</span>
+					<button type="button" class="ghost small close" aria-label="閉じる" onclick={() => (selected = undefined)}>×</button>
+				</div>
+				<p>{selected.label}</p>
+				<div class="cluster">
+					<span class="muted tiny nums grow">{when(selected.at)}</span>
+					{#if selected.href}<a class="small" href={selected.href}>開く<Icon name="arrow-right" size={0.9} /></a>{/if}
+				</div>
+			</aside>
+		{/if}
+	</div>
+{:else}
+	<div class="panel"><p class="empty">まだ問いが無い。</p></div>
+{/if}
 
 <style>
+	/* ヘッダーの下を全部、図に使う(ページの余白も外す) */
+	:global(div.site:has(.map-wrap)) {
+		height: 100vh;
+		overflow: hidden;
+	}
+	:global(main.site-main:has(.map-wrap)) {
+		display: flex;
+		min-height: 0;
+		flex-direction: column;
+		padding: 0;
+	}
+	.map-wrap {
+		position: relative;
+		flex: 1 1 0;
+		min-height: 20rem;
+		overflow: hidden;
+		background: var(--ui-surface);
+	}
+	.canvas {
+		position: absolute;
+		inset: 0;
+	}
+	/* 図の上に重ねる小さな枠。後ろの図が少し透ける */
+	.overlay {
+		position: absolute;
+		z-index: 2;
+		border: 1px solid var(--ui-base-300);
+		border-radius: 0.75rem;
+		background: color-mix(in srgb, var(--ui-surface) 86%, transparent);
+		box-shadow: var(--ui-shadow);
+		padding: 0.5rem 0.75rem;
+		backdrop-filter: blur(4px);
+	}
 	.controls {
+		top: 0.75rem;
+		left: 0.75rem;
 		display: grid;
-		gap: 0.5rem;
+		gap: 0.35rem;
+		width: min(26rem, calc(100% - 1.5rem));
 	}
-	.time {
-		display: grid;
-		gap: 0.1rem;
-		min-width: 12rem;
-		margin: 0;
+	.row {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.3rem 0.75rem;
 	}
-	.time input {
+	.controls input[type="range"] {
 		margin: 0;
 	}
 	.toggles label {
 		margin: 0;
-		font-size: 0.9rem;
+		font-size: 0.8rem;
 	}
-	.stage {
-		position: relative;
+	.legend {
+		bottom: 0.75rem;
+		left: 0.75rem;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.2rem 0.8rem;
+		max-width: calc(100% - 1.5rem);
+		font-size: 0.75rem;
 	}
-	.canvas {
-		/* ヘッダー・操作の行・凡例の分だけ引いて、残りの縦を全部使う */
-		height: max(24rem, calc(100vh - var(--ui-header-h) - 14.5rem));
-		border: 1px solid var(--ui-base-300);
-		border-radius: var(--pico-border-radius);
-		overflow: hidden;
-		background: var(--ui-surface);
+	.legend span {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
 	}
 	.detail {
-		position: absolute;
 		top: 0.75rem;
 		right: 0.75rem;
 		width: min(22rem, calc(100% - 1.5rem));
-		max-height: calc(100% - 1.5rem);
+		max-height: calc(100% - 5rem);
 		overflow: auto;
-		box-shadow: var(--ui-shadow);
 	}
 	.detail p {
 		margin: 0.5rem 0;
@@ -382,53 +422,48 @@ function play() {
 		padding: 0 0.5rem;
 		line-height: 1.4;
 	}
-	.legend {
-		gap: 0.4rem 1rem;
-	}
-	.legend span {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.35rem;
-	}
+	/* 凡例の印。k- を付けるのは、全体の .note(お知らせの枠)などと名前がぶつかって形が崩れたから */
 	.dot {
-		width: 0.7rem;
-		height: 0.7rem;
-		border-radius: 50%;
 		display: inline-block;
+		flex: none;
+		width: 0.65rem;
+		height: 0.65rem;
+		border-radius: 50%;
 	}
 	.bar {
-		width: 1.2rem;
-		height: 2px;
 		display: inline-block;
+		flex: none;
+		width: 1.1rem;
+		height: 2px;
 		background: var(--ui-muted);
 	}
-	.dot.owner {
+	.k-owner {
 		background: var(--ui-info);
 	}
-	.dot.self,
-	.bar.bridge {
+	.k-self,
+	.bar.k-bridge {
 		background: var(--ui-accent);
 	}
-	.bar.bridge {
+	.bar.k-bridge {
 		height: 3px;
 	}
-	.dot.closed,
-	.bar.merged {
+	.k-closed,
+	.bar.k-merged {
 		background: var(--ui-base-300);
 	}
-	.dot.note {
+	.k-note {
 		background: var(--ui-muted);
 	}
-	.dot.origin {
+	.k-origin {
 		background: var(--ui-warn);
 	}
-	.dot.idea {
+	.k-idea {
 		background: #8b6fd6;
 	}
-	.dot.me {
+	.k-me {
 		background: var(--ui-err);
 	}
-	.bar.near {
+	.bar.k-near {
 		height: 1px;
 		opacity: 0.5;
 	}

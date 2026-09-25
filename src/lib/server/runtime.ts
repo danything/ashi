@@ -11,6 +11,7 @@ import { checkMentions } from "./ashi/legs/converse.ts";
 import { paperTools } from "./ashi/legs/papers.ts";
 import { fetchUrlTool, noteTools } from "./ashi/legs/tools.ts";
 import { Walker } from "./ashi/legs/walk.ts";
+import { XError } from "./ashi/legs/x.ts";
 import { CLEANUP_EVERY_MS, runCleanup } from "./ashi/legs/x-cleanup.ts";
 import {
 	acceptStreamEvent,

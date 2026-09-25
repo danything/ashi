@@ -306,6 +306,35 @@ export function ownerPull(
 	return { fromOwner, known, total: self.length };
 }
 
+/**
+ * よそ者から来た問いが、どこに着地したか。持ち主由来のテーマ(先回りの問いか、親をたどると持ち主に
+ * 行き着く問いがあるテーマ)に入った数を数える。出どころだけ見て「外」と数えると、頭が相手の話を
+ * 持ち主の関心へ引き戻していても見えない(Ashi の指摘、2026-09-25)。テーマは受け取るときに近い問いの
+ * テーマへ揃えるので(acceptNewQuestions)、引き戻されたものは持ち主のテーマに入る
+ */
+export function strangerLanding(
+	qs: Question[],
+	ownerHandles: string[],
+): { home: number; total: number } {
+	const byId = new Map(qs.map((q) => [q.id, q]));
+	const handles = new Set(ownerHandles.map((h) => h.toLowerCase()));
+	const rooted = new Set(
+		qs
+			.filter(
+				(q) =>
+					q.source !== "stranger" &&
+					!q.mergedInto &&
+					(q.track === "owner" || lineage(q, byId, handles) === "owner"),
+			)
+			.map((q) => q.theme),
+	);
+	const s = qs.filter((q) => q.source === "stranger" && !q.mergedInto);
+	return {
+		home: s.filter((q) => rooted.has(q.theme)).length,
+		total: s.length,
+	};
+}
+
 function lineage(
 	q: Question,
 	byId: Map<string, Question>,
@@ -337,6 +366,47 @@ function lineage(
 	if (root.source === "seed" || !root.source) return "unknown";
 	// 歩いて生まれたのに親が残っていない(リセット前の親など)
 	return "unknown";
+}
+
+const TRIGGERS = ["owner", "x", "stranger", "reading", "own"] as const;
+const BASES = ["evidence", "pushback"] as const;
+
+export interface SelfChange {
+	what: string;
+	trigger: (typeof TRIGGERS)[number];
+	basis: (typeof BASES)[number];
+}
+
+/** 内省で頭が申告した、自己記述を変えたきっかけ。形の正しいものを 5 件まで */
+export function acceptSelfChanges(v: unknown): SelfChange[] {
+	if (!Array.isArray(v)) return [];
+	const out: SelfChange[] = [];
+	for (const c of v.slice(0, 5)) {
+		const what = typeof c?.what === "string" ? c.what.trim().slice(0, 300) : "";
+		if (
+			what &&
+			(TRIGGERS as readonly string[]).includes(c.trigger) &&
+			(BASES as readonly string[]).includes(c.basis)
+		)
+			out.push({ what, trigger: c.trigger, basis: c.basis });
+	}
+	return out;
+}
+
+/** 対話で頭が取った立場。新しいものを先頭に、20 件まで残す */
+export function addStances(
+	prev: { at: string; text: string }[] | undefined,
+	v: unknown,
+	now: Date,
+): { at: string; text: string }[] {
+	const fresh = (Array.isArray(v) ? v : [])
+		.filter((x): x is string => typeof x === "string" && x.trim() !== "")
+		.slice(0, 3)
+		.map((text) => ({
+			at: now.toISOString(),
+			text: text.trim().slice(0, 300),
+		}));
+	return [...fresh, ...(prev ?? [])].slice(0, 20);
 }
 
 /** 抱えている問いが多すぎたら、点の低いものから手放す */

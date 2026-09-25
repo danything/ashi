@@ -33,6 +33,11 @@ const SOURCE: Record<string, string> = {
 			<span class="tag" title="個性の問いのうち、親をたどって先回りの問い・持ち主の地図・持ち主との対話・X での持ち主との会話に行き着くもの。問い探しから生まれたもの・記録の無いものは分母に入れない">
 				個性のうち持ち主から {data.pull.fromOwner} / {data.pull.known}
 			</span>
+			{#if data.landing.total}
+				<span class="tag" title="よそ者との対話から生まれた問いのうち、持ち主由来のテーマに着地したもの。高ければ、頭が相手の話を持ち主の関心へ引き戻している">
+					よそ者から持ち主のテーマへ {data.landing.home} / {data.landing.total}
+				</span>
+			{/if}
 		</div>
 		{#if data.open.length}
 			<div class="scroll-x">

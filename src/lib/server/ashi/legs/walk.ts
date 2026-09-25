@@ -35,6 +35,7 @@ import {
 	acceptProposals,
 	acceptSearched,
 	acceptSelf,
+	acceptSelfChanges,
 	addBridgeIdeas,
 	allowance,
 	applyMerges,
@@ -43,6 +44,7 @@ import {
 	ownerHandles,
 	ownerPull,
 	similarPairs,
+	strangerLanding,
 	trimOpenQuestions,
 	unit,
 } from "./guard.ts";
@@ -487,6 +489,28 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 			(w.steps - w.lastReflectStep >= cfg.reflectEvery || tiredness >= TIRED) &&
 			left > 0
 		) {
+			// 内省の前に、よそ者と短く話す。話したことを内省の材料にして、自己記述まで届かせる
+			// (内省のあとに話していたので、会話から残るのが問いだけだった。Ashi の指摘、2026-09-25)。
+			// つまずいても歩み自体は失敗にしない(個性の種が 1 回減るだけ)
+			if (legs.stranger && cfg.stranger.enabled) {
+				try {
+					const talk = await talkWithStranger({
+						store,
+						head,
+						stranger: legs.stranger,
+						turns: cfg.stranger.turns,
+						now,
+						rng,
+					});
+					charge(talk.usage);
+				} catch (e) {
+					if (e instanceof HeadError) charge(e.usage);
+					store.log("stranger-failed", {
+						error: e instanceof Error ? e.message : String(e),
+					});
+				}
+			}
+			const selfBefore = store.self();
 			const { output, usage } = await head.think<ReflectAnswer>({
 				task: "reflect",
 				system: sys(),
@@ -515,6 +539,12 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 						similar: similarPairs(store.questions()),
 						pull: ownerPull(store.questions(), ownerHandles(cfg)),
 					},
+					{
+						dialogues: store.recentDialogues(3),
+						chats: store.recentChats(5),
+						stances: (store.walk().stances ?? []).slice(0, 10),
+						landing: strangerLanding(store.questions(), ownerHandles(cfg)),
+					},
 				),
 				schema: REFLECT_SCHEMA,
 				maxCostUsd: left,
@@ -531,6 +561,16 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 				);
 			const self = acceptSelf(output.self);
 			if (self) store.saveSelf(self);
+			// 自己記述を何が動かしたか。頭の申告と、実際に変わったかを並べて残す。
+			// 変わったのに申告が無ければ「申告なし」として数える(申告も頭の自己申告なので)
+			const changes = acceptSelfChanges(output.self_changes);
+			const changed = Boolean(self) && self?.trim() !== selfBefore.trim();
+			if (changed || changes.length)
+				store.log("self-changed", {
+					changed,
+					changes,
+					undeclared: changed && changes.length === 0,
+				});
 			const { proposals, added: proposed } = acceptProposals(
 				output.proposals,
 				store.proposals(),
@@ -595,25 +635,6 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 			});
 			if (outcome.kind === "walked" || outcome.kind === "seeded")
 				outcome = { ...outcome, reflected: true };
-			// 内省のあとに、よそ者と短く話す。つまずいても歩み自体は失敗にしない(個性の種が 1 回減るだけ)
-			if (legs.stranger && cfg.stranger.enabled) {
-				try {
-					const talk = await talkWithStranger({
-						store,
-						head,
-						stranger: legs.stranger,
-						turns: cfg.stranger.turns,
-						now,
-						rng,
-					});
-					charge(talk.usage);
-				} catch (e) {
-					if (e instanceof HeadError) charge(e.usage);
-					store.log("stranger-failed", {
-						error: e instanceof Error ? e.message : String(e),
-					});
-				}
-			}
 		}
 
 		// 疲れていたら上限まで休む

@@ -2,7 +2,10 @@ import { describe, expect, test } from "bun:test";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { normalizeConfig } from "../src/lib/server/ashi/config.ts";
-import { ownerPull } from "../src/lib/server/ashi/legs/guard.ts";
+import {
+	ownerPull,
+	strangerLanding,
+} from "../src/lib/server/ashi/legs/guard.ts";
 import {
 	STRANGER_FIELDS,
 	talkWithStranger,
@@ -162,5 +165,95 @@ describe("よそ者との対話", () => {
 			normalizeConfig({ stranger: { turns: 99, model: "gpt-5; rm" } }).stranger,
 		).toMatchObject({ turns: 6, model: "claude-sonnet-5" });
 		expect(q({}).source).toBeUndefined();
+	});
+});
+
+describe("話したことを内省に届ける", () => {
+	test("よそ者とは内省の前に話し、その会話・持ち主との対話・取った立場を内省に見せる", async () => {
+		const store = freshStore(["a"]);
+		store.saveWalk({
+			...store.walk(),
+			steps: 4,
+			// 持ち主との対話 1 件は、地図の書き直しで読み済みにしておく
+			lastProfileStep: 4,
+			profiledMaterials: 1,
+			stances: [
+				{
+					at: "2026-09-25T10:00:00Z",
+					text: "根拠なしに押し返されたら引かない",
+				},
+			],
+		});
+		store.appendChat({
+			at: "2026-09-25T09:00:00Z",
+			by: "持ち主",
+			question: "自我ってある?",
+			reply: "記録で判断してほしい",
+			usd: 0,
+		});
+		const { stranger, head } = pair();
+		await step({
+			store,
+			head,
+			tools: [],
+			now: () => now,
+			rng: () => 0.99,
+			stranger,
+		});
+		const tasks = head.calls.map((c) => c.task);
+		expect(tasks.indexOf("dialogue-final")).toBeLessThan(
+			tasks.indexOf("reflect"),
+		);
+		const prompt = head.calls.find((c) => c.task === "reflect")?.prompt ?? "";
+		expect(prompt).toContain("アリの巣");
+		expect(prompt).toContain("設計図の無い協調");
+		expect(prompt).toContain("自我ってある?");
+		expect(prompt).toContain("根拠なしに押し返されたら引かない");
+		expect(prompt).toContain("持ち主由来のテーマに着地したもの: 0 本");
+	});
+
+	test("自己記述が変わったのに申告が無ければ、申告なしとして残す", async () => {
+		const store = freshStore(["a"]);
+		store.saveWalk({ ...store.walk(), steps: 4 });
+		const head = new FakeHead({ explore: () => explore(), reflect });
+		await step({ store, head, tools: [], now: () => now, rng: () => 0.99 });
+		expect(
+			store.recentLog(5).find((e) => e.event === "self-changed"),
+		).toMatchObject({ changed: true, changes: [], undeclared: true });
+	});
+
+	test("申告は形の正しいものだけ残す", async () => {
+		const store = freshStore(["a"]);
+		store.saveWalk({ ...store.walk(), steps: 4 });
+		const head = new FakeHead({
+			explore: () => explore(),
+			reflect: () => ({
+				...reflect(),
+				self_changes: [
+					{
+						what: "記録で判断してもらう立場を足した",
+						trigger: "owner",
+						basis: "evidence",
+					},
+					{ what: "形が違う", trigger: "someone", basis: "evidence" },
+				],
+			}),
+		});
+		await step({ store, head, tools: [], now: () => now, rng: () => 0.99 });
+		expect(
+			store.recentLog(5).find((e) => e.event === "self-changed"),
+		).toMatchObject({
+			undeclared: false,
+			changes: [{ trigger: "owner", basis: "evidence" }],
+		});
+	});
+
+	test("よそ者から来た問いが持ち主由来のテーマに入ったら、着地として数える", () => {
+		const qs = [
+			q({ id: "o", track: "owner", theme: "稼働表" }),
+			q({ track: "self", theme: "稼働表", source: "stranger" }),
+			q({ track: "self", theme: "アリの巣", source: "stranger" }),
+		];
+		expect(strangerLanding(qs, [])).toEqual({ home: 1, total: 2 });
 	});
 });

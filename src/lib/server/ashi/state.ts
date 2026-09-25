@@ -202,6 +202,11 @@ export interface Walk {
 	crawlRequests: string[];
 	/** 直近の内省で頭が決めた「次の一歩」。問いを探す・歩くときに足が見せる */
 	intentions?: string[];
+	/**
+	 * 持ち主との対話で頭が取った立場(押し返した・意見が違ったなど)。内省で見せ、後で立場を変えたかを
+	 * 記録に残す(Ashi の案、2026-09-25。対話の中の約束が、歩いている頭に引き継がれていなかった)
+	 */
+	stances?: { at: string; text: string }[];
 	/** この時刻までは起きない(ISO) */
 	sleepingUntil?: string;
 	/** init のとき、または人が `ashi core --accept` したときの core.md のハッシュ */

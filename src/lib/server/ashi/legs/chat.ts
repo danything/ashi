@@ -19,7 +19,12 @@ import {
 	webhookNotify,
 } from "./blockers.ts";
 import { feedStatus } from "./feeds.ts";
-import { acceptNewQuestions, allowance, trimOpenQuestions } from "./guard.ts";
+import {
+	acceptNewQuestions,
+	addStances,
+	allowance,
+	trimOpenQuestions,
+} from "./guard.ts";
 import { crawlIds } from "./walk.ts";
 
 /**
@@ -101,15 +106,14 @@ export async function chat(
 			added = got.map((q) => q.text);
 			return trimOpenQuestions([...qs, ...got], cfg);
 		});
-		// 読みに行くのは次の歩みで(対話の返事は待たせない)
+		// 読みに行くのは次の歩みで(対話の返事は待たせない)。取った立場は内省で見せる
 		const crawl = crawlIds(output.crawl);
-		if (crawl.length) {
-			const w = store.walk();
-			store.saveWalk({
-				...w,
-				crawlRequests: [...new Set([...w.crawlRequests, ...crawl])],
-			});
-		}
+		const w = store.walk();
+		store.saveWalk({
+			...w,
+			crawlRequests: [...new Set([...w.crawlRequests, ...crawl])],
+			stances: addStances(w.stances, output.stances, now),
+		});
 		const reply = String(output.reply ?? "").trim() || "(返事が空でした)";
 		store.appendChat({
 			at: now.toISOString(),

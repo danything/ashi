@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+	restingThemes,
 	score,
 	selectQuestion,
 	themeStreak,
@@ -12,7 +13,13 @@ const walked = (c: ReturnType<typeof selectQuestion>) => {
 	return c;
 };
 
-const cfg = { themeStreakLimit: 3, detourRate: 0, ownerShare: 0.5 };
+const cfg = {
+	themeStreakLimit: 3,
+	themeWindow: 10,
+	themeWindowMax: 3,
+	detourRate: 0,
+	ownerShare: 0.5,
+};
 /** 決まった順に値を返すさいころ */
 const dice = (...xs: number[]) => {
 	let i = 0;
@@ -58,9 +65,10 @@ describe("selectQuestion", () => {
 		const self = q({ track: "self" });
 		expect(selectQuestion([self], [], cfg, dice(0.1))).toEqual({
 			seed: "owner",
+			avoid: [],
 		});
 		expect(selectQuestion([q({ track: "owner" })], [], cfg, dice(0.9))).toEqual(
-			{ seed: "self" },
+			{ seed: "self", avoid: [] },
 		);
 	});
 
@@ -74,10 +82,16 @@ describe("selectQuestion", () => {
 	test("選べるものが無ければ、出た系統の問いを探させる", () => {
 		expect(
 			selectQuestion([q({ theme: "a" })], ["a", "a", "a"], cfg, dice(0.9)),
-		).toEqual({ seed: "self" });
+		).toEqual({
+			seed: "self",
+			avoid: ["a"],
+		});
 		expect(
 			selectQuestion([q({ status: "answered" })], [], cfg, dice(0.9)),
-		).toEqual({ seed: "self" });
+		).toEqual({ seed: "self", avoid: [] });
+		expect(
+			selectQuestion([q({ status: "parked" })], [], cfg, dice(0.9)),
+		).toEqual({ seed: "self", avoid: [] });
 	});
 
 	test("寄り道は一番以外から選ぶ", () => {
@@ -91,5 +105,27 @@ describe("selectQuestion", () => {
 		);
 		expect(walked(c).reason).toBe("detour");
 		expect(walked(c).question.id).toBe(a.id);
+	});
+});
+
+describe("restingThemes", () => {
+	test("交互に挟まっても、直近の窓で多いテーマは休ませる", () => {
+		// 実際の足どり(2026-09-25): 稼働表が 1 つおきに続き、連続の上限には一度も当たらなかった
+		const recent = [
+			"稼働表",
+			"睡眠",
+			"稼働表",
+			"年輪",
+			"稼働表",
+			"睡眠",
+			"(問いを探す)",
+			"自律",
+		];
+		expect(restingThemes(recent, cfg)).toEqual(["稼働表"]);
+		expect(restingThemes(["a", "b", "a"], cfg)).toEqual([]);
+	});
+
+	test("問いを探しただけの歩みは数えず、連続も切らない", () => {
+		expect(restingThemes(["a", "(問いを探す)", "a", "a"], cfg)).toContain("a");
 	});
 });

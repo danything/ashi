@@ -23,6 +23,7 @@ import type { FeedState } from "./legs/feeds.ts";
  *   self.md         自己記述(内省のたびに頭が書き直す)。持ち主に無い発想を個性として育てる
  *   owner.md        持ち主の興味の地図(持ち主の発言と渡された文章から頭が書き直す)
  *   sources/<id>.md 持ち主が渡した文章と、足跡(ブログ・GitHub・X)から読んだもの。目録は sources.json
+ *   bridges.json    橋の候補(個性で思いついた、まだ推測の持ち帰り)
  *   proposals.json  Ashi が内省で出した自分の仕組みへの改善案(持ち主が GitHub の issue にする)
  *   blockers.json   弾かれたこと(権限・鍵・課金・巡回の失敗)と、その直し方
  *   feeds.json      足跡ごとの、最後に読んだ時刻と取り込み済みの鍵
@@ -38,7 +39,8 @@ import type { FeedState } from "./legs/feeds.ts";
  * 頭を待つ間に古くなった値で上書きしないよう、書く直前に読み直す(updateQuestions)。
  */
 
-export type QuestionStatus = "open" | "answered" | "dropped";
+/** parked: 探しても見つからなかった回数が上限に達した(未測定の棚)。人が戻せる */
+export type QuestionStatus = "open" | "answered" | "dropped" | "parked";
 
 /**
  * 問いの系統。
@@ -60,6 +62,10 @@ export interface Question {
 	visits: number;
 	createdAt: string;
 	lastVisitedAt?: string;
+	/** 探して何も見つからなかった回数 */
+	misses?: number;
+	/** これまでに探した場所(検索語・サイト・資料)。同じ所を探し直さないように次の歩みで見せる */
+	searchedWhere?: string[];
 	/** どの問いを歩いていて生まれたか */
 	parentId?: string;
 }
@@ -79,12 +85,26 @@ export interface Proposal {
 	why: string;
 	idea: string;
 	/** open: 未処理 / filed: issue にした / dismissed: 見送った */
-	status: "open" | "filed" | "dismissed";
+	status: "open" | "filed" | "dismissed" | "done";
 	/** 同じ題の案が何度出たか(何度も困っているなら大事) */
 	count: number;
 	createdAt: string;
 	lastAt: string;
 	issueUrl?: string;
+}
+
+/**
+ * 橋の候補。個性の側で思いついたが、まだ推測で問いにもノートにもできない持ち帰りの見方。
+ * 先回りの問いを歩く・探すときに足が見せる
+ */
+export interface BridgeIdea {
+	id: string;
+	/** 思いついた元の個性のノート */
+	fromNoteId?: string;
+	/** 持ち込み先の持ち主のテーマ */
+	toTheme: string;
+	idea: string;
+	createdAt: string;
 }
 
 export interface Source {
@@ -107,6 +127,8 @@ export interface Walk {
 	profiledMaterials: number;
 	/** 頭が次の歩みの前に読みたいと言った足跡の id */
 	crawlRequests: string[];
+	/** 直近の内省で頭が決めた「次の一歩」。問いを探す・歩くときに足が見せる */
+	intentions?: string[];
 	/** この時刻までは起きない(ISO) */
 	sleepingUntil?: string;
 	/** init のとき、または人が `ashi core --accept` したときの core.md のハッシュ */
@@ -338,6 +360,14 @@ export class Store {
 
 	saveProposals(ps: Proposal[]): void {
 		this.writeJson("proposals.json", ps);
+	}
+
+	bridgeIdeas(): BridgeIdea[] {
+		return this.readJson<BridgeIdea[]>("bridges.json", []);
+	}
+
+	saveBridgeIdeas(b: BridgeIdea[]): void {
+		this.writeJson("bridges.json", b);
 	}
 
 	blockers(): Record<string, BlockerRecord> {

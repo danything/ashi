@@ -38,6 +38,14 @@ export interface Config {
 	};
 	/** 同じテーマを続けて歩いてよい歩数 */
 	themeStreakLimit: number;
+	/**
+	 * 直近 themeWindow 歩のうち、同じテーマが themeWindowMax 回に達したら選ばない。
+	 * 連続の上限だけだと、別の系統が間に挟まると交互に同じテーマを歩き続けた(Ashi の改善案、2026-09-25)
+	 */
+	themeWindow: number;
+	themeWindowMax: number;
+	/** 同じ問いで何も見つからなかった回数がこれに達したら、未測定の棚に移して選ばない */
+	missesToPark: number;
 	/** 点数の順ではなく、でたらめに問いを選ぶ(寄り道する)確率 */
 	detourRate: number;
 	/**
@@ -76,6 +84,9 @@ export const DEFAULT_CONFIG: Config = {
 	budget: { dailyUsd: 2, stepUsd: 0.5 },
 	sleep: { minMinutes: 10, maxMinutes: 360 },
 	themeStreakLimit: 3,
+	themeWindow: 10,
+	themeWindowMax: 3,
+	missesToPark: 2,
 	detourRate: 0.15,
 	ownerShare: 0.6,
 	profileEvery: 10,
@@ -139,6 +150,11 @@ export function normalizeConfig(raw: unknown): Config {
 				Math.max(minMinutes, d.sleep.maxMinutes),
 			),
 		},
+		themeWindow: Math.round(clamp(r.themeWindow, 1, 100, d.themeWindow)),
+		themeWindowMax: Math.round(
+			clamp(r.themeWindowMax, 1, 100, d.themeWindowMax),
+		),
+		missesToPark: Math.round(clamp(r.missesToPark, 1, 100, d.missesToPark)),
 		themeStreakLimit: Math.round(
 			clamp(r.themeStreakLimit, 1, 100, d.themeStreakLimit),
 		),

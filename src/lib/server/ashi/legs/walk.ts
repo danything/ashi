@@ -23,21 +23,25 @@ import {
 	type SeedAnswer,
 	seedPrompt,
 	system,
+	type WalkContext,
 } from "../prompts.ts";
 import { hashText, localDay, newId, type Store, type Track } from "../state.ts";
 import { raiseBlocker, resolveBlockers, webhookNotify } from "./blockers.ts";
 import { crawlRequested, feedStatus } from "./feeds.ts";
 import {
+	acceptIntentions,
 	acceptNewQuestions,
 	acceptProposals,
+	acceptSearched,
 	acceptSelf,
+	addBridgeIdeas,
 	allowance,
 	clampSleep,
 	nextMidnight,
 	trimOpenQuestions,
 	unit,
 } from "./guard.ts";
-import { selectQuestion, themeStreak } from "./select.ts";
+import { restingThemes, SEEDING, selectQuestion } from "./select.ts";
 import type { GetDeps } from "./tools.ts";
 
 /**
@@ -258,6 +262,16 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 		const pick =
 			left > 0 ? selectQuestion(questions, walk.recentThemes, cfg, rng) : null;
 		const choice = pick && "question" in pick ? pick : null;
+		const resting = restingThemes(walk.recentThemes, cfg);
+		const ctx = (): WalkContext => ({
+			notes: store.notes(),
+			questions: store.questions(),
+			feeds: feedStatus(store, now),
+			intentions: store.walk().intentions ?? [],
+			bridges: store.bridgeIdeas().slice(-10),
+			recentThemes: walk.recentThemes.filter((t) => t !== SEEDING),
+			resting,
+		});
 		let outcome: StepOutcome;
 		let tiredness = 0;
 
@@ -268,19 +282,10 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 			// さいころで決めた系統に歩ける問いが無い(尽きた、または同じテーマが続いて休ませている)。
 			// その系統の問いを頭に出させる
 			const track = pick && "seed" in pick ? pick.seed : "self";
-			const streak = themeStreak(walk.recentThemes);
-			const avoid =
-				streak.count >= cfg.themeStreakLimit ? streak.theme : undefined;
 			const { output, usage } = await head.think<SeedAnswer>({
 				task: "seed",
 				system: sys(),
-				prompt: seedPrompt(
-					store.notes(),
-					questions,
-					feedStatus(store, now),
-					track,
-					avoid,
-				),
+				prompt: seedPrompt(track, ctx()),
 				schema: SEED_SCHEMA,
 				maxCostUsd: left,
 			});
@@ -291,7 +296,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 				const raw = (output.new_questions ?? []).map((q) => ({ ...q, track }));
 				let got = acceptNewQuestions(raw, qs, cfg, undefined, now);
 				// 休ませているテーマは、頭がまた出してきても受け取らない
-				if (avoid) got = got.filter((q) => q.theme !== avoid);
+				got = got.filter((q) => !resting.includes(q.theme));
 				added = got.map((q) => q.text);
 				return trimOpenQuestions([...qs, ...got], cfg);
 			});
@@ -299,7 +304,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 			store.saveWalk({
 				...store.walk(),
 				steps: walk.steps + 1,
-				recentThemes: ["(問いを探す)", ...walk.recentThemes].slice(0, 20),
+				recentThemes: [SEEDING, ...walk.recentThemes].slice(0, 20),
 				crawlRequests: crawlIds(output.crawl),
 			});
 			store.log("seeded", { track, added, usd: usage.costUsd });
@@ -317,13 +322,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 			const { output, usage } = await head.think<ExploreAnswer>({
 				task: "explore",
 				system: sys(),
-				prompt: explorePrompt(
-					q,
-					choice.reason,
-					store.notes(),
-					questions,
-					feedStatus(store, now),
-				),
+				prompt: explorePrompt(q, choice.reason, ctx()),
 				schema: EXPLORE_SCHEMA,
 				tools,
 				allowWeb: cfg.allowWeb,
@@ -348,18 +347,31 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 			);
 			let added: string[] = [];
 			let bridged: string[] = [];
+			const searched = acceptSearched(output.searched);
+			const missed = output.found === "none" && output.answered !== true;
+			let parked = false;
 			store.updateQuestions((qs) => {
-				const updated = qs.map((x) =>
-					x.id === q.id
-						? {
-								...x,
-								visits: x.visits + 1,
-								lastVisitedAt: now.toISOString(),
-								status:
-									output.answered === true ? ("answered" as const) : x.status,
-							}
-						: x,
-				);
+				const updated = qs.map((x) => {
+					if (x.id !== q.id) return x;
+					// 見つからなかった回数を数え、上限に達したら未測定の棚へ(同じ所をぐるぐる探さない)
+					const misses = (x.misses ?? 0) + (missed ? 1 : 0);
+					parked = output.answered !== true && misses >= cfg.missesToPark;
+					return {
+						...x,
+						visits: x.visits + 1,
+						lastVisitedAt: now.toISOString(),
+						misses,
+						searchedWhere: [
+							...new Set([...(x.searchedWhere ?? []), ...searched]),
+						].slice(-20),
+						status:
+							output.answered === true
+								? ("answered" as const)
+								: parked
+									? ("parked" as const)
+									: x.status,
+					};
+				});
 				const got = acceptNewQuestions(
 					output.new_questions,
 					updated,
@@ -373,6 +385,12 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 					bridged = got.filter((a) => a.track === "owner").map((a) => a.text);
 				return trimOpenQuestions([...updated, ...got], cfg);
 			});
+			addBridgeIdeas(
+				store,
+				output.bridge_ideas,
+				q.track === "self" ? noteId : undefined,
+				now,
+			);
 			store.saveWalk({
 				...store.walk(),
 				steps: walk.steps + 1,
@@ -393,6 +411,8 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 				answered: output.answered === true,
 				added,
 				bridged,
+				found: output.found,
+				parked,
 				usd: usage.costUsd,
 			});
 			tiredness = unit(output.tiredness);
@@ -421,6 +441,8 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 					store.notes(),
 					store.diary(today),
 					w.recentThemes.slice(0, 10),
+					w.intentions ?? [],
+					store.proposals(),
 				),
 				schema: REFLECT_SCHEMA,
 				maxCostUsd: left,
@@ -443,7 +465,13 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 				now,
 			);
 			store.saveProposals(proposals);
-			store.saveWalk({ ...store.walk(), lastReflectStep: w.steps });
+			addBridgeIdeas(store, output.bridge_ideas, undefined, now);
+			// 次の一歩は内省のたびに書き直す(古い意図を引きずらない)
+			store.saveWalk({
+				...store.walk(),
+				lastReflectStep: w.steps,
+				intentions: acceptIntentions(output.next_steps),
+			});
 			store.log("reflected", {
 				selfUpdated: Boolean(self),
 				proposed,

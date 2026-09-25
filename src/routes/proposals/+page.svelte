@@ -46,6 +46,10 @@ let { data } = $props();
 					<button type="submit" class="outline small"><Icon name="check" size={1} />issue にした</button>
 				</form>
 				<span class="grow"></span>
+				<form method="POST" action="?/done" use:enhance>
+					<input type="hidden" name="id" value={p.id} />
+					<button type="submit" class="ghost small">直した</button>
+				</form>
 				<form method="POST" action="?/dismiss" use:enhance>
 					<input type="hidden" name="id" value={p.id} />
 					<button type="submit" class="ghost small">見送る</button>
@@ -58,11 +62,11 @@ let { data } = $props();
 
 	{#if data.done.length}
 		<details class="fold">
-			<summary>issue にした・見送った({data.done.length})</summary>
+			<summary>直した・issue にした・見送った({data.done.length})</summary>
 			<ul class="rows">
 				{#each data.done as p (p.id)}
 					<li>
-						<span class="tag {p.status === 'filed' ? 'ok' : ''}">{p.status === "filed" ? "issue にした" : "見送った"}</span>
+						<span class="tag {p.status === 'dismissed' ? '' : 'ok'}">{({ filed: "issue にした", done: "直した", dismissed: "見送った" } as Record<string, string>)[p.status] ?? p.status}</span>
 						<span class="grow small">
 							{#if p.issueUrl}<a href={p.issueUrl} target="_blank" rel="noopener noreferrer">{p.title}</a>{:else}{p.title}{/if}
 						</span>

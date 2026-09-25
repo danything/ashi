@@ -1,5 +1,11 @@
 import type { Config } from "../config.ts";
-import { type Budget, newId, type Proposal, type Question } from "../state.ts";
+import {
+	type Budget,
+	newId,
+	type Proposal,
+	type Question,
+	type Store,
+} from "../state.ts";
 import { score } from "./select.ts";
 
 /**
@@ -171,4 +177,52 @@ export function acceptProposals(
 		added.push(title);
 	}
 	return { proposals: out, added };
+}
+
+/** 内省の「次の一歩」。3 件まで、1 件 300 字まで */
+export function acceptIntentions(raw: unknown): string[] {
+	if (!Array.isArray(raw)) return [];
+	return raw
+		.filter((x): x is string => typeof x === "string" && x.trim() !== "")
+		.slice(0, 3)
+		.map((x) => x.trim().slice(0, 300));
+}
+
+/** 探した場所。1 歩 10 件まで、1 件 200 字まで */
+export function acceptSearched(raw: unknown): string[] {
+	if (!Array.isArray(raw)) return [];
+	return raw
+		.filter((x): x is string => typeof x === "string" && x.trim() !== "")
+		.slice(0, 10)
+		.map((x) => x.trim().slice(0, 200));
+}
+
+const BRIDGES_MAX = 30;
+
+/** 橋の候補を足す。1 回 3 件まで、同じ見方は重ねず、古いものから捨てて 30 件に保つ */
+export function addBridgeIdeas(
+	store: Store,
+	raw: unknown,
+	fromNoteId: string | undefined,
+	now: Date,
+): void {
+	if (!Array.isArray(raw) || raw.length === 0) return;
+	const list = store.bridgeIdeas();
+	const seen = new Set(list.map((b) => normTitle(b.idea)));
+	for (const r of raw.slice(0, 3) as Partial<
+		Record<"to_theme" | "idea", unknown>
+	>[]) {
+		if (typeof r?.idea !== "string" || !r.idea.trim()) continue;
+		const idea = r.idea.trim().slice(0, 400);
+		if (seen.has(normTitle(idea))) continue;
+		seen.add(normTitle(idea));
+		list.push({
+			id: newId(),
+			fromNoteId,
+			toTheme: normalizeTheme(r.to_theme),
+			idea,
+			createdAt: now.toISOString(),
+		});
+	}
+	store.saveBridgeIdeas(list.slice(-BRIDGES_MAX));
 }

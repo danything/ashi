@@ -13,5 +13,7 @@ export const load: PageServerLoad = () => {
 		self: md(store.self()),
 		system: system(core, store.self(), store.owner()),
 		config: JSON.stringify(store.config(), null, 2),
+		intentions: store.walk().intentions ?? [],
+		bridges: store.bridgeIdeas().slice().reverse(),
 	};
 };

@@ -145,7 +145,7 @@ describe("step", () => {
 		});
 		const o = await step({ store, head, tools: [], now: at, rng: noDetour });
 		expect(o.kind).toBe("seeded");
-		expect(head.calls[0]?.prompt).toContain("「a」以外");
+		expect(head.calls[0]?.prompt).toContain("休ませているテーマ(a)以外");
 		expect(store.questions().map((x) => x.text)).toEqual(["問い", "b の問い"]);
 		expect(store.walk().recentThemes[0]).toBe("(問いを探す)");
 	});
@@ -474,5 +474,147 @@ describe("改善案", () => {
 		expect(
 			store.recentLog(5).find((e) => e.event === "reflected")?.proposed,
 		).toEqual(["読みたい論文が有料で読めない"]);
+	});
+});
+
+describe("Ashi の改善案への対応(2026-09-25)", () => {
+	const at2 = () => new Date("2026-09-25T12:00:00");
+
+	test("2 回見つからなかった問いは未測定の棚へ。探した場所は次の歩みに見せる", async () => {
+		const store = freshStore();
+		const target = q({ track: "self", text: "脳幹の温度", theme: "睡眠" });
+		store.saveQuestions([target]);
+		const miss = (where: string) =>
+			new FakeHead({
+				explore: () =>
+					explore({ found: "none", searched: [where], answered: false }),
+			});
+
+		await step({
+			store,
+			head: miss("PubMed 脳幹 温度"),
+			tools: [],
+			now: at2,
+			rng: () => 0.99,
+		});
+		let got = store.questions().find((x) => x.id === target.id);
+		expect(got).toMatchObject({
+			status: "open",
+			misses: 1,
+			searchedWhere: ["PubMed 脳幹 温度"],
+		});
+
+		store.saveWalk({ ...store.walk(), sleepingUntil: undefined });
+		const second = new FakeHead({
+			explore: (req) => {
+				expect(req.prompt).toContain("これまでに探した場所");
+				expect(req.prompt).toContain("PubMed 脳幹 温度");
+				return explore({
+					found: "none",
+					searched: ["Google Scholar"],
+					answered: false,
+				});
+			},
+		});
+		await step({ store, head: second, tools: [], now: at2, rng: () => 0.99 });
+		got = store.questions().find((x) => x.id === target.id);
+		expect(got?.status).toBe("parked");
+		expect(store.recentLog(3).find((e) => e.event === "walked")?.parked).toBe(
+			true,
+		);
+	});
+
+	test("内省の次の一歩と橋の候補を残し、次の歩みに見せる。これまでの改善案も内省に見せる", async () => {
+		const store = freshStore(["a"]);
+		store.saveProposals([
+			{
+				id: "p1",
+				title: "偏りを抑えて",
+				why: "",
+				idea: "",
+				status: "done",
+				count: 1,
+				createdAt: "",
+				lastAt: "",
+			},
+		]);
+		store.saveWalk({ ...store.walk(), steps: 4 });
+		const head = new FakeHead({
+			explore: () => explore(),
+			reflect: (req) => {
+				expect(req.prompt).toContain("偏りを抑えて(直った)");
+				return {
+					diary: "d",
+					self: "私は寄り道が好きな歩き手で、問いの連鎖を追うのが楽しい。",
+					next_steps: ["次の先回りは中古車の周辺法規から"],
+					bridge_ideas: [
+						{ to_theme: "稼働表", idea: "空白は休憩かもしれない(推測)" },
+					],
+					proposals: [],
+				};
+			},
+		});
+		await step({ store, head, tools: [], now: at2, rng: () => 0.99 });
+		expect(store.walk().intentions).toEqual([
+			"次の先回りは中古車の周辺法規から",
+		]);
+		expect(store.bridgeIdeas()[0]).toMatchObject({
+			toTheme: "稼働表",
+			idea: "空白は休憩かもしれない(推測)",
+		});
+
+		store.saveQuestions([q({ track: "owner", theme: "稼働表" })]);
+		store.saveWalk({ ...store.walk(), sleepingUntil: undefined });
+		const next = new FakeHead({
+			explore: (req) => {
+				expect(req.prompt).toContain("次の先回りは中古車の周辺法規から");
+				expect(req.prompt).toContain("空白は休憩かもしれない");
+				expect(req.prompt).toContain("問いを選ぶのは足です");
+				return explore();
+			},
+		});
+		await step({ store, head: next, tools: [], now: at2, rng: () => 0.1 });
+		expect(next.calls).toHaveLength(1);
+	});
+
+	test("直近に多く歩いたテーマの問いは選ばず、それ以外の問いを探させる", async () => {
+		const store = freshStore();
+		store.saveQuestions([q({ track: "owner", theme: "稼働表" })]);
+		store.saveWalk({
+			...store.walk(),
+			recentThemes: ["稼働表", "睡眠", "稼働表", "年輪", "稼働表"],
+		});
+		const head = new FakeHead({
+			seed: (req) => {
+				expect(req.prompt).toContain("休ませているテーマ(稼働表)以外");
+				expect(req.prompt).toContain("直近の内訳にまだ出てこない項目を優先");
+				return {
+					new_questions: [
+						{
+							text: "また稼働表",
+							theme: "稼働表",
+							track: "owner",
+							interest: 1,
+							importance: 1,
+							feasibility: 1,
+						},
+						{
+							text: "中古車の周辺法規",
+							theme: "中古車",
+							track: "owner",
+							interest: 1,
+							importance: 1,
+							feasibility: 1,
+						},
+					],
+					crawl: [],
+					tiredness: 0,
+					sleep_minutes: 20,
+				};
+			},
+		});
+		const o = await step({ store, head, tools: [], now: at2, rng: () => 0.1 });
+		expect(o).toMatchObject({ kind: "seeded", track: "owner", added: 1 });
+		expect(store.questions().map((x) => x.text)).toContain("中古車の周辺法規");
 	});
 });

@@ -121,17 +121,50 @@ export interface NewQuestion {
 	feasibility: number;
 }
 
+export interface BridgeIdeaDraft {
+	to_theme: string;
+	idea: string;
+}
+
 export interface ExploreAnswer {
 	title: string;
 	summary: string;
 	findings: string;
 	answered: boolean;
+	/** 見つかったか。none が続いた問いは足が未測定の棚に移す */
+	found: "yes" | "partial" | "none";
+	searched: string[];
 	new_questions: NewQuestion[];
+	bridge_ideas: BridgeIdeaDraft[];
 	crawl: string[];
 	blocked: { target: string; reason: string; needed: string }[];
 	tiredness: number;
 	sleep_minutes: number;
 }
+
+const BRIDGE_IDEAS_FIELD = {
+	bridge_ideas: {
+		type: "array",
+		description:
+			"橋の候補。個性の側で思いついた、持ち主の関心に効きそうだがまだ推測で問いにできない見方。足が置いておき、その持ち主のテーマを歩くときに見せる。無ければ空",
+		items: {
+			type: "object",
+			properties: {
+				to_theme: {
+					type: "string",
+					description: "持ち込み先の持ち主のテーマ(問いのテーマと同じ表記で)",
+				},
+				idea: {
+					type: "string",
+					description:
+						"持ち帰りたい見方を 1〜2 文で。推測であることが分かるように",
+				},
+			},
+			required: ["to_theme", "idea"],
+			additionalProperties: false,
+		},
+	},
+};
 
 export const EXPLORE_SCHEMA: JsonSchema = {
 	type: "object",
@@ -147,11 +180,25 @@ export const EXPLORE_SCHEMA: JsonSchema = {
 			type: "boolean",
 			description: "この問いにもう十分答えられたか",
 		},
+		found: {
+			type: "string",
+			enum: ["yes", "partial", "none"],
+			description:
+				"問いの核心について、手がかりが見つかったか。none は、探したが核心に触れる資料が見つからなかった",
+		},
+		searched: {
+			type: "array",
+			items: { type: "string" },
+			description:
+				"今回探した場所(検索語・サイト・論文・資料)。次に同じ所を探し直さないよう足が残す",
+		},
 		new_questions: {
 			type: "array",
 			items: QUESTION_ITEM,
-			description: "歩いていて浮かんだ次の問い",
+			description:
+				"歩いていて浮かんだ次の問い、持ち越す問い。ここに入れた問いは問いの一覧に残り、後で足が選ぶ",
 		},
+		...BRIDGE_IDEAS_FIELD,
 		...CRAWL_FIELD,
 		...BLOCKED_FIELD,
 		...SLEEP_FIELDS,
@@ -161,7 +208,10 @@ export const EXPLORE_SCHEMA: JsonSchema = {
 		"summary",
 		"findings",
 		"answered",
+		"found",
+		"searched",
 		"new_questions",
+		"bridge_ideas",
 		"crawl",
 		"blocked",
 		"tiredness",
@@ -185,13 +235,73 @@ const openList = (qs: Question[]) =>
 		.map((q) => `- [${q.track}] (${q.theme}) ${q.text}`)
 		.join("\n") || "(無い)";
 
+/** 歩き・問い探しのときに足が添える材料 */
+export interface WalkContext {
+	notes: Note[];
+	questions: Question[];
+	feeds: string;
+	/** 直近の内省で決めた「次の一歩」 */
+	intentions: string[];
+	/** 橋の候補 */
+	bridges: { toTheme: string; idea: string }[];
+	/** 直近に歩いたテーマ(新しい順、問い探しは除く) */
+	recentThemes: string[];
+	/** いま休ませているテーマ */
+	resting: string[];
+}
+
+/** 足がどう問いを選んでいるか。頭は自分では選ばないので、影響できるところを伝える */
+const HOW_LEGS_CHOOSE = `問いを選ぶのは足です(点数とさいころ。系統は先回り:個性の割合で決め、直近に多く歩いたテーマは休ませる)。
+あなたが次の歩みに影響できるのは、new_questions に出す問いとその見立て、bridge_ideas、内省の next_steps です。`;
+
+function themeTally(themes: string[]): string {
+	if (!themes.length) return "(まだ無い)";
+	const counts = new Map<string, number>();
+	for (const t of themes) counts.set(t, (counts.get(t) ?? 0) + 1);
+	return [...counts].map(([t, n]) => `${t} ${n}`).join(" / ");
+}
+
+function contextBlock(c: WalkContext, track: Track): string {
+	const parts: string[] = [];
+	parts.push(
+		`直近に歩いたテーマの内訳(新しい 10 歩): ${themeTally(c.recentThemes.slice(0, 10))}`,
+	);
+	if (c.resting.length)
+		parts.push(`いま足が休ませているテーマ: ${c.resting.join(" / ")}`);
+	if (c.intentions.length)
+		parts.push(
+			`前回の内省で決めた次の一歩:\n${c.intentions.map((i) => `- ${i}`).join("\n")}`,
+		);
+	if (track === "owner" && c.bridges.length) {
+		parts.push(
+			`橋の候補(個性の側で思いついた、まだ推測の持ち帰り。このテーマに効くなら使う):\n${c.bridges
+				.map((b) => `- (${b.toTheme}) ${b.idea}`)
+				.join("\n")}`,
+		);
+	}
+	const parked = c.questions.filter((q) => q.status === "parked");
+	if (parked.length) {
+		parts.push(
+			`未測定の棚(探しても見つからなかった問い。新しい探し場所を思いついたら、その場所を書いた問いとして new_questions に出し直してよい):\n${parked
+				.slice(0, 10)
+				.map(
+					(q) =>
+						`- (${q.theme}) ${q.text} ── 探した場所: ${(q.searchedWhere ?? []).slice(-5).join("、") || "記録なし"}`,
+				)
+				.join("\n")}`,
+		);
+	}
+	return parts.join("\n\n");
+}
+
 const TRACK_HINT: Record<Track, string> = {
 	owner:
 		"先回りの問いです。持ち主がいつか聞いてきたとき、そのまま答えられる深さまで掘ってください。持ち主が既に詳しいところは繰り返さず、その先を書いてください。",
 	self: `個性の問いです。持ち主の地図に無い見方を大事にしてください。持ち主の好みに寄せる必要はありません。
 歩き終えたら、分かったことの中に、持ち主の関心(地図の「よく考えていること」や最近の足跡)に効きそうな見方がないか考えてください。
 あれば、その見方を持ち主の側に持ち帰る問いを 1 つ、track を owner にして new_questions に入れてください(橋渡し)。
-例: 片半球睡眠を調べた → 「常駐エージェントは、一部だけ休ませて見張りを残す作りにできるか」。こじつけになるなら入れないこと。`,
+例: 片半球睡眠を調べた → 「常駐エージェントは、一部だけ休ませて見張りを残す作りにできるか」。こじつけになるなら入れないこと。
+まだ推測で問いにできない見方は、bridge_ideas に置いておけます。`,
 };
 
 const feedsBlock = (
@@ -202,30 +312,36 @@ ${feeds}`;
 export function explorePrompt(
 	q: Question,
 	reason: "score" | "detour",
-	notes: Note[],
-	questions: Question[],
-	feeds: string,
+	c: WalkContext,
 ): string {
+	const searched = q.searchedWhere?.length
+		? `\nこれまでに探した場所(同じ所は探し直さず、別の場所を当たること): ${q.searchedWhere.join("、")}`
+		: "";
 	return `次の問いを歩いてください${reason === "detour" ? "(足がさいころを振って選んだ寄り道です)" : ""}。
 
 問い: ${q.text}
 テーマ: ${q.theme}
 系統: ${q.track}
-これまでに歩いた回数: ${q.visits}
+これまでに歩いた回数: ${q.visits}${q.misses ? `(うち見つからなかった回数 ${q.misses})` : ""}${searched}
 
 ${TRACK_HINT[q.track]}
 
 道具で調べ(web 検索・fetch_url・これまでのノートの search_notes / read_note)、分かったことをノートにしてください。
 調べきれなくても構いません。分かったところまでを書き、残りは次の問いにしてください。
+探した場所は searched に、核心に触れる資料が見つからなかったら found を none にしてください。
 ログイン・鍵・有料の壁で進めなかったところがあれば blocked に書いてください。足が持ち主に知らせます。
 
+${HOW_LEGS_CHOOSE}
+
+${contextBlock(c, q.track)}
+
 最近のノート:
-${recentNotes(notes)}
+${recentNotes(c.notes)}
 
 抱えている問い(重ねて出さないこと):
-${openList(questions)}
+${openList(c.questions)}
 
-${feedsBlock(feeds)}`;
+${feedsBlock(c.feeds)}`;
 }
 
 export interface SeedAnswer {
@@ -247,31 +363,30 @@ export const SEED_SCHEMA: JsonSchema = {
 };
 
 const SEED_HINT: Record<Track, string> = {
-	owner:
-		"先回り(owner)の問いが尽きました。持ち主の地図の「まだ知らなそうなこと」と最近の足跡から、持ち主がいつか聞いてきそうな問いを出してください。",
-	self: `個性(self)の問いが尽きました。持ち主の地図から一歩外れたところから、あなた自身が惹かれる問いを出してください。
+	owner: `先回り(owner)の問いが尽きました(または休ませているテーマの問いしか残っていません)。
+持ち主の地図の「まだ知らなそうなこと」の項目のうち、**直近の内訳にまだ出てこない項目を優先して**、持ち主がいつか聞いてきそうな問いを出してください。
+最近の足跡や橋の候補から出してもかまいません。`,
+	self: `個性(self)の問いが尽きました(または休ませているテーマの問いしか残っていません)。持ち主の地図から一歩外れたところから、あなた自身が惹かれる問いを出してください。
 持ち主の関心と地続きだが、持ち主の「発想の癖」では向かわない方向がよい。自己記述に書いた、あなたが惹かれていることの続きでもかまいません。
 遠くへ飛びすぎず、持ち主のところへ戻る道が見える問いにしてください(戻り道は問いの文に書かなくてよい)。`,
 };
 
-export function seedPrompt(
-	notes: Note[],
-	questions: Question[],
-	feeds: string,
-	track: Track,
-	avoidTheme?: string,
-): string {
+export function seedPrompt(track: Track, c: WalkContext): string {
 	return `${SEED_HINT[track]}
-出す問いの track はすべて ${track} にしてください。${avoidTheme ? `「${avoidTheme}」が続いたので、足がそのテーマを休ませています。「${avoidTheme}」以外のテーマにしてください。` : ""}
+出す問いの track はすべて ${track} にしてください。${c.resting.length ? `休ませているテーマ(${c.resting.join(" / ")})以外にしてください。` : ""}
 道具は使えません。
 
+${HOW_LEGS_CHOOSE}
+
+${contextBlock(c, track)}
+
 最近のノート:
-${recentNotes(notes)}
+${recentNotes(c.notes)}
 
 抱えている問い(重ねて出さないこと):
-${openList(questions)}
+${openList(c.questions)}
 
-${feedsBlock(feeds)}`;
+${feedsBlock(c.feeds)}`;
 }
 
 export interface ProposalDraft {
@@ -283,6 +398,8 @@ export interface ProposalDraft {
 export interface ReflectAnswer {
 	diary: string;
 	self: string;
+	next_steps: string[];
+	bridge_ideas: BridgeIdeaDraft[];
 	proposals: ProposalDraft[];
 }
 
@@ -298,6 +415,13 @@ export const REFLECT_SCHEMA: JsonSchema = {
 			description:
 				"書き直した自己記述(Markdown、全文)。何に惹かれ、どう歩く者か。持ち主と違う自分の見方を書く。コア原則は含めない",
 		},
+		next_steps: {
+			type: "array",
+			items: { type: "string" },
+			description:
+				"次の数歩でやりたいこと(0〜3 件)。日記に書くだけだと次の問い選びに届かないので、ここに書く。足が次の内省まで、問いを探す・歩くたびに見せる",
+		},
+		...BRIDGE_IDEAS_FIELD,
 		proposals: {
 			type: "array",
 			description:
@@ -324,7 +448,7 @@ export const REFLECT_SCHEMA: JsonSchema = {
 			},
 		},
 	},
-	required: ["diary", "self", "proposals"],
+	required: ["diary", "self", "next_steps", "bridge_ideas", "proposals"],
 	additionalProperties: false,
 };
 
@@ -332,15 +456,42 @@ export function reflectPrompt(
 	notes: Note[],
 	todayDiary: string,
 	recentThemes: string[],
+	intentions: string[],
+	proposals: { title: string; status: string }[],
 ): string {
+	const STATUS: Record<string, string> = {
+		open: "持ち主が未処理",
+		filed: "issue になった",
+		done: "直った",
+		dismissed: "見送られた",
+	};
 	return `立ち止まって内省してください。日記を書き、自己記述を書き直してください。道具は使えません。
 自己記述は持ち主の地図の写しにしないでください。持ち主に無い発想や、self の問いで育った見方を、あなたの個性として書いてください。
 個性の側から持ち主の側へ橋渡しした問いがあれば、日記にどうつながったかを書いてください。
+次の数歩でやりたいことは、日記だけでなく next_steps に書いてください(足が次の内省まで見せます)。
+まだ推測で問いにできない持ち帰りの見方は bridge_ideas に置いてください。
 歩いていて、自分の仕組み(足の動き・道具・プロンプト・画面)に困ったことがあれば proposals に改善案を書いてください。
 例: 同じテーマをぐるぐる回った、読みたいページが読めなかった、問いの選び方が偏っていた。
 ガードレールやコア原則を変える提案もしてよいが、理由をはっきり書くこと(決めるのは持ち主)。無理に作らないこと。
+下の「これまでの改善案」と同じものは出し直さないこと(直ったのにまだ困っているなら、そう書く)。
+
+${HOW_LEGS_CHOOSE}
 
 最近歩いたテーマ(新しい順): ${recentThemes.join(" / ") || "(無い)"}
+直近の内訳: ${themeTally(recentThemes.filter((t) => t !== "(問いを探す)").slice(0, 10))}
+
+前回の内省で決めた次の一歩(守れたか振り返ること):
+${intentions.length ? intentions.map((i) => `- ${i}`).join("\n") : "(無い)"}
+
+これまでの改善案:
+${
+	proposals.length
+		? proposals
+				.slice(-20)
+				.map((p) => `- ${p.title}(${STATUS[p.status] ?? p.status})`)
+				.join("\n")
+		: "(無い)"
+}
 
 最近のノート:
 ${recentNotes(notes)}

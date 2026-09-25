@@ -1,3 +1,4 @@
+import type { Proposal } from "$lib/server/ashi/state";
 import { md } from "$lib/server/markdown";
 import { store } from "$lib/server/runtime";
 import type { Actions, PageServerLoad } from "./$types";
@@ -40,11 +41,7 @@ export const load: PageServerLoad = () => {
 	};
 };
 
-function setStatus(
-	id: string,
-	status: "open" | "filed" | "dismissed",
-	issueUrl?: string,
-) {
+function setStatus(id: string, status: Proposal["status"], issueUrl?: string) {
 	store.saveProposals(
 		store
 			.proposals()
@@ -63,6 +60,10 @@ export const actions: Actions = {
 			"filed",
 			/^https:\/\/github\.com\//.test(url) ? url : undefined,
 		);
+		return {};
+	},
+	done: async ({ request }) => {
+		setStatus(String((await request.formData()).get("id") ?? ""), "done");
 		return {};
 	},
 	dismiss: async ({ request }) => {

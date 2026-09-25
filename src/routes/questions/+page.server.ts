@@ -1,6 +1,6 @@
 import { score } from "$lib/server/ashi/legs/select";
 import { store } from "$lib/server/runtime";
-import type { PageServerLoad } from "./$types";
+import type { Actions, PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = () => {
 	const all = store.questions();
@@ -16,8 +16,9 @@ export const load: PageServerLoad = () => {
 		open: qs
 			.filter((q) => q.status === "open")
 			.sort((a, b) => b.score - a.score),
+		parked: qs.filter((q) => q.status === "parked"),
 		closed: qs
-			.filter((q) => q.status !== "open")
+			.filter((q) => q.status === "answered" || q.status === "dropped")
 			.sort((a, b) =>
 				(b.lastVisitedAt ?? b.createdAt).localeCompare(
 					a.lastVisitedAt ?? a.createdAt,
@@ -25,4 +26,15 @@ export const load: PageServerLoad = () => {
 			)
 			.slice(0, 100),
 	};
+};
+
+export const actions: Actions = {
+	/** 未測定の棚から戻す(新しい探し場所を思いついたときなど)。見つからなかった回数も 0 に */
+	reopen: async ({ request }) => {
+		const id = String((await request.formData()).get("id") ?? "");
+		store.updateQuestions((qs) =>
+			qs.map((q) => (q.id === id ? { ...q, status: "open", misses: 0 } : q)),
+		);
+		return {};
+	},
 };

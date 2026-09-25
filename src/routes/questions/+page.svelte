@@ -1,4 +1,5 @@
 <script lang="ts">
+import { enhance } from "$app/forms";
 import { TRACK_LABEL, when } from "$lib/format";
 
 let { data } = $props();
@@ -53,6 +54,30 @@ let { data } = $props();
 		{/if}
 	</section>
 
+	{#if data.parked.length}
+		<section class="panel">
+			<div class="panel-head">
+				<h2>未測定の棚({data.parked.length})</h2>
+				<span class="tag">探しても見つからなかった</span>
+			</div>
+			<ul class="rows">
+				{#each data.parked as q (q.id)}
+					<li>
+						<span class="tag {q.track === 'owner' ? 'info' : 'accent'}">{TRACK_LABEL[q.track]}</span>
+						<span class="grow small">
+							{q.text}
+							<span class="tiny muted parked-where">探した場所: {(q.searchedWhere ?? []).join("、") || "記録なし"}</span>
+						</span>
+						<form method="POST" action="?/reopen" use:enhance>
+							<input type="hidden" name="id" value={q.id} />
+							<button type="submit" class="ghost mini">戻す</button>
+						</form>
+					</li>
+				{/each}
+			</ul>
+		</section>
+	{/if}
+
 	{#if data.closed.length}
 		<details class="fold">
 			<summary>答えた・手放した問い({data.closed.length})</summary>
@@ -70,6 +95,12 @@ let { data } = $props();
 </div>
 
 <style>
+	.parked-where {
+		display: block;
+	}
+	.rows form {
+		margin: 0;
+	}
 	.bridge {
 		margin-top: 0.25rem;
 	}

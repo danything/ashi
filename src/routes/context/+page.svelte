@@ -34,6 +34,41 @@ let { data } = $props();
 		</section>
 	</div>
 
+	<div class="two">
+		<section class="panel">
+			<div class="panel-head">
+				<h2>次の一歩</h2>
+				<span class="tag accent">前回の内省で決めた</span>
+			</div>
+			{#if data.intentions.length}
+				<ul class="rows">
+					{#each data.intentions as i, k (k)}<li class="small">{i}</li>{/each}
+				</ul>
+			{:else}
+				<p class="empty">まだ無い。</p>
+			{/if}
+		</section>
+		<section class="panel">
+			<div class="panel-head">
+				<h2>橋の候補({data.bridges.length})</h2>
+				<span class="tag">個性で思いついた、まだ推測の持ち帰り</span>
+			</div>
+			{#if data.bridges.length}
+				<ul class="rows">
+					{#each data.bridges as b (b.id)}
+						<li class="small">
+							<span class="tag info">{b.toTheme}</span>
+							<span class="grow">{b.idea}</span>
+							{#if b.fromNoteId}<a class="tiny" href="/notes/{b.fromNoteId}">元のノート</a>{/if}
+						</li>
+					{/each}
+				</ul>
+			{:else}
+				<p class="empty">まだ無い。</p>
+			{/if}
+		</section>
+	</div>
+
 	<details class="fold">
 		<summary>頭に渡している system の全文</summary>
 		<pre class="small">{data.system}</pre>

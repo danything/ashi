@@ -160,3 +160,50 @@ describe("MCP サーバー", () => {
 		expect(priv?.result).toMatchObject({ isError: true });
 	});
 });
+
+describe("PMC の本文の読み方", () => {
+	test("Europe PMC が返さない著者稿は NCBI BioC で読む(参考文献は落とす)", async () => {
+		const { deps, hits } = net({
+			"https://www.ebi.ac.uk/europepmc/webservices/rest/PMC8670325/fullTextXML":
+				() => Response.json({ error: "x" }, { status: 500 }),
+			"https://www.ncbi.nlm.nih.gov/research/bionlp/RESTful/pmcoa.cgi/BioC_json/PMC8670325/unicode":
+				() =>
+					Response.json([
+						{
+							documents: [
+								{
+									passages: [
+										{
+											infons: { section_type: "TITLE" },
+											text: "Fur Seals Suppress REM Sleep",
+										},
+										{
+											infons: { section_type: "RESULTS" },
+											text: "Brain temperature did not change.",
+										},
+										{
+											infons: { section_type: "REF" },
+											text: "Siegel JM (2009) ...",
+										},
+									],
+								},
+							],
+						},
+					]),
+		});
+		const [, read] = paperTools(cfg, deps);
+		const out = (await read?.run({ pmcid: "PMC8670325", url: "" })) ?? "";
+		expect(out).toContain("NCBI BioC");
+		expect(out).toContain("## RESULTS\nBrain temperature did not change.");
+		expect(out).not.toContain("Siegel JM (2009)");
+		expect(hits.some((h) => h.includes("pmc.ncbi.nlm.nih.gov"))).toBe(false);
+	});
+
+	test("どこでも読めなければ、当たった先を並べて返す", async () => {
+		const { deps } = net({});
+		const [, read] = paperTools(cfg, deps);
+		expect(await read?.run({ pmcid: "PMC1", url: "" })).toContain(
+			"Europe PMC 404、NCBI BioC 404、PMC 404",
+		);
+	});
+});

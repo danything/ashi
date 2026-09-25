@@ -150,7 +150,8 @@ export class ClaudeCodeHead implements Head {
 				"--disable-slash-commands",
 				"--no-session-persistence",
 				// 1 回の道具の呼び出しが 1 ターン。調べ物は検索・読み込みを何度も往復するので多めに
-				// (道具の往復の上限 + 3 にしていたら、最初の調べ物がターン切れで何も残らなかった)
+				// (道具の往復の上限 + 3 にしていたら、最初の調べ物がターン切れで何も残らなかった。
+				// 8 往復・29 ターンでも、写しや論文を当たる歩みが切れたので 12 往復・41 ターンにした、2026-09-25)
 				"--max-turns",
 				String((req.maxToolRounds ?? 8) * 3 + 5),
 			];

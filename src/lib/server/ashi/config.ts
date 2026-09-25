@@ -117,7 +117,7 @@ export const DEFAULT_CONFIG: Config = {
 	},
 	maxNewQuestions: 3,
 	maxOpenQuestions: 50,
-	maxToolRounds: 8,
+	maxToolRounds: 12,
 	allowWeb: true,
 	fetch: { maxBytes: 200_000, timeoutMs: 15_000 },
 };

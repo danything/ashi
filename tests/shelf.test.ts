@@ -8,6 +8,7 @@ import {
 	similarPairs,
 } from "../src/lib/server/ashi/legs/guard.ts";
 import { step } from "../src/lib/server/ashi/legs/walk.ts";
+import { openList } from "../src/lib/server/ashi/prompts.ts";
 import { explore, FakeHead, freshStore, q } from "./helpers.ts";
 
 const now = new Date("2026-09-25T12:00:00");
@@ -168,5 +169,25 @@ describe("内省の棚卸し", () => {
 		expect(
 			store.recentLog(3).find((e) => e.event === "reflected"),
 		).toMatchObject({ merged: 1 });
+	});
+});
+
+describe("テーマの上限を問いの一覧で知らせる", () => {
+	test("上限に達したテーマと、あと 1 本のテーマに印を付ける", () => {
+		const qs = [
+			q({ id: "a1", theme: "労働時間" }),
+			q({ id: "a2", theme: "労働時間" }),
+			q({ id: "a3", theme: "労働時間" }),
+			q({ id: "b1", theme: "言葉の来歴" }),
+			q({ id: "b2", theme: "言葉の来歴" }),
+			q({ id: "c1", theme: "見えない仕事" }),
+		];
+		const text = openList(qs, 3);
+		expect(text).toContain(
+			"### 労働時間(3・上限 3 に達している。新しい問いは受け取られない)",
+		);
+		expect(text).toContain("### 言葉の来歴(2・上限 3 まであと 1 本)");
+		expect(text).toContain("### 見えない仕事(1)");
+		expect(openList(qs)).toContain("### 労働時間(3)");
 	});
 });

@@ -286,6 +286,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 			bridges: store.bridgeIdeas().slice(-10),
 			recentThemes: walk.recentThemes.filter((t) => t !== SEEDING),
 			resting,
+			maxOpenPerTheme: cfg.maxOpenPerTheme,
 		});
 		let outcome: StepOutcome;
 		let tiredness = 0;

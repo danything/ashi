@@ -242,7 +242,7 @@ const recentNotes = (notes: Note[]) =>
  * 開いた問いを、テーマごとに件数つきで全部見せる(80 本まで)。
  * 以前は先頭の 30 本しか見せておらず、頭が同じ問いを重ねて出していた(2026-09-25、開いた問いは 45 本あった)
  */
-const openList = (qs: Question[]) => {
+export const openList = (qs: Question[], maxPerTheme?: number) => {
 	const open = qs.filter((q) => q.status === "open").slice(0, 80);
 	if (!open.length) return "(無い)";
 	const groups = new Map<string, Question[]>();
@@ -252,12 +252,25 @@ const openList = (qs: Question[]) => {
 		.sort((a, b) => b[1].length - a[1].length)
 		.map(
 			([theme, xs]) =>
-				`### ${theme}(${xs.length})\n${xs.map((q) => `- [${q.id}] [${q.track}] ${q.text}`).join("\n")}`,
+				`### ${theme}(${xs.length}${fullness(xs.length, maxPerTheme)})\n${xs.map((q) => `- [${q.id}] [${q.track}] ${q.text}`).join("\n")}`,
 		)
 		.join("\n");
 	return `${body}
 (新しい問いのテーマは、上の既存の名前と同じものがあればそれをそのまま使う。1 つのテーマに開いた問いが多いと、足は新しい問いを受け取らない)`;
 };
+
+/**
+ * テーマの開いた問いが上限に近いことを添える。上限に達したテーマは足が新しい問いを受け取らないので、
+ * 頭が出してから弾かれるのでなく、出す前に「既存の問いを深めるか、統合する」と判断できるように(Ashi の改善案、2026-09-25)
+ */
+const fullness = (n: number, max?: number) =>
+	!max
+		? ""
+		: n >= max
+			? `・上限 ${max} に達している。新しい問いは受け取られない`
+			: n >= max - 1
+				? `・上限 ${max} まであと 1 本`
+				: "";
 
 /** 歩き・問い探しのときに足が添える材料 */
 export interface WalkContext {
@@ -272,6 +285,8 @@ export interface WalkContext {
 	recentThemes: string[];
 	/** いま休ませているテーマ */
 	resting: string[];
+	/** テーマごとの開いた問いの上限 */
+	maxOpenPerTheme?: number;
 }
 
 /** 足がどう問いを選んでいるか。頭は自分では選ばないので、影響できるところを伝える */
@@ -370,7 +385,7 @@ ${contextBlock(c, q.track)}
 ${recentNotes(c.notes)}
 
 抱えている問い(重ねて出さないこと):
-${openList(c.questions)}
+${openList(c.questions, c.maxOpenPerTheme)}
 
 ${feedsBlock(c.feeds)}`;
 }
@@ -415,7 +430,7 @@ ${contextBlock(c, track)}
 ${recentNotes(c.notes)}
 
 抱えている問い(重ねて出さないこと):
-${openList(c.questions)}
+${openList(c.questions, c.maxOpenPerTheme)}
 
 ${feedsBlock(c.feeds)}`;
 }

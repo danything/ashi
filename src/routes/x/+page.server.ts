@@ -1,6 +1,10 @@
 import { fail } from "@sveltejs/kit";
 import { PostRefused, postNow } from "$lib/server/ashi/legs/post-now";
-import { WRITE_USD, xConfigured } from "$lib/server/ashi/legs/x";
+import {
+	looksUnrelated,
+	WRITE_USD,
+	xConfigured,
+} from "$lib/server/ashi/legs/x";
 import {
 	ashiPostIds,
 	CLEANUP_BATCH,
@@ -52,7 +56,15 @@ export const load: PageServerLoad = () => {
 			.conversations()
 			.slice()
 			.sort((x, y) => y.lastAt.localeCompare(x.lastAt))
-			.slice(0, 20),
+			.slice(0, 20)
+			// リンクだけの無関係な返信は、消さずに印を付けて畳んで見せる
+			.map((c) => ({
+				...c,
+				messages: c.messages.map((m) => ({
+					...m,
+					unrelated: !m.byAshi && looksUnrelated(m.text),
+				})),
+			})),
 	};
 };
 

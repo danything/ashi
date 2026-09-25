@@ -127,12 +127,19 @@ let posting = $state(false);
 				{#each data.conversations as c (c.id)}
 					<div class="conv">
 						{#each c.messages.slice(-6) as m (m.id)}
-							<div class="msg" class:mine={m.byAshi}>
-								<a class="tiny muted" href="https://x.com/{m.username}/status/{m.id}" target="_blank" rel="noopener noreferrer">
-									@{m.username} ・ {when(m.at)}
-								</a>
-								<p class="small">{m.text}</p>
-							</div>
+							{#if m.unrelated}
+								<details class="unrelated tiny muted">
+									<summary>@{m.username} のリンクだけの返信(たぶん無関係)</summary>
+									<p>{m.text}</p>
+								</details>
+							{:else}
+								<div class="msg" class:mine={m.byAshi}>
+									<a class="tiny muted" href="https://x.com/{m.username}/status/{m.id}" target="_blank" rel="noopener noreferrer">
+										@{m.username} ・ {when(m.at)}
+									</a>
+									<p class="small">{m.text}</p>
+								</div>
+							{/if}
 						{/each}
 						{#if c.pending.length}<span class="tag info">返事を考える {c.pending.length} 件</span>{/if}
 					</div>
@@ -178,6 +185,10 @@ let posting = $state(false);
 		gap: 0.4rem;
 		border-left: 3px solid var(--ui-base-300);
 		padding: 0.25rem 0 0.25rem 0.75rem;
+	}
+	.unrelated p {
+		margin: 0.25rem 0 0;
+		overflow-wrap: anywhere;
 	}
 	.msg p {
 		margin: 0;

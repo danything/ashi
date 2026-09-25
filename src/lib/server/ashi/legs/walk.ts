@@ -44,7 +44,14 @@ import {
 } from "./guard.ts";
 import { restingThemes, SEEDING, selectQuestion } from "./select.ts";
 import type { GetDeps } from "./tools.ts";
-import { canPost, postToX, xBlockage, xLength } from "./x.ts";
+import {
+	canPost,
+	canReply,
+	looksUnrelated,
+	postToX,
+	xBlockage,
+	xLength,
+} from "./x.ts";
 
 /**
  * 足の 1 歩。状態を読み、行き先を選び、頭に考えさせ、ガードレールを通して書き戻し、休む。
@@ -399,14 +406,43 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 				recentThemes: [q.theme, ...walk.recentThemes].slice(0, 20),
 				crawlRequests: crawlIds(output.crawl),
 			});
-			// 頭が歩いていて弾かれたと知らせてきたもの。持ち主が権限を足せば進めるもの
+			// 頭が歩いていて弾かれたと知らせてきたもの。画面の「弾かれたこと」には出すが、通知はしない
+			// (有料の論文や判例誌のたびに鳴って、持ち主が手を打てないものばかりだった)
 			for (const b of reportedBlocks(output.blocked)) {
-				await raiseBlocker(store, "report", b, now, notify);
+				await raiseBlocker(store, "report", b, now, async () => {});
+			}
+			// X で確かめずに言ったことが違っていたら、その返信に続けて訂正する
+			let corrected: string | undefined;
+			const correction =
+				typeof output.correction === "string" ? output.correction.trim() : "";
+			if (
+				q.origin &&
+				correction &&
+				xLength(correction) <= 280 &&
+				canReply(store, cfg, now)
+			) {
+				try {
+					await postToX(
+						store,
+						correction,
+						now,
+						{
+							tweetId: q.origin.replyId,
+							conversationId: q.origin.conversationId,
+						},
+						legs.env ?? process.env,
+						legs.net?.fetch ?? fetch,
+					);
+					corrected = correction;
+				} catch (e) {
+					await raiseBlocker(store, "x", xBlockage(e), now, notify);
+				}
 			}
 			store.log("walked", {
 				question: q.text,
 				theme: q.theme,
 				track: q.track,
+				corrected,
 				reason: choice.reason,
 				score: choice.score,
 				noteId,
@@ -449,7 +485,15 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 					store.proposals(),
 					store.xAccount() && cfg.x.enabled
 						? {
-								conversations: recentConversationsText(store.conversations()),
+								// リンクだけの無関係な返信は材料にしない
+								conversations: recentConversationsText(
+									store.conversations().map((c) => ({
+										...c,
+										messages: c.messages.filter(
+											(m) => m.byAshi || !looksUnrelated(m.text),
+										),
+									})),
+								),
 								canPost: canPost(store, cfg, now),
 							}
 						: undefined,

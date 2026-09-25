@@ -477,3 +477,16 @@ export function xBlockage(e: unknown): Blockage {
 		remedy: "続くようなら /x の様子と足どりを見る。",
 	};
 }
+
+/**
+ * 話の流れと関係の無い、リンクだけの返信か。@宛先と URL を除いて、ほとんど何も残らないもの。
+ * 消さずに分けて見せ、返事を考える材料からは外す(Ashi の改善案、2026-09-25)
+ */
+export function looksUnrelated(text: string): boolean {
+	if (!/https?:\/\//i.test(text)) return false;
+	const rest = text
+		.replace(/https?:\/\/\S+/gi, "")
+		.replace(/@\w+/g, "")
+		.replace(/[\s\p{P}\p{S}]/gu, "");
+	return rest.length <= 8;
+}

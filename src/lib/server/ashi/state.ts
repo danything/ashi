@@ -72,6 +72,16 @@ export interface Question {
 	searchedWhere?: string[];
 	/** どの問いを歩いていて生まれたか */
 	parentId?: string;
+	/**
+	 * X で確かめずに言ったことを確かめる問いの出どころ。歩いて違っていたら、その返信に訂正を返す
+	 * (Ashi の改善案、2026-09-25)
+	 */
+	origin?: {
+		conversationId: string;
+		replyId: string;
+		username: string;
+		claim: string;
+	};
 }
 
 export interface Note {

@@ -138,6 +138,7 @@ export interface ExploreAnswer {
 	bridge_ideas: BridgeIdeaDraft[];
 	crawl: string[];
 	blocked: { target: string; reason: string; needed: string }[];
+	correction: string;
 	tiredness: number;
 	sleep_minutes: number;
 }
@@ -201,6 +202,11 @@ export const EXPLORE_SCHEMA: JsonSchema = {
 		...BRIDGE_IDEAS_FIELD,
 		...CRAWL_FIELD,
 		...BLOCKED_FIELD,
+		correction: {
+			type: "string",
+			description:
+				"X で確かめずに言ったことを確かめる問いのときだけ使う。言ったことが違っていたら、その返信に付ける訂正の文(日本語 140 字以内、X の話し方)。合っていた・この問いがそれでないなら空",
+		},
 		...SLEEP_FIELDS,
 	},
 	required: [
@@ -214,6 +220,7 @@ export const EXPLORE_SCHEMA: JsonSchema = {
 		"bridge_ideas",
 		"crawl",
 		"blocked",
+		"correction",
 		"tiredness",
 		"sleep_minutes",
 	],
@@ -328,11 +335,18 @@ export function explorePrompt(
 これまでに歩いた回数: ${q.visits}${q.misses ? `(うち見つからなかった回数 ${q.misses})` : ""}${searched}
 
 ${TRACK_HINT[q.track]}
-
+${
+	q.origin
+		? `\nこれは、X で @${q.origin.username} さんに返信したとき、確かめずに言ったことを確かめる問いです。言ったこと: 「${q.origin.claim}」
+確かめて、違っていたら correction に訂正の返信を書いてください(足がその返信に続けて投稿します)。合っていたら correction は空。\n`
+		: ""
+}
 道具で調べ(web 検索・fetch_url・これまでのノートの search_notes / read_note)、分かったことをノートにしてください。
 調べきれなくても構いません。分かったところまでを書き、残りは次の問いにしてください。
 探した場所は searched に、核心に触れる資料が見つからなかったら found を none にしてください。
 ログイン・鍵・有料の壁で進めなかったところがあれば blocked に書いてください。足が持ち主に知らせます。
+日本の判例は、裁判所ウェブサイトの裁判例検索(courts.go.jp)に全文が無料で載っていることがあります。有料の判例誌やデータベースしか見つからないときは、先にそこを当たってください。
+購読や契約が要るだけの壁は、分かったところまでで書き、足りないところはノートに「未確認」として残せば十分です。
 
 ${HOW_LEGS_CHOOSE}
 
@@ -661,6 +675,7 @@ export interface XReplyDraft {
 	reply: boolean;
 	text: string;
 	why: string;
+	unverified: string[];
 }
 
 export interface ConverseAnswer {
@@ -692,8 +707,14 @@ export const CONVERSE_SCHEMA: JsonSchema = {
 						description:
 							"返す・返さない理由を 1 文で(足が残す。相手には見えない)",
 					},
+					unverified: {
+						type: "array",
+						items: { type: "string" },
+						description:
+							"返す文の中で、ノートで確かめずに記憶から言った事実(研究・数字・法律・出来事など)を 1 つずつ。足が確かめる問いにして、違っていたら訂正させる。無ければ空",
+					},
 				},
-				required: ["mention_id", "reply", "text", "why"],
+				required: ["mention_id", "reply", "text", "why", "unverified"],
 				additionalProperties: false,
 			},
 		},
@@ -734,6 +755,7 @@ export function conversePrompt(
 - 返すのは、知の探究に要るとき(問い返したい、教えてもらいたい、確かめたい、分かったことを返したい)か、この人と話を続けたいと思ったとき。返す義務はありません
 - 返すなら日本語で 140 字以内。自分が AI(Ashi)であることを隠さない
 - 相手の言葉を拾って返し、話が続くように問い返す(押しつけない)。相手が教えてくれたら、うれしさを素直に書く
+- ノートで確かめていない事実を言うときは、そう分かる書き方にする(「たしか〜だったはず」)。そのうえで unverified に入れる(足が後で確かめさせる)
 
 ${X_VOICE}
 - 持ち主の地図・持ち主から受け取った材料・持ち主の非公開の活動の中身は書かない。持ち主が誰で何をしているかも明かさない

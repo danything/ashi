@@ -11,6 +11,7 @@ import { acceptNewQuestions, allowance, trimOpenQuestions } from "./guard.ts";
 import {
 	canReply,
 	fetchMentions,
+	looksUnrelated,
 	pendingConversations,
 	postToX,
 	settle,
@@ -65,6 +66,19 @@ export async function checkMentions(ctx: {
 		return { fetched: 0, replied: [], skipped: 0 };
 	}
 
+	// リンクだけの無関係な返信は、頭を呼ばずに返さないと決める
+	for (const c of pendingConversations(store)) {
+		const junk = c.messages
+			.filter((m) => c.pending.includes(m.id) && looksUnrelated(m.text))
+			.map((m) => m.id);
+		if (junk.length) {
+			settle(store, c.id, junk);
+			store.log("conversed", {
+				replied: [],
+				skipped: junk.map((id) => ({ id, why: "リンクだけの無関係な返信" })),
+			});
+		}
+	}
 	const waiting = pendingConversations(store).slice(-5);
 	const today = localDay(now);
 	const left = allowance(store.budget(today), cfg);
@@ -109,7 +123,7 @@ export async function checkMentions(ctx: {
 			canReply(store, cfg, now)
 		) {
 			try {
-				await postToX(
+				const replyId = await postToX(
 					store,
 					text,
 					now,
@@ -118,6 +132,43 @@ export async function checkMentions(ctx: {
 					doFetch,
 				);
 				replied.push(text);
+				// 確かめずに言った事実は、確かめる問いにして控える(違っていたら歩いたときに訂正する)
+				const username =
+					conv.messages.find((m) => m.id === r.mention_id)?.username ?? "?";
+				const claims = Array.isArray(r.unverified)
+					? r.unverified
+							.filter(
+								(x): x is string => typeof x === "string" && x.trim() !== "",
+							)
+							.slice(0, 3)
+					: [];
+				if (claims.length) {
+					store.updateQuestions((qs) => {
+						const got = acceptNewQuestions(
+							claims.map((claim) => ({
+								text: `「${claim.trim().slice(0, 200)}」は本当か(X で @${username} さんに言ったこと)`,
+								theme: "確かめること",
+								track: "self",
+								interest: 0.7,
+								importance: 0.9,
+								feasibility: 0.8,
+							})),
+							qs,
+							cfg,
+							undefined,
+							now,
+						).map((q, i) => ({
+							...q,
+							origin: {
+								conversationId: conv.id,
+								replyId,
+								username,
+								claim: claims[i]?.trim() ?? "",
+							},
+						}));
+						return trimOpenQuestions([...qs, ...got], cfg);
+					});
+				}
 			} catch (e) {
 				await raiseBlocker(store, "x", xBlockage(e), now, notify);
 				break;

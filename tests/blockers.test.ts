@@ -112,7 +112,7 @@ describe("step と弾かれたこと", () => {
 		expect(openBlockers(store)).toHaveLength(0);
 	});
 
-	test("頭が歩いていて弾かれたと知らせてきたら、持ち主に回す", async () => {
+	test("頭が歩いていて弾かれたと知らせてきたら、画面に出す(通知はしない)", async () => {
 		const store = freshStore(["a"]);
 		const { sent, notify } = collector();
 		const head = new FakeHead({
@@ -139,7 +139,9 @@ describe("step と弾かれたこと", () => {
 			key: "report:ieee xplore",
 			source: "report",
 		});
-		expect(sent[0]).toContain("著者の公開版");
+		// 画面には出すが、通知はしない(有料の論文や判例誌のたびに鳴っていた)
+		expect(sent).toEqual([]);
+		expect(openBlockers(store)[0]?.remedy).toContain("著者の公開版");
 	});
 
 	test("reportedBlocks は形の違うものを落とし、3 件まで", () => {

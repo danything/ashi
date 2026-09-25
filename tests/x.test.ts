@@ -10,7 +10,7 @@ import {
 } from "../src/lib/server/ashi/legs/x.ts";
 import { conversePrompt } from "../src/lib/server/ashi/prompts.ts";
 import { localDay, type Store } from "../src/lib/server/ashi/state.ts";
-import { explore, FakeHead, freshStore } from "./helpers.ts";
+import { explore, FakeHead, freshStore, q } from "./helpers.ts";
 
 const now = new Date("2026-09-25T12:00:00");
 const env = { X_CLIENT_ID: "cid", X_CLIENT_SECRET: "sec" };
@@ -554,4 +554,156 @@ test("見に行けても、ストリームの弾かれは片づけない", async
 		notify: async () => {},
 	});
 	expect(openBlockers(store).map((b) => b.key)).toEqual(["x:stream"]);
+});
+
+describe("Ashi の改善案(X)への対応", () => {
+	test("looksUnrelated: リンクと宛先を除いてほぼ何も残らない返信", async () => {
+		const { looksUnrelated } = await import("../src/lib/server/ashi/legs/x.ts");
+		expect(looksUnrelated("@DoanyBot https://t.co/abc")).toBe(true);
+		expect(looksUnrelated("@DoanyBot 見て! https://t.co/abc")).toBe(true);
+		expect(
+			looksUnrelated("@DoanyBot この論文が詳しいよ https://t.co/abc"),
+		).toBe(false);
+		expect(looksUnrelated("@DoanyBot 仕事に入る派!")).toBe(false);
+	});
+
+	test("リンクだけの返信は頭を呼ばずに返さないと決め、確かめずに言ったことは確かめる問いにする", async () => {
+		const { checkMentions } = await import(
+			"../src/lib/server/ashi/legs/converse.ts"
+		);
+		const store = freshStore();
+		connect(store);
+		const { f } = fakeX((url, init) => {
+			if (url.includes("/mentions"))
+				return Response.json({
+					data: [
+						{
+							id: "j1",
+							text: "@DoanyBot https://spam.example/x",
+							author_id: "s",
+							conversation_id: "j1",
+						},
+						{
+							id: "m9",
+							text: "@DoanyBot 通勤中のメールってどうなの?",
+							author_id: "u1",
+							conversation_id: "m9",
+						},
+					],
+					includes: {
+						users: [
+							{ id: "s", username: "spam" },
+							{ id: "u1", username: "5yuim" },
+						],
+					},
+					meta: { newest_id: "m9" },
+				});
+			if (init.method === "POST") return Response.json({ data: { id: "r9" } });
+			return new Response("nf", { status: 404 });
+		});
+		const head = new FakeHead({
+			converse: (req) => {
+				expect(req.prompt).not.toContain("spam.example");
+				return {
+					replies: [
+						{
+							mention_id: "m9",
+							reply: true,
+							text: "たしか GE の 1960 年代の研究で、会議の後の作業が…だったはず",
+							why: "話を続けたい",
+							unverified: [
+								"GE の 1960 年代の研究で、会議の後の作業時間が長かった",
+							],
+						},
+					],
+					new_questions: [],
+				};
+			},
+		});
+		await checkMentions({
+			store,
+			head,
+			now: () => now,
+			env,
+			fetch: f,
+			notify: async () => {},
+		});
+		expect(head.calls).toHaveLength(1);
+		expect(pendingConversations(store)).toHaveLength(0);
+		const check = store
+			.questions()
+			.find((x) => x.text.includes("GE の 1960 年代"));
+		expect(check).toMatchObject({
+			track: "self",
+			origin: {
+				conversationId: "m9",
+				replyId: "r9",
+				username: "5yuim",
+				claim: "GE の 1960 年代の研究で、会議の後の作業時間が長かった",
+			},
+		});
+	});
+
+	test("確かめる問いを歩いて違っていたら、その返信に続けて訂正する", async () => {
+		const store = freshStore();
+		connect(store);
+		store.saveQuestions([
+			{
+				...q({ track: "self", text: "「GE の研究」は本当か" }),
+				origin: {
+					conversationId: "m9",
+					replyId: "r9",
+					username: "5yuim",
+					claim: "GE の研究",
+				},
+			},
+		]);
+		const { calls, f } = fakeX(() => Response.json({ data: { id: "c1" } }));
+		const head = new FakeHead({
+			explore: (req) => {
+				expect(req.prompt).toContain("@5yuim さんに返信したとき");
+				return explore({
+					correction: "さっきの GE の話、確かめたら別の会社だった。ごめんね",
+				});
+			},
+		});
+		await step({
+			store,
+			head,
+			tools: [],
+			now: () => now,
+			rng: () => 0.99,
+			env,
+			net: { fetch: f },
+		});
+		const post = calls.find((c) => c.init.method === "POST");
+		expect(JSON.parse(String(post?.init.body))).toEqual({
+			text: "さっきの GE の話、確かめたら別の会社だった。ごめんね",
+			reply: { in_reply_to_tweet_id: "r9" },
+		});
+		expect(
+			store.recentLog(3).find((e) => e.event === "walked")?.corrected,
+		).toBe("さっきの GE の話、確かめたら別の会社だった。ごめんね");
+	});
+
+	test("頭が歩いていて知らせた弾かれは、画面には出すが通知はしない", async () => {
+		const store = freshStore(["a"]);
+		const sent: string[] = [];
+		const head = new FakeHead({
+			explore: () =>
+				explore({
+					blocked: [{ target: "労働判例", reason: "有料誌", needed: "購読" }],
+				}),
+		});
+		await step({
+			store,
+			head,
+			tools: [],
+			now: () => now,
+			rng: () => 0.99,
+			notify: async (t) => void sent.push(t),
+		});
+		expect(sent).toEqual([]);
+		expect(store.blockers()["report:労働判例"]).toBeDefined();
+	});
 });

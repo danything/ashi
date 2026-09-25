@@ -139,9 +139,9 @@ function onKey(e: KeyboardEvent) {
 
 	<form class="composer panel" onsubmit={send}>
 		{#if problem}<p class="note err small">{problem}</p>{/if}
-		<textarea bind:value={input} rows="2" placeholder="最近何を覚えた?" onkeydown={onKey} disabled={busy} aria-label="話しかける"></textarea>
-		<div class="cluster">
-			<span class="tiny muted grow">Ctrl + Enter でも送れる</span>
+		<!-- 1 行にして、発言を読む幅を広く取る。長く書くと 6 行まで伸びる -->
+		<div class="line">
+			<textarea bind:value={input} rows="1" placeholder="最近何を覚えた?(Ctrl + Enter で送る)" onkeydown={onKey} disabled={busy} aria-label="話しかける"></textarea>
 			<button type="submit" class="small" disabled={busy || !input.trim()}><Icon name="send" size={1} />送る</button>
 		</div>
 	</form>
@@ -206,11 +206,26 @@ function onKey(e: KeyboardEvent) {
 		bottom: 1rem;
 		display: flex;
 		flex-direction: column;
-		gap: 0.5rem;
-		padding: 0.75rem;
+		gap: 0.4rem;
+		padding: 0.5rem;
 	}
-	.composer textarea {
+	.line {
+		display: flex;
+		align-items: flex-end;
+		gap: 0.5rem;
+	}
+	.line textarea {
+		flex: 1;
 		margin: 0;
-		resize: vertical;
+		resize: none;
+		/* 書いた分だけ伸びる(対応していないブラウザでは 1 行のまま中でスクロール) */
+		field-sizing: content;
+		min-height: 2.6rem;
+		max-height: 10rem;
+	}
+	.line button {
+		flex: none;
+		margin: 0;
+		min-height: 2.6rem;
 	}
 </style>

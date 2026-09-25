@@ -3,6 +3,14 @@ import { enhance } from "$app/forms";
 import { TRACK_LABEL, when } from "$lib/format";
 
 let { data } = $props();
+
+const SOURCE: Record<string, string> = {
+	explore: "歩いて",
+	seed: "問いを探して",
+	profile: "持ち主の地図から",
+	chat: "持ち主との対話から",
+	x: "X の会話から",
+};
 </script>
 
 <svelte:head><title>問い | Ashi</title></svelte:head>
@@ -19,7 +27,12 @@ let { data } = $props();
 	</div>
 
 	<section class="panel">
-		<div class="panel-head"><h2>開いている問い({data.open.length})</h2></div>
+		<div class="panel-head">
+			<h2>開いている問い({data.open.length})</h2>
+			<span class="tag" title="個性の問いのうち、親が先回りの問い・持ち主の地図・持ち主との対話・X で持ち主と話して生まれたもの(出どころの記録があるものの中で)">
+				個性のうち持ち主から {data.pull.fromOwner} / {data.pull.known}
+			</span>
+		</div>
 		{#if data.open.length}
 			<div class="scroll-x">
 				<table>
@@ -32,6 +45,8 @@ let { data } = $props();
 								<td><span class="tag {q.track === 'owner' ? 'info' : 'accent'}">{TRACK_LABEL[q.track]}</span></td>
 								<td>
 									{q.text}
+									{#if q.echoes}<span class="tag warn" title="ほぼ同じ問いがまた出た回数">×{q.echoes + 1}</span>{/if}
+									{#if q.source}<span class="tiny muted"> ・ {SOURCE[q.source] ?? q.source}{q.via ? `(@${q.via})` : ""}</span>{/if}
 									{#if q.bridgedFrom}
 										<div class="tiny muted bridge">
 											<span class="tag accent">橋渡し</span> 個性の問い「{q.bridgedFrom}」から

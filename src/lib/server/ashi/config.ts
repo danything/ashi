@@ -46,6 +46,8 @@ export interface Config {
 	themeWindowMax: number;
 	/** 同じ問いで何も見つからなかった回数がこれに達したら、未測定の棚に移して選ばない */
 	missesToPark: number;
+	/** 1 つのテーマで抱えてよい開いた問いの数。超えたら新しい問いを受け取らない(テーマに寄りすぎないように) */
+	maxOpenPerTheme: number;
 	/** 点数の順ではなく、でたらめに問いを選ぶ(寄り道する)確率 */
 	detourRate: number;
 	/**
@@ -99,6 +101,7 @@ export const DEFAULT_CONFIG: Config = {
 	themeWindow: 10,
 	themeWindowMax: 3,
 	missesToPark: 2,
+	maxOpenPerTheme: 6,
 	detourRate: 0.15,
 	ownerShare: 0.6,
 	profileEvery: 10,
@@ -175,6 +178,9 @@ export function normalizeConfig(raw: unknown): Config {
 			clamp(r.themeWindowMax, 1, 100, d.themeWindowMax),
 		),
 		missesToPark: Math.round(clamp(r.missesToPark, 1, 100, d.missesToPark)),
+		maxOpenPerTheme: Math.round(
+			clamp(r.maxOpenPerTheme, 1, 100, d.maxOpenPerTheme),
+		),
 		themeStreakLimit: Math.round(
 			clamp(r.themeStreakLimit, 1, 100, d.themeStreakLimit),
 		),

@@ -96,6 +96,7 @@ export async function chat(
 				cfg,
 				undefined,
 				now,
+				{ source: "chat" },
 			);
 			added = got.map((q) => q.text);
 			return trimOpenQuestions([...qs, ...got], cfg);

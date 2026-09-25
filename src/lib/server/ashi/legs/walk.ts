@@ -37,8 +37,12 @@ import {
 	acceptSelf,
 	addBridgeIdeas,
 	allowance,
+	applyMerges,
 	clampSleep,
 	nextMidnight,
+	ownerHandles,
+	ownerPull,
+	similarPairs,
 	trimOpenQuestions,
 	unit,
 } from "./guard.ts";
@@ -250,7 +254,9 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 			}));
 			let added = 0;
 			store.updateQuestions((qs) => {
-				const got = acceptNewQuestions(raw, qs, cfg, undefined, now);
+				const got = acceptNewQuestions(raw, qs, cfg, undefined, now, {
+					source: "profile",
+				});
 				added = got.length;
 				return trimOpenQuestions([...qs, ...got], cfg);
 			});
@@ -303,7 +309,9 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 			store.updateQuestions((qs) => {
 				// 頭が別の系統を付けてきても、探させた系統に揃える
 				const raw = (output.new_questions ?? []).map((q) => ({ ...q, track }));
-				let got = acceptNewQuestions(raw, qs, cfg, undefined, now);
+				let got = acceptNewQuestions(raw, qs, cfg, undefined, now, {
+					source: "seed",
+				});
 				// 休ませているテーマは、頭がまた出してきても受け取らない
 				got = got.filter((q) => !resting.includes(q.theme));
 				added = got.map((q) => q.text);
@@ -387,6 +395,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 					cfg,
 					q.id,
 					now,
+					{ source: "explore" },
 				);
 				added = got.map((a) => a.text);
 				// 個性の問いから生まれた先回りの問い = 個性で得た見方を持ち主の側へ持ち帰ったもの
@@ -497,6 +506,11 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 								canPost: canPost(store, cfg, now),
 							}
 						: undefined,
+					{
+						questions: store.questions(),
+						similar: similarPairs(store.questions()),
+						pull: ownerPull(store.questions(), ownerHandles(cfg)),
+					},
 				),
 				schema: REFLECT_SCHEMA,
 				maxCostUsd: left,
@@ -519,6 +533,15 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 				now,
 			);
 			store.saveProposals(proposals);
+			// 頭が決めた統合とテーマの付け替えを、足が状態に当てる
+			let merged = 0;
+			let renamed = 0;
+			store.updateQuestions((qs) => {
+				const r = applyMerges(qs, output.merges, output.themes);
+				merged = r.merged;
+				renamed = r.renamed;
+				return r.questions;
+			});
 			addBridgeIdeas(store, output.bridge_ideas, undefined, now);
 			// 次の一歩は内省のたびに書き直す(古い意図を引きずらない)
 			store.saveWalk({
@@ -555,6 +578,8 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 			store.log("reflected", {
 				selfUpdated: Boolean(self),
 				proposed,
+				merged,
+				renamed,
 				posted,
 				usd: usage.costUsd,
 			});

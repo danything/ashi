@@ -56,14 +56,55 @@ export interface RawQuestion {
 }
 
 /** 頭が出した新しい問いのうち、形が正しく、重複しないものを上限まで */
+/** 日本語の短い文の近さ。文字 bigram の Jaccard 係数(記号と空白は除く) */
+export function bigrams(text: string): Set<string> {
+	const t = text
+		.normalize("NFKC")
+		.replace(/[\s\p{P}\p{S}]/gu, "")
+		.toLowerCase();
+	const out = new Set<string>();
+	for (let i = 0; i < t.length - 1; i++) out.add(t.slice(i, i + 2));
+	return out;
+}
+
+export function jaccard(a: Set<string>, b: Set<string>): number {
+	let n = 0;
+	for (const x of a) if (b.has(x)) n++;
+	return n / (a.size + b.size - n || 1);
+}
+
+/**
+ * これ以上近ければ、ほぼ同じ問いとして受け取らない。2026-09-25 の実際の問い(45 本)で測ると、
+ * 言い換えの重複は 0.25〜0.49、話題は同じでも別の問い(定義か効果か)が 0.33〜0.41 と重なっていた。
+ * 足がはじくのは明らかなものだけにして、その下は内省で頭に統合の候補として見せる(similarPairs)
+ */
+export const NEAR_DUPLICATE = 0.45;
+export const SIMILAR = 0.25;
+
+export interface QuestionFrom {
+	source: NonNullable<Question["source"]>;
+	via?: string;
+}
+
+/**
+ * 頭が出した新しい問いのうち、形が正しく、重複しないものを上限まで。
+ * - 文字がほぼ同じ問い(NEAR_DUPLICATE 以上)は受け取らず、既存の問いの echoes を足す
+ * - テーマの開いた問いが maxOpenPerTheme に達していたら受け取らない
+ */
 export function acceptNewQuestions(
 	raw: RawQuestion[] | undefined,
 	existing: Question[],
-	cfg: Pick<Config, "maxNewQuestions">,
+	cfg: Pick<Config, "maxNewQuestions"> &
+		Partial<Pick<Config, "maxOpenPerTheme">>,
 	parentId: string | undefined,
 	now: Date,
+	from?: QuestionFrom,
 ): Question[] {
 	const seen = new Set(existing.map((q) => normalizeText(q.text)));
+	const open = existing.filter((q) => q.status === "open");
+	const grams = open.map((q) => ({ q, g: bigrams(q.text) }));
+	const perTheme = new Map<string, number>();
+	for (const q of open) perTheme.set(q.theme, (perTheme.get(q.theme) ?? 0) + 1);
 	const out: Question[] = [];
 	for (const r of raw ?? []) {
 		if (out.length >= cfg.maxNewQuestions) break;
@@ -71,11 +112,25 @@ export function acceptNewQuestions(
 		const text = r.text.trim().slice(0, 300);
 		const key = normalizeText(text);
 		if (!key || seen.has(key)) continue;
+		const g = bigrams(text);
+		const twin = grams.find((x) => jaccard(g, x.g) >= NEAR_DUPLICATE);
+		if (twin) {
+			// 同じ問いがまた出た。受け取らず、数だけ足す(何度も気になっているのは大事)
+			twin.q.echoes = (twin.q.echoes ?? 0) + 1;
+			continue;
+		}
+		const theme = normalizeTheme(r.theme);
+		if (
+			cfg.maxOpenPerTheme &&
+			(perTheme.get(theme) ?? 0) >= cfg.maxOpenPerTheme
+		)
+			continue;
 		seen.add(key);
-		out.push({
+		perTheme.set(theme, (perTheme.get(theme) ?? 0) + 1);
+		const q: Question = {
 			id: newId(),
 			text,
-			theme: normalizeTheme(r.theme),
+			theme,
 			track: r.track === "owner" ? "owner" : "self",
 			interest: unit(r.interest),
 			importance: unit(r.importance),
@@ -84,9 +139,130 @@ export function acceptNewQuestions(
 			visits: 0,
 			createdAt: now.toISOString(),
 			parentId,
-		});
+			...(from
+				? { source: from.source, ...(from.via ? { via: from.via } : {}) }
+				: {}),
+		};
+		grams.push({ q, g });
+		out.push(q);
 	}
 	return out;
+}
+
+/** 近い問いの組(統合の候補)。同じ系統の開いた問いで、SIMILAR 以上 NEAR_DUPLICATE 未満。近い順 */
+export function similarPairs(
+	qs: Question[],
+	limit = 12,
+): [Question, Question, number][] {
+	const open = qs
+		.filter((q) => q.status === "open")
+		.map((q) => ({ q, g: bigrams(q.text) }));
+	const pairs: [Question, Question, number][] = [];
+	for (let i = 0; i < open.length; i++) {
+		for (let j = i + 1; j < open.length; j++) {
+			const a = open[i];
+			const b = open[j];
+			if (!a || !b || a.q.track !== b.q.track) continue;
+			const v = jaccard(a.g, b.g);
+			if (v >= SIMILAR) pairs.push([a.q, b.q, v]);
+		}
+	}
+	return pairs.sort((x, y) => y[2] - x[2]).slice(0, limit);
+}
+
+export interface MergeDraft {
+	keep?: unknown;
+	drop?: unknown;
+	theme?: unknown;
+}
+
+export interface ThemeRenameDraft {
+	from?: unknown;
+	to?: unknown;
+}
+
+/**
+ * 内省で頭が決めた統合を、足が状態に当てる。keep と drop は開いた問いの ID でなければ無視する。
+ * drop は手放し(mergedInto に keep)、keep のテーマを揃える。themes はテーマの名前をまとめて付け替える
+ */
+export function applyMerges(
+	qs: Question[],
+	merges: unknown,
+	themes: unknown,
+): { questions: Question[]; merged: number; renamed: number } {
+	const byId = new Map(qs.map((q) => [q.id, { ...q }]));
+	let merged = 0;
+	let renamed = 0;
+	for (const m of (Array.isArray(merges) ? merges : []).slice(
+		0,
+		10,
+	) as MergeDraft[]) {
+		const keep = typeof m?.keep === "string" ? byId.get(m.keep) : undefined;
+		if (!keep) continue;
+		if (keep.status !== "open") continue;
+		for (const id of (Array.isArray(m.drop) ? m.drop : []).slice(0, 20)) {
+			const d = typeof id === "string" ? byId.get(id) : undefined;
+			if (!d || d.id === keep.id || d.status !== "open") continue;
+			d.status = "dropped";
+			d.mergedInto = keep.id;
+			keep.echoes = (keep.echoes ?? 0) + 1 + (d.echoes ?? 0);
+			merged++;
+		}
+		if (typeof m.theme === "string" && m.theme.trim())
+			keep.theme = normalizeTheme(m.theme);
+	}
+	for (const t of (Array.isArray(themes) ? themes : []).slice(
+		0,
+		10,
+	) as ThemeRenameDraft[]) {
+		if (typeof t?.to !== "string" || !t.to.trim() || !Array.isArray(t.from))
+			continue;
+		const to = normalizeTheme(t.to);
+		const from = new Set(
+			t.from
+				.filter((x): x is string => typeof x === "string")
+				.map(normalizeTheme),
+		);
+		for (const q of byId.values()) {
+			if (q.status === "open" && from.has(q.theme) && q.theme !== to) {
+				q.theme = to;
+				renamed++;
+			}
+		}
+	}
+	return { questions: qs.map((q) => byId.get(q.id) ?? q), merged, renamed };
+}
+
+/**
+ * 個性(self)の開いた問いのうち、持ち主から生まれたものの割合。LLM を使わない機械的な数字。
+ * 持ち主から = 親が先回り(owner)の問い、持ち主の地図、持ち主との対話、X で持ち主と話して
+ */
+export function ownerPull(
+	qs: Question[],
+	ownerHandles: string[],
+): { fromOwner: number; known: number; total: number } {
+	const byId = new Map(qs.map((q) => [q.id, q]));
+	const handles = new Set(ownerHandles.map((h) => h.toLowerCase()));
+	const self = qs.filter((q) => q.status === "open" && q.track === "self");
+	let fromOwner = 0;
+	let known = 0;
+	for (const q of self) {
+		const parent = q.parentId ? byId.get(q.parentId) : undefined;
+		if (!q.source && !parent) continue;
+		known++;
+		const viaOwner = q.via
+			?.split(",")
+			.some((v) => handles.has(v.trim().toLowerCase()));
+		if (
+			parent?.track === "owner" ||
+			q.source === "profile" ||
+			q.source === "chat" ||
+			(q.source === "x" && viaOwner)
+		) {
+			fromOwner++;
+		}
+	}
+	return { fromOwner, known, total: self.length };
 }
 
 /** 抱えている問いが多すぎたら、点の低いものから手放す */
@@ -225,4 +401,11 @@ export function addBridgeIdeas(
 		});
 	}
 	store.saveBridgeIdeas(list.slice(-BRIDGES_MAX));
+}
+
+/** 持ち主の X のハンドル(足跡に登録した X のアカウント)。X で持ち主と話したかの判定に使う */
+export function ownerHandles(cfg: Pick<Config, "feeds">): string[] {
+	return cfg.feeds
+		.filter((f) => f.kind === "x")
+		.map((f) => f.target.replace(/^@/, ""));
 }

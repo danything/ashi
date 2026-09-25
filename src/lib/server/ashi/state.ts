@@ -66,6 +66,17 @@ export interface Question {
 	visits: number;
 	createdAt: string;
 	lastVisitedAt?: string;
+	/**
+	 * どこで生まれたか。explore: 歩いて / seed: 問いを探して / profile: 持ち主の地図から /
+	 * chat: 持ち主との対話 / x: X の会話(via はそのときの相手)。個性が持ち主にどれだけ引っぱられて
+	 * いるかを数えるのに使う(2026-09-25、それまでは記録が無かった)
+	 */
+	source?: "explore" | "seed" | "profile" | "chat" | "x";
+	via?: string;
+	/** ほぼ同じ問いが後から出た回数(受け取らずに数だけ足す) */
+	echoes?: number;
+	/** 内省で統合され、手放したときの行き先 */
+	mergedInto?: string;
 	/** 探して何も見つからなかった回数 */
 	misses?: number;
 	/** これまでに探した場所(検索語・サイト・資料)。同じ所を探し直さないように次の歩みで見せる */

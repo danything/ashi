@@ -1,9 +1,11 @@
+import { ownerHandles, ownerPull } from "$lib/server/ashi/legs/guard";
 import { score } from "$lib/server/ashi/legs/select";
 import { store } from "$lib/server/runtime";
 import type { Actions, PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = () => {
 	const all = store.questions();
+	const pull = ownerPull(all, ownerHandles(store.config()));
 	const byId = new Map(all.map((q) => [q.id, q]));
 	const qs = all.map((q) => {
 		const parent = q.parentId ? byId.get(q.parentId) : undefined;
@@ -16,6 +18,7 @@ export const load: PageServerLoad = () => {
 		open: qs
 			.filter((q) => q.status === "open")
 			.sort((a, b) => b.score - a.score),
+		pull,
 		parked: qs.filter((q) => q.status === "parked"),
 		closed: qs
 			.filter((q) => q.status === "answered" || q.status === "dropped")

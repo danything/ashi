@@ -80,6 +80,16 @@ export async function checkMentions(ctx: {
 		}
 	}
 	const waiting = pendingConversations(store).slice(-5);
+	// 誰と話して生まれた問いか(持ち主と話したものを数えるため)
+	const talkedWith = [
+		...new Set(
+			waiting.flatMap((c) =>
+				c.messages
+					.filter((m) => c.pending.includes(m.id))
+					.map((m) => m.username),
+			),
+		),
+	].join(",");
 	const today = localDay(now);
 	const left = allowance(store.budget(today), cfg);
 	if (waiting.length === 0 || !canReply(store, cfg, now) || left <= 0)
@@ -157,6 +167,7 @@ export async function checkMentions(ctx: {
 							cfg,
 							undefined,
 							now,
+							{ source: "x", via: username },
 						).map((q, i) => ({
 							...q,
 							origin: {
@@ -188,7 +199,13 @@ export async function checkMentions(ctx: {
 			track: "self",
 		}));
 		return trimOpenQuestions(
-			[...qs, ...acceptNewQuestions(raw, qs, cfg, undefined, now)],
+			[
+				...qs,
+				...acceptNewQuestions(raw, qs, cfg, undefined, now, {
+					source: "x",
+					via: talkedWith,
+				}),
+			],
 			cfg,
 		);
 	});

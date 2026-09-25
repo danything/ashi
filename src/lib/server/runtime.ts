@@ -191,11 +191,23 @@ function startMentions(signal: AbortSignal): void {
 			}
 			try {
 				await ensureSubscriptions(store, new Date());
-				const r = await readStream((line) => {
-					streamUp = true;
-					// 同じ会話に続けて来ることがあるので、少し待ってまとめて返事を考える
-					if (acceptStreamEvent(store, line, new Date())) converseSoon(15_000);
-				}, signal);
+				const r = await readStream(
+					(line) => {
+						streamUp = true;
+						// 同じ会話に続けて来ることがあるので、少し待ってまとめて返事を考える
+						if (acceptStreamEvent(store, line, new Date()))
+							converseSoon(15_000);
+					},
+					signal,
+					process.env,
+					fetch,
+					() => {
+						// つながったら片づける(切れるまで待たない)
+						streamUp = true;
+						resolveBlockers(store, "x:stream", new Date());
+						console.log("[ashi] x-stream つながった");
+					},
+				);
 				if (!r.ok) {
 					streamUp = false;
 					await raiseBlocker(

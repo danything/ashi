@@ -1,5 +1,5 @@
 <script lang="ts">
-import { tick, untrack } from "svelte";
+import { onMount, tick, untrack } from "svelte";
 import Icon from "$lib/components/Icon.svelte";
 import Logo from "$lib/components/Logo.svelte";
 import { when } from "$lib/format";
@@ -24,7 +24,17 @@ let msgs = $state<Msg[]>(
 let input = $state("");
 let busy = $state(false);
 let problem = $state("");
-let bottom = $state<HTMLElement | null>(null);
+
+/**
+ * ページの一番下まで送る。入力欄は下に貼り付いているので、最後の発言の位置に合わせると入力欄に
+ * 隠れる。ページの端まで送れば、入力欄は流れの中の元の位置(発言の下)に戻り、何も隠れない
+ */
+function toEnd(behavior: ScrollBehavior = "smooth") {
+	window.scrollTo({ top: document.documentElement.scrollHeight, behavior });
+}
+
+// 開いたときは最新(いちばん下)から見せる
+onMount(() => toEnd("instant"));
 
 async function send(e: SubmitEvent) {
 	e.preventDefault();
@@ -36,7 +46,7 @@ async function send(e: SubmitEvent) {
 	busy = true;
 	problem = "";
 	await tick();
-	bottom?.scrollIntoView({ behavior: "smooth" });
+	toEnd();
 	try {
 		const res = await fetch("/api/chat", {
 			method: "POST",
@@ -68,7 +78,7 @@ async function send(e: SubmitEvent) {
 	} finally {
 		busy = false;
 		await tick();
-		bottom?.scrollIntoView({ behavior: "smooth" });
+		toEnd();
 	}
 }
 
@@ -125,7 +135,6 @@ function onKey(e: KeyboardEvent) {
 				<div class="panel bubble cluster small muted"><span class="spin"></span>考えている(ノートを引いていると数十秒かかる)</div>
 			</div>
 		{/if}
-		<div bind:this={bottom}></div>
 	</div>
 
 	<form class="composer panel" onsubmit={send}>

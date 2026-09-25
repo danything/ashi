@@ -241,3 +241,40 @@ describe("1 日の歩数の上限", () => {
 		).toBe(360 * 60_000);
 	});
 });
+
+describe("ClaudeCodeHead と MCP", () => {
+	test("MCP があれば web は足の道具(fetch_url・論文)で読ませ、WebFetch は渡さない", async () => {
+		const head = new ClaudeCodeHead({
+			home: TMP,
+			bin: BIN.echo,
+			env: { PATH: process.env.PATH },
+			mcp: { command: "/usr/bin/bun", args: ["/app/build/mcp.js"] },
+		});
+		const { output } = await head.think<{ args: string[] }>({
+			task: "explore",
+			system: "s",
+			prompt: "p",
+			schema: {},
+			tools: [
+				{
+					name: "x",
+					description: "",
+					inputSchema: {},
+					readOnly: true,
+					run: async () => "",
+				},
+			],
+			allowWeb: true,
+		});
+		const a = output.args;
+		expect(a[a.indexOf("--tools") + 1]).toBe("Read,WebSearch");
+		expect(a).toContain("mcp__ashi__find_papers");
+		expect(a).not.toContain("WebFetch");
+		const cfg = JSON.parse(a[a.indexOf("--mcp-config") + 1] ?? "{}");
+		expect(cfg.mcpServers.ashi).toEqual({
+			type: "stdio",
+			command: "/usr/bin/bun",
+			args: ["/app/build/mcp.js"],
+		});
+	});
+});

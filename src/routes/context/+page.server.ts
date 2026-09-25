@@ -1,8 +1,9 @@
+import { fail } from "@sveltejs/kit";
 import { system } from "$lib/server/ashi/prompts";
 import { hashText } from "$lib/server/ashi/state";
 import { md } from "$lib/server/markdown";
-import { store } from "$lib/server/runtime";
-import type { PageServerLoad } from "./$types";
+import { isStepping, resetLearning, store } from "$lib/server/runtime";
+import type { Actions, PageServerLoad } from "./$types";
 
 /** 頭が毎回受け取っているもの。コア原則・自己記述・持ち主の地図と、それを束ねた system */
 export const load: PageServerLoad = () => {
@@ -15,5 +16,24 @@ export const load: PageServerLoad = () => {
 		config: JSON.stringify(store.config(), null, 2),
 		intentions: store.walk().intentions ?? [],
 		bridges: store.bridgeIdeas().slice().reverse(),
+		stepping: isStepping(),
+		counts: {
+			questions: store.questions().length,
+			notes: store.notes().length,
+			steps: store.walk().steps,
+		},
 	};
+};
+
+export const actions: Actions = {
+	/** 学びを白紙に戻す。打ち間違いで押さないよう「リセット」と打たせる */
+	reset: async ({ request }) => {
+		const f = await request.formData();
+		if (String(f.get("confirm") ?? "").trim() !== "リセット") {
+			return fail(400, { message: "確かめの欄に「リセット」と入れてください" });
+		}
+		const r = resetLearning();
+		if (!r.ok) return fail(409, { message: r.message });
+		return { archive: r.archive };
+	},
 };

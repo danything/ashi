@@ -1,5 +1,7 @@
 <script lang="ts">
-let { data } = $props();
+import { enhance } from "$app/forms";
+
+let { data, form } = $props();
 </script>
 
 <svelte:head><title>頭の中 | Ashi</title></svelte:head>
@@ -73,6 +75,27 @@ let { data } = $props();
 		<summary>頭に渡している system の全文</summary>
 		<pre class="small">{data.system}</pre>
 	</details>
+
+	<section class="panel danger">
+		<div class="panel-head">
+			<h2>学びをリセット</h2>
+		</div>
+		<p class="small">
+			問い({data.counts.questions})・ノート({data.counts.notes})・日記・自己記述・橋の候補・次の一歩・歩数({data.counts.steps})を白紙に戻します。
+			消さずに状態ディレクトリの <code>archive/</code> に移すので、あとから戻せます。
+			コア原則・設定・持ち主の地図と渡した材料・改善案は残します。
+		</p>
+		{#if form?.message}<p class="note err small">{form.message}</p>{/if}
+		{#if form && "archive" in form}<p class="note ok small">リセットした。前の学びは {form.archive} にある。</p>{/if}
+		{#if data.stepping}
+			<p class="note warn small">いま歩いている途中です。休みに入ってから押してください。</p>
+		{/if}
+		<form method="POST" action="?/reset" use:enhance class="cluster">
+			<input name="confirm" placeholder="確かめに「リセット」と入れる" aria-label="確かめ" class="confirm" autocomplete="off" />
+			<button type="submit" class="outline small reset" disabled={data.stepping}>学びをリセットする</button>
+		</form>
+	</section>
+
 	<details class="fold">
 		<summary>足の設定(ashi.json と ASHI_CONFIG を重ね、範囲に丸めた後)</summary>
 		<pre class="small">{data.config}</pre>
@@ -80,6 +103,17 @@ let { data } = $props();
 </div>
 
 <style>
+	.danger {
+		border-color: var(--ui-err-bg);
+	}
+	.confirm {
+		width: 16rem;
+		margin: 0;
+	}
+	.reset {
+		border-color: var(--ui-err);
+		color: var(--ui-err);
+	}
 	pre {
 		margin: 0;
 		white-space: pre-wrap;

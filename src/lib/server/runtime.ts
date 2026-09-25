@@ -7,6 +7,7 @@ import {
 	raiseBlocker,
 	resolveBlockers,
 } from "./ashi/legs/blockers.ts";
+import { paperTools } from "./ashi/legs/papers.ts";
 import { fetchUrlTool, noteTools } from "./ashi/legs/tools.ts";
 import { Walker } from "./ashi/legs/walk.ts";
 import { Store } from "./ashi/state.ts";
@@ -40,7 +41,11 @@ export function getTools(): Tool[] {
 			resolveBlockers(store, `fetch:${host}`, new Date());
 		},
 	};
-	return [fetchUrlTool(store.config(), {}, watch), ...noteTools(store)];
+	return [
+		fetchUrlTool(store.config(), {}, watch),
+		...paperTools(store.config()),
+		...noteTools(store),
+	];
 }
 
 let walker: Walker | undefined;
@@ -82,4 +87,22 @@ export function isWalking(): boolean {
 export function wakeNow(): void {
 	if (walker) walker.wake();
 	else store.saveWalk({ ...store.walk(), sleepingUntil: undefined });
+}
+
+/** 学びを白紙に戻す(archive へ移す)。1 歩の途中なら断る。戻したらすぐ歩き出させる */
+export function resetLearning():
+	| { ok: true; archive: string }
+	| { ok: false; message: string } {
+	if (walker?.stepping)
+		return {
+			ok: false,
+			message: "いま歩いている途中です。休みに入ってからもう一度押してください",
+		};
+	const archive = store.resetLearning(new Date());
+	wakeNow();
+	return { ok: true, archive };
+}
+
+export function isStepping(): boolean {
+	return walker?.stepping === true;
 }

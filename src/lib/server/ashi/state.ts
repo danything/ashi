@@ -498,6 +498,49 @@ export class Store {
 		return tailJsonl<ChatEntry>(this.path("chat.jsonl"), n);
 	}
 
+	/**
+	 * 学んだことを白紙に戻す。**消さずに archive/<時刻>/ へ移す**(戻したくなったら手で戻せる)。
+	 *
+	 * 戻すもの: 問い・ノート・日記・自己記述・橋の候補・次の一歩・歩数と直近のテーマ・足どり(log)
+	 * 残すもの: コア原則・設定・持ち主の地図と材料(渡した文章・足跡・対話)・改善案・弾かれたこと・今日の予算
+	 *   持ち主の地図は Ashi の学びではなく持ち主の写しで、作り直すと材料を読み直すぶん重い。
+	 *   改善案は、直したものの記録として残す
+	 */
+	resetLearning(now: Date): string {
+		const stamp = now.toISOString().replace(/[:.]/g, "-");
+		const dir = join("archive", stamp);
+		mkdirSync(this.path(dir), { recursive: true });
+		for (const name of [
+			"questions.json",
+			"notes.json",
+			"notes",
+			"diary",
+			"self.md",
+			"bridges.json",
+			"log.jsonl",
+			"walk.json",
+		]) {
+			if (existsSync(this.path(name)))
+				renameSync(this.path(name), this.path(dir, name));
+		}
+		mkdirSync(this.path("notes"), { recursive: true });
+		mkdirSync(this.path("diary"), { recursive: true });
+		this.writeText("notes.json", "[]\n");
+		this.writeText("questions.json", "[]\n");
+		this.writeText("self.md", DEFAULT_SELF);
+		const prev = this.readJson<Partial<Walk>>(join(dir, "walk.json"), {});
+		// 持ち主の地図を書いた記録とコア原則の承認は引き継ぐ(地図は残すので、すぐ書き直さなくてよい)
+		this.saveWalk({
+			...EMPTY_WALK,
+			coreHash: prev.coreHash ?? hashText(this.core()),
+			// 歩数が 0 に戻るので、書き直しの間隔も 0 から数え直す
+			lastProfileStep: prev.lastProfileStep ? 1 : 0,
+			profiledMaterials: prev.profiledMaterials ?? 0,
+		});
+		this.log("reset", { archive: dir });
+		return dir;
+	}
+
 	log(event: string, data: Record<string, unknown> = {}): void {
 		appendFileSync(
 			this.path("log.jsonl"),

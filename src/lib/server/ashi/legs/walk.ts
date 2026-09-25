@@ -517,6 +517,8 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 export class Walker {
 	private wakeEarly: (() => void) | undefined;
 	running = false;
+	/** いま 1 歩の途中か(頭を待っている間など)。学びのリセットはこの間はしない */
+	stepping = false;
 
 	constructor(
 		private readonly legs: Legs,
@@ -528,6 +530,7 @@ export class Walker {
 		try {
 			while (!signal?.aborted) {
 				let o: StepOutcome;
+				this.stepping = true;
 				try {
 					o = await step(this.legs);
 				} catch (e) {
@@ -540,6 +543,8 @@ export class Walker {
 						error: String(e),
 						wakeAt: new Date(Date.now() + 60_000),
 					};
+				} finally {
+					this.stepping = false;
 				}
 				this.onStep?.(o);
 				if (o.kind === "core-changed") return;

@@ -618,3 +618,56 @@ describe("Ashi の改善案への対応(2026-09-25)", () => {
 		expect(store.questions().map((x) => x.text)).toContain("中古車の周辺法規");
 	});
 });
+
+describe("学びのリセット", () => {
+	test("学びを archive に移して白紙に戻し、持ち主の地図・材料・改善案・コア原則の承認は残す", async () => {
+		const store = freshStore(["a"]);
+		await step({
+			store,
+			head: new FakeHead({ explore: () => explore() }),
+			tools: [],
+			now: at,
+			rng: noDetour,
+		});
+		store.saveOwner("# 地図\\n\\n持ち主は k3s を触っている。");
+		store.addSource(
+			{ id: newId(), title: "ブログ", kind: "paste", createdAt: "" },
+			"本文",
+		);
+		store.saveProposals([
+			{
+				id: "p",
+				title: "t",
+				why: "",
+				idea: "",
+				status: "done",
+				count: 1,
+				createdAt: "",
+				lastAt: "",
+			},
+		]);
+		store.saveBridgeIdeas([
+			{ id: "b", toTheme: "x", idea: "y", createdAt: "" },
+		]);
+		const coreHash = store.walk().coreHash;
+		expect(store.notes()).toHaveLength(1);
+
+		const dir = store.resetLearning(new Date("2026-09-25T12:00:00Z"));
+		expect(dir).toBe("archive/2026-09-25T12-00-00-000Z");
+		expect(store.notes()).toEqual([]);
+		expect(store.questions()).toEqual([]);
+		expect(store.bridgeIdeas()).toEqual([]);
+		expect(store.self()).toContain("まだ歩き始めていない");
+		expect(store.walk()).toMatchObject({
+			steps: 0,
+			recentThemes: [],
+			coreHash,
+		});
+		expect(store.owner()).toContain("k3s");
+		expect(store.sources()).toHaveLength(1);
+		expect(store.proposals()).toHaveLength(1);
+		// 前の学びは archive にある
+		expect(JSON.parse(store.readText(`${dir}/notes.json`))).toHaveLength(1);
+		expect(store.recentLog(1)[0]?.event).toBe("reset");
+	});
+});

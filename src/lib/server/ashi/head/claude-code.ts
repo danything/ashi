@@ -33,6 +33,11 @@ export interface ClaudeCodeHeadOptions {
 	home: string;
 	/** CLI の場所(既定は PATH の claude) */
 	bin?: string;
+	/**
+	 * 足の道具を出す MCP サーバー(src/mcp.ts)の起動の仕方。あれば web の読み込みは足の fetch_url と
+	 * 論文の道具を使い(プライベートアドレスを読まないガードが効く)、無ければ組み込みの WebFetch
+	 */
+	mcp?: { command: string; args: string[] };
 	/** 1 回の上限(ミリ秒)。調べ物で長くなるので長め */
 	timeoutMs?: number;
 	env?: Record<string, string | undefined>;
@@ -55,9 +60,16 @@ interface CliResult {
 	};
 }
 
-const TOOL_HINT = `
+const TOOL_HINT = (mcp: boolean) => `
 道具について: 過去のノートは notes/<id>.md にある(id は最近のノートの一覧の [ ] の中)。Read で読める。
-web は WebSearch で探し、WebFetch で読む。ファイルを書く道具やコマンドは無い。`;
+web は WebSearch で探し、${mcp ? "mcp__ashi__fetch_url で読む(PDF も読める)" : "WebFetch で読む"}。${
+	mcp
+		? `
+論文は mcp__ashi__find_papers(題・語・DOI)で探し、無料で読める版があれば mcp__ashi__read_paper で本文を読む。
+出版社のページが 403 や有料で読めなくても、たいてい PMC やリポジトリに公開版がある。blocked に書くのは、公開版も無かったときだけ。`
+		: ""
+}
+ファイルを書く道具やコマンドは無い。`;
 
 /** 動いている CLI。止めるとき(サーバーの終了)にまとめて止める */
 const running = new Set<ReturnType<typeof spawn>>();
@@ -78,9 +90,20 @@ export class ClaudeCodeHead implements Head {
 	async think<T>(req: ThinkRequest): Promise<ThinkResult<T>> {
 		const tools: string[] = [];
 		const allowed: string[] = [];
+		const mcp = Boolean(req.tools?.length && this.opts.mcp);
 		if (req.tools?.length) {
-			tools.push("Read", "WebFetch");
-			allowed.push("Read(./notes/**)", "WebFetch");
+			tools.push("Read");
+			allowed.push("Read(./notes/**)");
+			if (mcp)
+				allowed.push(
+					"mcp__ashi__fetch_url",
+					"mcp__ashi__find_papers",
+					"mcp__ashi__read_paper",
+				);
+			else {
+				tools.push("WebFetch");
+				allowed.push("WebFetch");
+			}
 		}
 		if (req.allowWeb) {
 			tools.push("WebSearch");
@@ -93,7 +116,7 @@ export class ClaudeCodeHead implements Head {
 			const sysFile = join(dir, "system.md");
 			writeFileSync(
 				sysFile,
-				tools.length ? `${req.system}\n${TOOL_HINT}` : req.system,
+				tools.length ? `${req.system}\n${TOOL_HINT(mcp)}` : req.system,
 			);
 			const args = [
 				"-p",
@@ -113,6 +136,14 @@ export class ClaudeCodeHead implements Head {
 				// 手元の設定・MCP・スキルを読ませない(Ashi の頭として決めた道具だけにする)
 				"--setting-sources",
 				"",
+				...(mcp && this.opts.mcp
+					? [
+							"--mcp-config",
+							JSON.stringify({
+								mcpServers: { ashi: { type: "stdio", ...this.opts.mcp } },
+							}),
+						]
+					: []),
 				"--strict-mcp-config",
 				"--disable-slash-commands",
 				"--no-session-persistence",

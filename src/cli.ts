@@ -2,6 +2,7 @@
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { makeHead } from "./lib/server/ashi/head/make.ts";
+import { paperTools } from "./lib/server/ashi/legs/papers.ts";
 import { fetchUrlTool, noteTools } from "./lib/server/ashi/legs/tools.ts";
 import {
 	type Legs,
@@ -18,6 +19,7 @@ import { hashText, localDay, Store } from "./lib/server/ashi/state.ts";
  *   ashi step             1 歩だけ歩く(休み中でも起こす)
  *   ashi walk             止めるまで歩く(Ctrl+C)
  *   ashi status           いまの様子
+ *   ashi reset            学びを白紙に戻す(archive/ へ移す。歩いているプロセスがあれば画面から)
  *   ashi core --accept    core.md の書き換えを認める(人だけが実行する)
  *
  * 状態ディレクトリは --home か ASHI_HOME、無ければ ./data
@@ -40,7 +42,7 @@ function legs(): Legs {
 	return {
 		store,
 		head: makeHead(cfg, store.home),
-		tools: [fetchUrlTool(cfg), ...noteTools(store)],
+		tools: [fetchUrlTool(cfg), ...paperTools(cfg), ...noteTools(store)],
 	};
 }
 
@@ -131,6 +133,24 @@ switch (cmd) {
 			console.log("core.md が承認なしに変わっている(ashi core --accept)");
 		break;
 	}
+	case "reset": {
+		requireInit();
+		const lock = store.lockWalking();
+		if ("heldBy" in lock) {
+			console.error(
+				`pid ${lock.heldBy} が歩いている。画面の「頭の中」からリセットする`,
+			);
+			process.exit(1);
+		}
+		try {
+			console.log(
+				`学びを白紙に戻した。前の学びは ${store.resetLearning(new Date())} にある`,
+			);
+		} finally {
+			lock.release();
+		}
+		break;
+	}
 	case "core": {
 		requireInit();
 		if (!values.accept) {
@@ -143,5 +163,5 @@ switch (cmd) {
 		break;
 	}
 	default:
-		console.log("ashi init | step | walk | status | core [--accept]");
+		console.log("ashi init | step | walk | status | reset | core [--accept]");
 }

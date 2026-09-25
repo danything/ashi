@@ -6,7 +6,7 @@
 	"description": "AIに、足を。 Give your AI legs.",
 	"scripts": {
 		"dev": "bunx --bun vite dev",
-		"build": "bunx --bun vite build && bun build src/cli.ts --target=bun --outfile=build/cli.js",
+		"build": "bunx --bun vite build && bun build src/cli.ts --target=bun --outfile=build/cli.js && bun build src/mcp.ts --target=bun --outfile=build/mcp.js",
 		"start": "bun build/index.js",
 		"ashi": "bun src/cli.ts",
 		"test": "bun test tests",
@@ -27,6 +27,7 @@
 		"svelte": "^5.57.1",
 		"svelte-check": "^4.7.6",
 		"typescript": "~6",
+		"unpdf": "^1.8.1",
 		"vite": "^8.3.1"
 	}
 }

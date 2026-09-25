@@ -12,16 +12,12 @@ let { data } = $props();
 <div class="panes">
 	<section class="pane">
 		<div class="pane-head">
-			<hgroup>
-				<h2>ノート({data.notes.length})</h2>
-				<p>歩いて分かったこと{data.q ? `。「${data.q}」で絞った` : ""}。</p>
-			</hgroup>
 			<!-- Pico の role="group" で入力欄とボタンを 1 つにつなげる -->
 			<form method="GET" class="search">
 				<input type="hidden" name="day" value={data.diary.day ?? ""} />
 				<!-- svelte-ignore a11y_no_redundant_roles -->
 				<fieldset role="group">
-					<input name="q" type="text" value={data.q} placeholder="題・要約・テーマ" aria-label="探す" />
+					<input name="q" type="text" value={data.q} placeholder="ノートを探す(題・要約・テーマ)" aria-label="探す" />
 					<button type="submit" class="small"><Icon name="search" size={1} /></button>
 				</fieldset>
 			</form>
@@ -56,7 +52,7 @@ let { data } = $props();
 
 <style>
 	.search {
-		width: min(18rem, 100%);
+		flex: 1;
 		margin: 0;
 	}
 	.search fieldset {

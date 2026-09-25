@@ -91,15 +91,6 @@ function onKey(e: KeyboardEvent) {
 <svelte:head><title>話す | Ashi</title></svelte:head>
 
 <div class="chat">
-	<div class="head">
-		<hgroup>
-			<h1>話す</h1>
-			<p>
-				何を学んだか、どこを歩いているかを聞ける。「これを調べておいて」と頼むと問いに加わり、足が後で歩く。
-				ここでの発言は、持ち主の興味の地図の材料にもなる。
-			</p>
-		</hgroup>
-	</div>
 
 	<div class="log">
 		{#if data.past.length}

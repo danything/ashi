@@ -17,10 +17,7 @@ const SOURCE: Record<string, string> = {
 </script>
 
 <div class="pane-head">
-	<hgroup>
-		<h2>弾かれたこと({data.open.length})</h2>
-		<p>権限・鍵・上限が足りずに進めなかったこと。同じ先がうまくいったら自動で片づく。</p>
-	</hgroup>
+	<span class="grow tiny muted">弾かれたこと {data.open.length} 件。同じ先がうまくいったら自動で片づく</span>
 	<a class="button outline mini" href="https://github.com/danything/ashi/blob/main/docs/permissions.md" rel="noopener noreferrer" target="_blank">権限の付け方</a>
 </div>
 

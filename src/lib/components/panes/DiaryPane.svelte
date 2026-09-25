@@ -6,13 +6,6 @@ let { data }: { data: ReturnType<typeof diaryView> } = $props();
 const label = (d: string) => d.slice(5).replace("-", "/");
 </script>
 
-<div class="pane-head">
-	<hgroup>
-		<h2>日記</h2>
-		<p>内省の順番が来たとき、疲れたときに書く。</p>
-	</hgroup>
-</div>
-
 {#if data.day}
 	<nav class="days" aria-label="日付">
 		{#each data.days.slice(0, 14) as d (d)}

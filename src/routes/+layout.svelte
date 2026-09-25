@@ -179,6 +179,6 @@ const badge = (href: string) =>
 	}
 	.site-main {
 		flex: 1 1 auto;
-		padding: 1.5rem 1rem 3rem;
+		padding: 0.75rem 1rem 1.5rem;
 	}
 </style>

@@ -38,26 +38,7 @@ const EVENTS: Record<string, string> = {
 
 <svelte:head><title>いま | Ashi</title></svelte:head>
 
-<div class="stack" style="--gap: 1.25rem">
-	<div class="head">
-		<hgroup>
-			<h1>いま</h1>
-			<p>Ashi がどこを歩いていて、次にどこへ行きそうか。</p>
-		</hgroup>
-		{#if !data.walking}
-			<span class="tag warn">歩いていない</span>
-		{:else if sleeping}
-			<span class="tag"><span class="dot"></span>休んでいる</span>
-		{:else}
-			<span class="tag ok"><span class="dot live"></span>歩いている</span>
-		{/if}
-		{#if sleeping}
-			<form method="POST" action="?/wake" use:enhance>
-				<button type="submit" class="outline small"><Icon name="footprints" size={1} />起こす</button>
-			</form>
-		{/if}
-	</div>
-
+<div class="stack" style="--gap: 0.75rem">
 	<div class="stats">
 		<div class="panel stat">
 			<span class="label"><Icon name="footprints" size={0.9} />今日の歩数</span>
@@ -66,9 +47,25 @@ const EVENTS: Record<string, string> = {
 			<span class="sub">通算 {data.walk.steps} 歩</span>
 		</div>
 		<div class="panel stat">
-			<span class="label"><Icon name="moon" size={0.9} />次に起きる</span>
+			<span class="label">
+				<Icon name="moon" size={0.9} />次に起きる
+				{#if !data.walking}
+					<span class="tag warn">歩いていない</span>
+				{:else if sleeping}
+					<span class="tag"><span class="dot"></span>休んでいる</span>
+				{:else}
+					<span class="tag ok"><span class="dot live"></span>歩いている</span>
+				{/if}
+			</span>
 			<span class="value">{sleeping ? when(sleeping).slice(11) : "いま"}</span>
-			<span class="sub">{sleeping ? when(sleeping).slice(0, 10) : "起きている"}</span>
+			<span class="sub wake">
+				{sleeping ? when(sleeping).slice(0, 10) : "起きている"}
+				{#if sleeping}
+					<form method="POST" action="?/wake" use:enhance>
+						<button type="submit" class="outline mini"><Icon name="footprints" size={0.9} />起こす</button>
+					</form>
+				{/if}
+			</span>
 		</div>
 		<div class="panel stat">
 			<span class="label"><Icon name="wallet" size={0.9} />{subscription ? "頭" : "今日の予算"}</span>
@@ -166,6 +163,15 @@ const EVENTS: Record<string, string> = {
 </div>
 
 <style>
+	.wake {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.5rem;
+	}
+	.wake form {
+		margin: 0;
+	}
 	.unit {
 		color: var(--ui-muted);
 		font-size: 0.85rem;

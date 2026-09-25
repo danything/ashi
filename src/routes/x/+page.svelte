@@ -9,16 +9,7 @@ let posting = $state(false);
 
 <svelte:head><title>X | Ashi</title></svelte:head>
 
-<div class="stack" style="--gap: 1.25rem">
-	<div class="head">
-		<hgroup>
-			<h1>X</h1>
-			<p>
-				Ashi 名義の X アカウント。投稿も返信も Ashi が自分で決める(知の探究に要るとき、この人と話を続けたいとき)。
-				ほかの人との会話は Ashi の個性の材料になり、持ち主の地図には入らない。
-			</p>
-		</hgroup>
-	</div>
+<div class="stack" style="--gap: 0.75rem">
 
 	{#if !data.configured}
 		<p class="note warn small">X のアプリが設定されていません(X_CLIENT_ID・X_CLIENT_SECRET)。</p>

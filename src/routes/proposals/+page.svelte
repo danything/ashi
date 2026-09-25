@@ -12,12 +12,6 @@ let { data } = $props();
 <h1 class="sr-only">直すこと</h1>
 <div class="panes">
 <section class="pane">
-	<div class="pane-head">
-		<hgroup>
-			<h2>改善案({data.open.length})</h2>
-			<p>Ashi が内省で、自分の仕組みについて出した注文。直すかは持ち主が決める。「issue にする」で題と本文入りの issue の画面が開く。</p>
-		</hgroup>
-	</div>
 
 	{#each data.open as p (p.id)}
 		<article class="panel item">

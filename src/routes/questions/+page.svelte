@@ -18,41 +18,34 @@ const columns = $derived([
 		track: "owner" as const,
 		hint: "持ち主がいつか聞きそうなこと",
 		qs: data.open.filter((q) => q.track === "owner"),
+		parked: data.parked.filter((q) => q.track === "owner"),
+		closed: data.closed.filter((q) => q.track === "owner"),
 	},
 	{
 		track: "self" as const,
 		hint: "持ち主の地図の外で、自分が惹かれること",
 		qs: data.open.filter((q) => q.track === "self"),
+		parked: data.parked.filter((q) => q.track === "self"),
+		closed: data.closed.filter((q) => q.track === "self"),
 	},
 ]);
 </script>
 
 <svelte:head><title>問い | Ashi</title></svelte:head>
 
-<div class="stack" style="--gap: 1rem">
-	<div class="head">
-		<hgroup>
-			<h1>問い({data.open.length})</h1>
-			<p>点数は頭の見立てに、まだ歩いていない分を足し、何度も歩いた分を引いたもの。どちらの系統を歩くかは足がさいころで決める。</p>
-		</hgroup>
-		<span class="tag" title="個性の問いのうち、親をたどって先回りの問い・持ち主の地図・持ち主との対話・X での持ち主との会話に行き着くもの。問い探しから生まれたもの・記録の無いものは分母に入れない">
-			個性のうち持ち主から {data.pull.fromOwner} / {data.pull.known}
-		</span>
-		{#if data.landing.total}
-			<span class="tag" title="よそ者との対話から生まれた問いのうち、持ち主由来のテーマに着地したもの。高ければ、頭が相手の話を持ち主の関心へ引き戻している">
-				よそ者から持ち主のテーマへ {data.landing.home} / {data.landing.total}
-			</span>
-		{/if}
-	</div>
-
+<div class="stack" style="--gap: 0.75rem">
 	<div class="panes">
 		{#each columns as c (c.track)}
 			<section class="pane">
 				<div class="pane-head">
-					<hgroup>
-						<h2><span class="tag {c.track === 'owner' ? 'info' : 'accent'}">{TRACK_LABEL[c.track]}</span> {c.qs.length} 本</h2>
-						<p>{c.hint}</p>
-					</hgroup>
+					<span class="tag {c.track === 'owner' ? 'info' : 'accent'}">{TRACK_LABEL[c.track]} {c.qs.length} 本</span>
+					<span class="tiny muted grow">{c.hint}</span>
+					{#if c.track === "self"}
+						<span class="tag" title="個性の問いのうち、親をたどって先回りの問い・持ち主の地図・持ち主との対話・X での持ち主との会話に行き着くもの。問い探しから生まれたもの・記録の無いものは分母に入れない">持ち主から {data.pull.fromOwner} / {data.pull.known}</span>
+						{#if data.landing.total}
+							<span class="tag" title="よそ者との対話から生まれた問いのうち、持ち主由来のテーマに着地したもの。高ければ、頭が相手の話を持ち主の関心へ引き戻している">よそ者 → 持ち主のテーマ {data.landing.home} / {data.landing.total}</span>
+						{/if}
+					{/if}
 				</div>
 				<div class="panel">
 					{#if c.qs.length}
@@ -80,45 +73,45 @@ const columns = $derived([
 						<p class="empty">無い。この系統が出たら、足が頭に問いを探させる。</p>
 					{/if}
 				</div>
+			{#if c.parked.length}
+				<details class="fold">
+					<summary>未測定の棚({c.parked.length}) — 探しても見つからなかった問い</summary>
+					<ul class="rows">
+						{#each c.parked as q (q.id)}
+							<li>
+								<span class="tag {q.track === 'owner' ? 'info' : 'accent'}">{TRACK_LABEL[q.track]}</span>
+								<span class="grow small">
+									{q.text}
+									<span class="tiny muted meta">探した場所: {(q.searchedWhere ?? []).join("、") || "記録なし"}</span>
+								</span>
+								<form method="POST" action="?/reopen" use:enhance>
+									<input type="hidden" name="id" value={q.id} />
+									<button type="submit" class="ghost mini">戻す</button>
+								</form>
+							</li>
+						{/each}
+					</ul>
+				</details>
+			{/if}
+
+			{#if c.closed.length}
+				<details class="fold">
+					<summary>答えた・手放した問い({c.closed.length})</summary>
+					<ul class="rows">
+						{#each c.closed as q (q.id)}
+							<li>
+								<span class="tag {q.status === 'answered' ? 'ok' : ''}">{q.status === "answered" ? "答えた" : "手放した"}</span>
+								<span class="grow small">{q.text}</span>
+								<span class="muted tiny nums">{when(q.lastVisitedAt ?? q.createdAt).slice(0, 10)}</span>
+							</li>
+						{/each}
+					</ul>
+				</details>
+			{/if}
 			</section>
 		{/each}
 	</div>
 
-	{#if data.parked.length}
-		<details class="fold">
-			<summary>未測定の棚({data.parked.length}) — 探しても見つからなかった問い</summary>
-			<ul class="rows">
-				{#each data.parked as q (q.id)}
-					<li>
-						<span class="tag {q.track === 'owner' ? 'info' : 'accent'}">{TRACK_LABEL[q.track]}</span>
-						<span class="grow small">
-							{q.text}
-							<span class="tiny muted meta">探した場所: {(q.searchedWhere ?? []).join("、") || "記録なし"}</span>
-						</span>
-						<form method="POST" action="?/reopen" use:enhance>
-							<input type="hidden" name="id" value={q.id} />
-							<button type="submit" class="ghost mini">戻す</button>
-						</form>
-					</li>
-				{/each}
-			</ul>
-		</details>
-	{/if}
-
-	{#if data.closed.length}
-		<details class="fold">
-			<summary>答えた・手放した問い({data.closed.length})</summary>
-			<ul class="rows">
-				{#each data.closed as q (q.id)}
-					<li>
-						<span class="tag {q.status === 'answered' ? 'ok' : ''}">{q.status === "answered" ? "答えた" : "手放した"}</span>
-						<span class="grow small">{q.text}</span>
-						<span class="muted tiny nums">{when(q.lastVisitedAt ?? q.createdAt).slice(0, 10)}</span>
-					</li>
-				{/each}
-			</ul>
-		</details>
-	{/if}
 </div>
 
 <style>

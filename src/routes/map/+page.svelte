@@ -280,16 +280,7 @@ function play() {
 
 <svelte:head><title>つながり | Ashi</title></svelte:head>
 
-<div class="stack" style="--gap: 1.25rem">
-	<div class="head">
-		<hgroup>
-			<h1>つながり</h1>
-			<p>
-				問い・ノート・出どころが、どうつながって育ってきたか。線は足が記録したつながりで、ゆるい連想だけは問いの文字の近さから引いている。
-				ドラッグで回し、ホイールで寄る。点を押すと中身が出る。
-			</p>
-		</hgroup>
-	</div>
+<div class="stack" style="--gap: 0.75rem">
 
 	{#if all.length}
 		<section class="panel controls">
@@ -306,6 +297,7 @@ function play() {
 				<label><input type="checkbox" role="switch" bind:checked={showNear} />ゆるい連想</label>
 				<label><input type="checkbox" role="switch" bind:checked={showNotes} />ノートと橋の候補</label>
 				<label><input type="checkbox" role="switch" bind:checked={showClosed} />閉じた問い</label>
+				<span class="tiny muted">ドラッグで回し、ホイールで寄る。点を押すと中身が出る</span>
 			</div>
 		</section>
 
@@ -367,7 +359,8 @@ function play() {
 		position: relative;
 	}
 	.canvas {
-		height: max(28rem, calc(100vh - var(--ui-header-h) - 20rem));
+		/* ヘッダー・操作の行・凡例の分だけ引いて、残りの縦を全部使う */
+		height: max(24rem, calc(100vh - var(--ui-header-h) - 14.5rem));
 		border: 1px solid var(--ui-base-300);
 		border-radius: var(--pico-border-radius);
 		overflow: hidden;

@@ -20,18 +20,14 @@ const KIND: Record<string, string> = {
 </script>
 
 <div class="pane-head">
-	<hgroup>
-		<h2>持ち主の地図</h2>
-		<p>あなたの発言と、渡した文章・足跡から頭が書き直す。「まだ知らなそうなこと」は先回りの問いになる。</p>
-	</hgroup>
+	<span class="grow tiny muted">
+		持ち主の興味の地図。発言・渡した文章・足跡から頭が書き直す{data.pending > 0 ? `(新しい材料 ${data.pending} 件、${data.profileEvery} 歩ごと)` : ""}
+	</span>
 	<form method="POST" action="/owner?/reprofile" use:enhance>
 		<button type="submit" class="outline mini"><Icon name="sparkles" size={0.9} />書き直させる</button>
 	</form>
 </div>
 
-{#if data.pending > 0}
-	<p class="note info small">新しい材料が {data.pending} 件ある。{data.profileEvery} 歩ごとに書き直す。</p>
-{/if}
 {#if form?.message}<p class="note err small">{form.message}</p>{/if}
 {#if form?.added}<p class="note ok small">渡した: {form.added}</p>{/if}
 

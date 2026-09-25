@@ -43,7 +43,7 @@ const columns = $derived([
 					{#if c.track === "self"}
 						<span class="tag" title="個性の問いのうち、親をたどって先回りの問い・持ち主の地図・持ち主との対話・X での持ち主との会話に行き着くもの。問い探しから生まれたもの・記録の無いものは分母に入れない">持ち主から {data.pull.fromOwner} / {data.pull.known}</span>
 						{#if data.landing.total}
-							<span class="tag" title="よそ者との対話から生まれた問いのうち、持ち主由来のテーマに着地したもの。高ければ、頭が相手の話を持ち主の関心へ引き戻している">よそ者 → 持ち主のテーマ {data.landing.home} / {data.landing.total}</span>
+							<span class="tag" title="よそ者との対話から生まれた問いの着地。持ち主由来のテーマ / 前からの自分のテーマ / 新しいテーマ。持ち主や自分のテーマが多ければ、頭が相手の話を引き戻している">よそ者 → 持ち主 {data.landing.home}・自分 {data.landing.own}・新 {data.landing.total - data.landing.home - data.landing.own}</span>
 						{/if}
 					{/if}
 				</div>

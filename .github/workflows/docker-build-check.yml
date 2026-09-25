@@ -3,6 +3,9 @@ name: Docker Build Check
 on:
   pull_request:
     branches: [main]
+    # deploy/ だけの PR(画像タグの差し替え)では起動しない。起動すると、すぐ消えるブランチを
+    # 読みに行って、ジョブの無いまま赤くなっていた(下の if はそれより前に落ちるので効かない)
+    paths-ignore: ["deploy/**"]
 
 jobs:
   build:

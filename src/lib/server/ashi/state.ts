@@ -76,6 +76,11 @@ export interface Question {
 	via?: string;
 	/** ほぼ同じ問いが後から出た回数(受け取らずに数だけ足す) */
 	echoes?: number;
+	/**
+	 * 外(X・よそ者・持ち主)で確かめずに言ったことを確かめる問い。日が経っても歩かれないまま
+	 * 残っていたので、足が一定の日数で先に回す(select.ts の VERIFY_AFTER_DAYS。Ashi の改善案、2026-09-26)
+	 */
+	verify?: boolean;
 	/** 内省で統合され、手放したときの行き先 */
 	mergedInto?: string;
 	/** 探して何も見つからなかった回数 */
@@ -103,6 +108,11 @@ export interface Note {
 	questionId: string;
 	summary: string;
 	createdAt: string;
+	/**
+	 * 自己記述を渡さずに歩いたノート。見つけた型が世界の側のものか、自己記述が探させたものかを
+	 * 内省で見比べるため(Ashi の改善案、2026-09-26。config の selfBlindEvery)
+	 */
+	blind?: boolean;
 }
 
 export interface Proposal {
@@ -207,6 +217,8 @@ export interface Walk {
 	 * 記録に残す(Ashi の案、2026-09-25。対話の中の約束が、歩いている頭に引き継がれていなかった)
 	 */
 	stances?: { at: string; text: string }[];
+	/** 個性(self)の系統を歩いた回数。selfBlindEvery 回に 1 回、自己記述を渡さずに歩く */
+	selfWalks?: number;
 	/** この時刻までは起きない(ISO) */
 	sleepingUntil?: string;
 	/** init のとき、または人が `ashi core --accept` したときの core.md のハッシュ */

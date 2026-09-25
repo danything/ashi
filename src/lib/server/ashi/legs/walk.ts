@@ -39,6 +39,7 @@ import {
 	addBridgeIdeas,
 	allowance,
 	applyMerges,
+	blindComparison,
 	clampSleep,
 	nextMidnight,
 	ownerHandles,
@@ -47,6 +48,7 @@ import {
 	strangerLanding,
 	trimOpenQuestions,
 	unit,
+	walkTrail,
 } from "./guard.ts";
 import { restingThemes, SEEDING, selectQuestion } from "./select.ts";
 import { talkWithStranger } from "./stranger.ts";
@@ -64,6 +66,10 @@ import {
  * 足の 1 歩。状態を読み、行き先を選び、頭に考えさせ、ガードレールを通して書き戻し、休む。
  * 1 歩の中の順番: (頭が前の歩みで頼んだ足跡の巡回) → (持ち主の地図の書き直し) → 問いを歩く or 問いを探す → (内省)
  */
+
+/** 自己記述を渡さずに歩くとき、自己記述の欄に置く文 */
+const BLIND_SELF =
+	"(この歩みでは、足が自己記述を渡していない。自分がどういう者かを思い出さずに、問いとコア原則だけで歩く。対照のための歩み)";
 
 export interface Legs {
 	store: Store;
@@ -112,7 +118,7 @@ export type StepOutcome =
 	| {
 			kind: "walked";
 			questionId: string;
-			reason: "score" | "detour" | "echo";
+			reason: "score" | "detour" | "echo" | "verify";
 			noteId: string;
 			profiled: boolean;
 			reflected: boolean;
@@ -280,7 +286,9 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 
 		const questions = store.questions();
 		const pick =
-			left > 0 ? selectQuestion(questions, walk.recentThemes, cfg, rng) : null;
+			left > 0
+				? selectQuestion(questions, walk.recentThemes, cfg, rng, now)
+				: null;
 		const choice = pick && "question" in pick ? pick : null;
 		const resting = restingThemes(walk.recentThemes, cfg);
 		const ctx = (): WalkContext => ({
@@ -342,9 +350,18 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 			};
 		} else {
 			const q = choice.question;
+			// 個性の系統を selfBlindEvery 回歩くごとに 1 回、自己記述を渡さずに歩く(対照のため)。
+			// 見つけた型が世界の側のものか、自己記述が探させたものかを、内省でノートを並べて見比べる
+			const selfWalks =
+				(store.walk().selfWalks ?? 0) + (q.track === "self" ? 1 : 0);
+			const blind =
+				q.track === "self" &&
+				cfg.selfBlindEvery > 0 &&
+				selfWalks % cfg.selfBlindEvery === 0;
+			if (q.track === "self") store.saveWalk({ ...store.walk(), selfWalks });
 			const { output, usage } = await head.think<ExploreAnswer>({
 				task: "explore",
-				system: sys(),
+				system: blind ? system(core, BLIND_SELF, store.owner()) : sys(),
 				prompt: explorePrompt(q, choice.reason, ctx()),
 				schema: EXPLORE_SCHEMA,
 				tools,
@@ -365,6 +382,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 					questionId: q.id,
 					summary,
 					createdAt: now.toISOString(),
+					...(blind ? { blind: true } : {}),
 				},
 				`# ${title}\n\n問い: ${q.text}\n\n${String(output.findings ?? "").trim()}\n`,
 			);
@@ -454,7 +472,9 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 				}
 			}
 			store.log("walked", {
+				questionId: q.id,
 				question: q.text,
+				...(blind ? { blind: true } : {}),
 				theme: q.theme,
 				track: q.track,
 				corrected,
@@ -544,6 +564,8 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 						chats: store.recentChats(5),
 						stances: (store.walk().stances ?? []).slice(0, 10),
 						landing: strangerLanding(store.questions(), ownerHandles(cfg)),
+						trail: walkTrail(store.recentLog(300), w.intentions ?? []),
+						blind: blindComparison(store.notes(), store.questions()),
 					},
 				),
 				schema: REFLECT_SCHEMA,

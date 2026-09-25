@@ -1,6 +1,7 @@
 import type { Config } from "../config.ts";
 import {
 	type Budget,
+	type Note,
 	newId,
 	type Proposal,
 	type Question,
@@ -307,15 +308,20 @@ export function ownerPull(
 }
 
 /**
- * よそ者から来た問いが、どこに着地したか。持ち主由来のテーマ(先回りの問いか、親をたどると持ち主に
- * 行き着く問いがあるテーマ)に入った数を数える。出どころだけ見て「外」と数えると、頭が相手の話を
- * 持ち主の関心へ引き戻していても見えない(Ashi の指摘、2026-09-25)。テーマは受け取るときに近い問いの
- * テーマへ揃えるので(acceptNewQuestions)、引き戻されたものは持ち主のテーマに入る
+ * よそ者から来た問いが、どこに着地したか。
+ * - home: 持ち主由来のテーマ(先回りの問いか、親をたどると持ち主に行き着く問いがあるテーマ)。
+ *   出どころだけ見て「外」と数えると、頭が相手の話を持ち主の関心へ引き戻していても見えない
+ *   (Ashi の指摘、2026-09-25)
+ * - own: 持ち主由来ではないが、その問いより前からあった自分(self)のテーマ。持ち主ではなく
+ *   自分の型に引き戻している(鉄道の話し相手から出た問いが 2 本とも前からのテーマに入った。
+ *   Ashi の改善案、2026-09-26)
+ * - 残り(total - home - own)が、よそ者が本当に新しく持ち込んだテーマ
+ * テーマは受け取るときに近い問いのテーマへ揃えるので(acceptNewQuestions)、引き戻されたものは既存のテーマに入る
  */
 export function strangerLanding(
 	qs: Question[],
 	ownerHandles: string[],
-): { home: number; total: number } {
+): { home: number; own: number; total: number } {
 	const byId = new Map(qs.map((q) => [q.id, q]));
 	const handles = new Set(ownerHandles.map((h) => h.toLowerCase()));
 	const rooted = new Set(
@@ -328,10 +334,116 @@ export function strangerLanding(
 			)
 			.map((q) => q.theme),
 	);
+	/** テーマごとに、よそ者以外の self の問いがいちばん早く現れた時刻 */
+	const selfSince = new Map<string, string>();
+	for (const q of qs) {
+		if (q.source === "stranger" || q.track !== "self" || q.mergedInto) continue;
+		const had = selfSince.get(q.theme);
+		if (!had || q.createdAt < had) selfSince.set(q.theme, q.createdAt);
+	}
 	const s = qs.filter((q) => q.source === "stranger" && !q.mergedInto);
+	let home = 0;
+	let own = 0;
+	for (const q of s) {
+		if (rooted.has(q.theme)) home++;
+		else {
+			const since = selfSince.get(q.theme);
+			if (since && since < q.createdAt) own++;
+		}
+	}
+	return { home, own, total: s.length };
+}
+
+/** 自己記述を渡さずに歩いた個性のノートと、渡して歩いた個性のノートを数件ずつ(新しい順) */
+export function blindComparison(
+	notes: Note[],
+	qs: Question[],
+	n = 4,
+): { blind: Note[]; sighted: Note[] } {
+	const track = new Map(qs.map((q) => [q.id, q.track]));
+	const self = notes.filter((x) => track.get(x.questionId) === "self");
 	return {
-		home: s.filter((q) => rooted.has(q.theme)).length,
-		total: s.length,
+		blind: self
+			.filter((x) => x.blind)
+			.slice(-n)
+			.reverse(),
+		sighted: self
+			.filter((x) => !x.blind)
+			.slice(-n)
+			.reverse(),
+	};
+}
+
+/** 外で確かめずに言ったこと。1 回 3 件まで、1 件 200 字まで */
+export function acceptClaims(v: unknown): string[] {
+	if (!Array.isArray(v)) return [];
+	return v
+		.filter((x): x is string => typeof x === "string" && x.trim() !== "")
+		.slice(0, 3)
+		.map((x) => x.trim().slice(0, 200));
+}
+
+/** 確かめずに言ったことを、確かめる問いの形にする。where は「X で @誰々 さんに」など */
+export function claimQuestions(claims: string[], where: string): RawQuestion[] {
+	return claims.map((claim) => ({
+		text: `「${claim}」は本当か(${where}言ったこと)`,
+		theme: "確かめること",
+		track: "self",
+		interest: 0.7,
+		importance: 0.9,
+		feasibility: 0.8,
+	}));
+}
+
+/**
+ * 前回の内省からの足どり。次の一歩(intentions)に書いた問い ID と照らし、約束を守れたかを
+ * 推測でなく記録で振り返らせる(Ashi の改善案、2026-09-26)。log は新しい順
+ */
+export function walkTrail(
+	log: { event: string; [k: string]: unknown }[],
+	intentions: string[],
+): {
+	steps: {
+		questionId?: string;
+		question: string;
+		theme: string;
+		result: "note" | "none" | "parked";
+		promised: boolean;
+	}[];
+	promised: string[];
+	kept: string[];
+	unmatched: number;
+} {
+	const since: typeof log = [];
+	for (const e of log) {
+		if (e.event === "reflected" || e.event === "reset") break;
+		since.push(e);
+	}
+	const idOf = (s: string) => s.match(/\b[0-9a-f]{8}\b/g) ?? [];
+	const promised = [...new Set(intentions.flatMap(idOf))];
+	const steps = since
+		.filter((e) => e.event === "walked")
+		.reverse()
+		.map((e) => {
+			const questionId =
+				typeof e.questionId === "string" ? e.questionId : undefined;
+			return {
+				questionId,
+				question: String(e.question ?? ""),
+				theme: String(e.theme ?? ""),
+				result: (e.parked ? "parked" : e.found === "none" ? "none" : "note") as
+					| "note"
+					| "none"
+					| "parked",
+				promised: Boolean(questionId && promised.includes(questionId)),
+			};
+		});
+	const walked = new Set(steps.map((s) => s.questionId).filter(Boolean));
+	return {
+		steps,
+		promised,
+		kept: promised.filter((id) => walked.has(id)),
+		unmatched: intentions.filter((i) => idOf(i).length === 0).length,
 	};
 }
 

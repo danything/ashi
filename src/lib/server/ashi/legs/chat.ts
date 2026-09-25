@@ -20,9 +20,11 @@ import {
 } from "./blockers.ts";
 import { feedStatus } from "./feeds.ts";
 import {
+	acceptClaims,
 	acceptNewQuestions,
 	addStances,
 	allowance,
+	claimQuestions,
 	trimOpenQuestions,
 } from "./guard.ts";
 import { crawlIds } from "./walk.ts";
@@ -103,8 +105,17 @@ export async function chat(
 				now,
 				{ source: "chat" },
 			);
-			added = got.map((q) => q.text);
-			return trimOpenQuestions([...qs, ...got], cfg);
+			// 返事の中で記憶だけで言ったことも、確かめる問いにして控える
+			const checks = acceptNewQuestions(
+				claimQuestions(acceptClaims(output.unverified), "持ち主に"),
+				[...qs, ...got],
+				{ ...cfg, maxNewQuestions: 3 },
+				undefined,
+				now,
+				{ source: "chat" },
+			).map((q) => ({ ...q, verify: true }));
+			added = [...got, ...checks].map((q) => q.text);
+			return trimOpenQuestions([...qs, ...got, ...checks], cfg);
 		});
 		// 読みに行くのは次の歩みで(対話の返事は待たせない)。取った立場は内省で見せる
 		const crawl = crawlIds(output.crawl);

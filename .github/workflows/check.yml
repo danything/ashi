@@ -2,6 +2,10 @@ name: Check
 
 on:
   pull_request:
+    # 画像タグを差し替える PR(bump-ashi-image)は deploy/ しか変えない。作られてすぐ自動で
+    # マージされてブランチが消えるので、起動しても中身の無いまま「ワークフローの問題」で赤くなっていた。
+    # deploy/ だけの PR では起動しない(見るもの=コードが無い)
+    paths-ignore: ["deploy/**"]
   push:
     branches: [main]
 

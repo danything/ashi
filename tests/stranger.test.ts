@@ -5,7 +5,9 @@ import { normalizeConfig } from "../src/lib/server/ashi/config.ts";
 import {
 	ownerPull,
 	strangerLanding,
+	walkTrail,
 } from "../src/lib/server/ashi/legs/guard.ts";
+import { selectQuestion } from "../src/lib/server/ashi/legs/select.ts";
 import {
 	STRANGER_FIELDS,
 	talkWithStranger,
@@ -254,6 +256,144 @@ describe("話したことを内省に届ける", () => {
 			q({ track: "self", theme: "稼働表", source: "stranger" }),
 			q({ track: "self", theme: "アリの巣", source: "stranger" }),
 		];
-		expect(strangerLanding(qs, [])).toEqual({ home: 1, total: 2 });
+		expect(strangerLanding(qs, [])).toEqual({ home: 1, own: 0, total: 2 });
+	});
+});
+
+describe("Ashi の改善案(2026-09-26)", () => {
+	test("よそ者の問いが、前からあった自分のテーマに入ったら own と数える", () => {
+		const qs = [
+			q({
+				track: "self",
+				theme: "設計と外れ値",
+				createdAt: "2026-09-25T01:00:00Z",
+			}),
+			q({
+				track: "self",
+				theme: "設計と外れ値",
+				source: "stranger",
+				createdAt: "2026-09-25T05:00:00Z",
+			}),
+			q({
+				track: "self",
+				theme: "鉄道の勾配",
+				source: "stranger",
+				createdAt: "2026-09-25T05:00:00Z",
+			}),
+		];
+		expect(strangerLanding(qs, [])).toEqual({ home: 0, own: 1, total: 2 });
+	});
+
+	test("会話で記憶だけで言ったことは、確かめる問い(verify)にして控える", async () => {
+		const store = freshStore();
+		const stranger = new FakeHead({
+			stranger: () => ({ reply: "鉄道の勾配の話をしよう" }),
+		});
+		const head = new FakeHead({
+			dialogue: () => ({ reply: "たしか 35‰ だったはず" }),
+			"dialogue-final": () => ({
+				reply: "またね",
+				new_questions: [],
+				takeaway: "t",
+				unverified: ["パリ南東線の最急勾配は 35‰"],
+			}),
+		});
+		await talkWithStranger({
+			store,
+			head,
+			stranger,
+			turns: 2,
+			now,
+			rng: () => 0,
+		});
+		const check = store.questions().find((x) => x.verify);
+		expect(check?.text).toContain("パリ南東線の最急勾配は 35‰");
+		expect(check).toMatchObject({
+			track: "self",
+			source: "stranger",
+			theme: "確かめること",
+		});
+	});
+
+	test("確かめる問いは、2 日歩かれなければ点数に関係なく先に歩く", () => {
+		const cfg = {
+			themeStreakLimit: 3,
+			themeWindow: 10,
+			themeWindowMax: 3,
+			detourRate: 0,
+			ownerShare: 0,
+		};
+		const hi = q({
+			id: "hi",
+			interest: 1,
+			importance: 1,
+			createdAt: "2026-09-20T00:00:00Z",
+		});
+		const check = q({
+			id: "chk",
+			interest: 0,
+			importance: 0,
+			verify: true,
+			createdAt: "2026-09-24T00:00:00Z",
+		});
+		const pick = (at: string) => {
+			const c = selectQuestion([hi, check], [], cfg, () => 0.9, new Date(at));
+			return "question" in c ? `${c.question.id}:${c.reason}` : "seed";
+		};
+		expect(pick("2026-09-25T00:00:00Z")).toBe("hi:score");
+		expect(pick("2026-09-26T01:00:00Z")).toBe("chk:verify");
+	});
+
+	test("足どりを、次の一歩に書いた問い ID と照らす", () => {
+		const log = [
+			{
+				event: "walked",
+				questionId: "aaaaaaa2",
+				question: "b",
+				theme: "t",
+				found: "none",
+			},
+			{ event: "walked", questionId: "aaaaaaa1", question: "a", theme: "t" },
+			{ event: "reflected" },
+			{ event: "walked", questionId: "old00000", question: "old", theme: "t" },
+		];
+		const t = walkTrail(log, [
+			"[aaaaaaa1] を歩く",
+			"91be18ca を確かめる",
+			"ID の無い一歩",
+		]);
+		expect(
+			t.steps.map((s) => `${s.questionId}:${s.result}:${s.promised}`),
+		).toEqual(["aaaaaaa1:note:true", "aaaaaaa2:none:false"]);
+		expect(t).toMatchObject({
+			promised: ["aaaaaaa1", "91be18ca"],
+			kept: ["aaaaaaa1"],
+			unmatched: 1,
+		});
+	});
+
+	test("個性の系統を selfBlindEvery 回歩くごとに 1 回、自己記述を渡さずに歩き、ノートに印を付ける", async () => {
+		const store = freshStore();
+		writeFileSync(
+			join(store.home, "ashi.json"),
+			JSON.stringify({ selfBlindEvery: 2, ownerShare: 0 }),
+		);
+		store.saveSelf("私は寄り道が好きな歩き手で、問いの連鎖を追うのが楽しい。");
+		store.saveQuestions([
+			q({ id: "s1", track: "self", theme: "a" }),
+			q({ id: "s2", track: "self", theme: "b" }),
+		]);
+		const head = new FakeHead({ explore: () => explore() });
+		for (let i = 0; i < 2; i++) {
+			store.saveWalk({ ...store.walk(), sleepingUntil: undefined });
+			await step({ store, head, tools: [], now: () => now, rng: () => 0.99 });
+		}
+		const systems = head.calls
+			.filter((c) => c.task === "explore")
+			.map((c) => c.system);
+		expect(systems[0]).toContain("寄り道が好きな歩き手");
+		expect(systems[1]).not.toContain("寄り道が好きな歩き手");
+		expect(systems[1]).toContain("自己記述を渡していない");
+		expect(store.notes().map((n) => Boolean(n.blind))).toEqual([false, true]);
 	});
 });

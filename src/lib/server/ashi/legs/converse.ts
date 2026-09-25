@@ -170,6 +170,7 @@ export async function checkMentions(ctx: {
 							{ source: "x", via: username },
 						).map((q, i) => ({
 							...q,
+							verify: true,
 							origin: {
 								conversationId: conv.id,
 								replyId,

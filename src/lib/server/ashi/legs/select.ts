@@ -34,8 +34,11 @@ export interface Choice {
 	question: Question;
 	/** さいころで決めた系統 */
 	track: Track;
-	/** score: 点数の順 / detour: 寄り道 / echo: 言い換えが繰り返し出た問いを一度歩く */
-	reason: "score" | "detour" | "echo";
+	/**
+	 * score: 点数の順 / detour: 寄り道 / echo: 言い換えが繰り返し出た問いを一度歩く /
+	 * verify: 外で確かめずに言ったことを、日が経ったので確かめる
+	 */
+	reason: "score" | "detour" | "echo" | "verify";
 	score: number;
 }
 
@@ -48,6 +51,9 @@ export interface SeedNeeded {
 
 /** この回数だけ言い換えが出て、まだ歩いていない問いは先に歩く */
 export const ECHO_LIMIT = 3;
+
+/** 外で確かめずに言ったことを確かめる問いは、この日数歩かれなければ先に歩く */
+export const VERIFY_AFTER_DAYS = 2;
 
 /** 問いを探しただけの歩みの印。テーマとしては数えない */
 export const SEEDING = "(問いを探す)";
@@ -85,6 +91,7 @@ export function selectQuestion(
 		| "ownerShare"
 	>,
 	rng: () => number = Math.random,
+	now: Date = new Date(),
 ): Choice | SeedNeeded {
 	const avoid = restingThemes(recentThemes, cfg);
 	// 先に系統を決める。**その系統が空でも、もう一方には回さない。** 回すと、問いのある系統ばかり
@@ -100,6 +107,26 @@ export function selectQuestion(
 		.sort((a, b) => b.score - a.score);
 	const [top, ...rest] = candidates;
 	if (!top) return { seed: track, avoid };
+	// 外(X・よそ者・持ち主)で確かめずに言ったことは、VERIFY_AFTER_DAYS 日歩かれなければ先に確かめる。
+	// 点数のままだと、次の一歩に 2 回書いても選ばれず、言いっぱなしのまま日が経っていった
+	// (Ashi の改善案、2026-09-26)。休ませているテーマでも回す(確かめるのは別の仕事なので)
+	const overdue = questions
+		.filter(
+			(q) =>
+				q.status === "open" &&
+				q.track === track &&
+				(q.verify || q.origin) &&
+				q.visits === 0 &&
+				now.getTime() - Date.parse(q.createdAt) >= VERIFY_AFTER_DAYS * 86400e3,
+		)
+		.sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0];
+	if (overdue)
+		return {
+			question: overdue,
+			score: score(overdue),
+			track,
+			reason: "verify",
+		};
 	// 言い換えが ECHO_LIMIT 回以上出たのに、まだ 1 度も歩いていない問いは、1 回だけ先に歩く。
 	// 点数には足さない。繰り返しは関心の強さより堂々巡りの印のことが多く、点数に足すと堂々巡りを
 	// 後押しする。歩けば答えが出るか棚に移るので、繰り返しがそこで止まる(Ashi の案、2026-09-25)

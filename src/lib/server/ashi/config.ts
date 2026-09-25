@@ -86,6 +86,11 @@ export interface Config {
 		/** 往復の数(相手 → Ashi で 1 往復) */
 		turns: number;
 	};
+	/**
+	 * 個性の系統をこの回数歩くごとに 1 回、自己記述を渡さずに歩く(0 で止める)。
+	 * 自己記述が毎回入っていると、見つけた型が世界の側のものか、自己記述が探させたものかを区別できない
+	 */
+	selfBlindEvery: number;
 	/** 1 歩で増やしてよい問いの数 */
 	maxNewQuestions: number;
 	/** 開いたまま抱えておける問いの数。超えたら点の低いものから手放す */
@@ -127,6 +132,7 @@ export const DEFAULT_CONFIG: Config = {
 		mentionsEveryMinutes: 60,
 	},
 	stranger: { enabled: true, model: "claude-sonnet-5", turns: 3 },
+	selfBlindEvery: 5,
 	maxNewQuestions: 3,
 	maxOpenQuestions: 50,
 	maxToolRounds: 12,
@@ -228,6 +234,9 @@ export function normalizeConfig(raw: unknown): Config {
 					: d.stranger.model,
 			turns: Math.round(clamp(r.stranger?.turns, 1, 6, d.stranger.turns)),
 		},
+		selfBlindEvery: Math.round(
+			clamp(r.selfBlindEvery, 0, 100, d.selfBlindEvery),
+		),
 		maxNewQuestions: Math.round(
 			clamp(r.maxNewQuestions, 0, 20, d.maxNewQuestions),
 		),

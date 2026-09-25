@@ -10,7 +10,9 @@ import {
 } from "../prompts.ts";
 import type { Dialogue, Store } from "../state.ts";
 import {
+	acceptClaims,
 	acceptNewQuestions,
+	claimQuestions,
 	type RawQuestion,
 	trimOpenQuestions,
 } from "./guard.ts";
@@ -83,7 +85,11 @@ export async function talkWithStranger(opts: {
 	const text = (v: unknown) =>
 		typeof v === "string" ? v.trim().slice(0, MAX_TURN_CHARS) : "";
 
-	let final: { new_questions?: RawQuestion[]; takeaway?: unknown } = {};
+	let final: {
+		new_questions?: RawQuestion[];
+		takeaway?: unknown;
+		unverified?: unknown;
+	} = {};
 	const n = Math.max(1, opts.turns);
 	for (let i = 0; i < n; i++) {
 		const s = await stranger.think<{ reply: string }>({
@@ -102,6 +108,7 @@ export async function talkWithStranger(opts: {
 			reply: string;
 			new_questions?: RawQuestion[];
 			takeaway?: unknown;
+			unverified?: unknown;
 		}>({
 			task: last ? "dialogue-final" : "dialogue",
 			system: dialogueSystem(store.core(), store.self()),
@@ -118,15 +125,27 @@ export async function talkWithStranger(opts: {
 	const raw = (Array.isArray(final.new_questions) ? final.new_questions : [])
 		// よそ者から生まれた問いは個性の側
 		.map((q) => ({ ...q, track: "self" }));
-	if (raw.length) {
+	// 会話の中で記憶だけで言ったことも、X と同じく確かめる問いにして控える(Ashi の改善案、2026-09-26。
+	// 「記憶で言います」と断ったまま確かめない、が起きていた)
+	const claims = acceptClaims(final.unverified);
+	if (raw.length || claims.length) {
 		const cfg = store.config();
+		const from = {
+			source: "stranger" as const,
+			via: `${stranger.name}:${field}`,
+		};
 		store.updateQuestions((qs) => {
-			const got = acceptNewQuestions(raw, qs, cfg, undefined, now, {
-				source: "stranger",
-				via: `${stranger.name}:${field}`,
-			});
-			added = got.map((q) => q.text);
-			return trimOpenQuestions([...qs, ...got], cfg);
+			const got = acceptNewQuestions(raw, qs, cfg, undefined, now, from);
+			const checks = acceptNewQuestions(
+				claimQuestions(claims, `${field}の話し相手に`),
+				[...qs, ...got],
+				{ ...cfg, maxNewQuestions: 3 },
+				undefined,
+				now,
+				from,
+			).map((q) => ({ ...q, verify: true }));
+			added = [...got, ...checks].map((q) => q.text);
+			return trimOpenQuestions([...qs, ...got, ...checks], cfg);
 		});
 	}
 	const dialogue: Dialogue = {

@@ -5,6 +5,7 @@ import {
 	htmlToText,
 	isPrivateAddress,
 	noteTools,
+	searchNotes,
 } from "../src/lib/server/ashi/legs/tools.ts";
 import { freshStore } from "./helpers.ts";
 
@@ -114,5 +115,55 @@ describe("noteTools", () => {
 		expect(await search?.run({ query: "アラビア" })).toContain("abcdef12");
 		expect(await read?.run({ id: "abcdef12" })).toContain("アラビア語");
 		expect(await read?.run({ id: "../walk" })).toContain("無い");
+	});
+});
+
+describe("searchNotes", () => {
+	test("語を並べても当たり、題と要約に多く当たるものが上に来る。古いノートにも届く", () => {
+		const store = freshStore();
+		const add = (
+			id: string,
+			title: string,
+			summary: string,
+			body: string,
+			at: string,
+		) =>
+			store.addNote(
+				{
+					id,
+					title,
+					theme: id === "aaaaaaa3" ? "天文" : "稼働表",
+					questionId: "q",
+					summary,
+					createdAt: at,
+				},
+				body,
+			);
+		add(
+			"aaaaaaa1",
+			"稼働表と偽装請負",
+			"稼働表は指揮命令の証拠になりうる",
+			"告示37号",
+			"2026-08-01T00:00:00Z",
+		);
+		add(
+			"aaaaaaa2",
+			"つながらない権利",
+			"フランスの法制度",
+			"稼働表には触れない",
+			"2026-09-25T00:00:00Z",
+		);
+		add(
+			"aaaaaaa3",
+			"星の名前",
+			"アラビア語由来",
+			"天文",
+			"2026-09-25T00:00:00Z",
+		);
+		const hits = searchNotes(store, "稼働表 偽装請負 裁判例").map((n) => n.id);
+		expect(hits[0]).toBe("aaaaaaa1");
+		expect(hits).toContain("aaaaaaa2");
+		expect(hits).not.toContain("aaaaaaa3");
+		expect(searchNotes(store, "  ")).toEqual([]);
 	});
 });

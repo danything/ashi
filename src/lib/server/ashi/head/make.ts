@@ -7,12 +7,19 @@ import type { Head } from "./head.ts";
 
 /**
  * Claude Code の頭に足の道具を渡す MCP サーバーの場所。イメージでは build/mcp.js(束ねたもの)、
- * 手元では src/mcp.ts。どちらも無ければ渡さない(頭は組み込みの WebFetch を使う)
+ * 手元では src/mcp.ts。どちらも無ければ渡さない(頭は組み込みの WebFetch を使う)。
+ * 状態ディレクトリを渡すのは、ノートを探す道具(search_notes)のため
  */
-function mcpServer(): { command: string; args: string[] } | undefined {
+function mcpServer(
+	home: string,
+): { command: string; args: string[] } | undefined {
 	for (const p of ["build/mcp.js", "src/mcp.ts"]) {
 		const full = resolve(p);
-		if (existsSync(full)) return { command: process.execPath, args: [full] };
+		if (existsSync(full))
+			return {
+				command: process.execPath,
+				args: [full, `--home=${resolve(home)}`],
+			};
 	}
 	return undefined;
 }
@@ -27,7 +34,7 @@ export function makeHead(
 			model: cfg.model,
 			effort: cfg.effort,
 			home,
-			mcp: mcpServer(),
+			mcp: mcpServer(home),
 		});
 	}
 	return new ClaudeHead({ model: cfg.model, effort: cfg.effort });

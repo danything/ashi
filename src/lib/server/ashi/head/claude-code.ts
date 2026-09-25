@@ -17,7 +17,8 @@ import {
  * サブスク(Pro / Max)で動く頭。公式の Claude Code の CLI を `claude -p` で 1 回ずつ呼ぶ。
  * Messages API はサブスクのトークンを受け付けないので、CLI を通す(Forgejo の AI レビューと同じ形)。
  *
- * 足の道具(fetch_url・search_notes・read_note)は CLI に渡せないので、組み込みの道具で置き換える:
+ * 足の道具は MCP サーバー(src/mcp.ts)で渡す(fetch_url・find_papers・read_paper・archived_copy・search_notes)。
+ * ノートの本文と、MCP が無いときの代わりは組み込みの道具:
  *   ノートを読む → Read。**状態ディレクトリの notes/ の中だけ**(ほかのパスは権限で拒まれる。2026-09-25 に確かめた)
  *   web を読む   → WebFetch、web を探す → WebSearch
  * 書き込み・Bash は渡さない。手元のネットワークを読ませない制限は CLI の中では掛けられないので、
@@ -61,7 +62,11 @@ interface CliResult {
 }
 
 const TOOL_HINT = (mcp: boolean) => `
-道具について: 過去のノートは notes/<id>.md にある(id は最近のノートの一覧の [ ] の中)。Read で読める。
+道具について: 過去のノートは notes/<id>.md にある(id は最近のノートの一覧の [ ] の中)。Read で読める。${
+	mcp
+		? `\n最近のノートの一覧に出るのは 10 件だけ。古いノートは mcp__ashi__search_notes で語から探せる。歩き始める前に、同じことを前に調べていないか探し、あればその続きから歩く。`
+		: ""
+}
 web は WebSearch で探し、${mcp ? "mcp__ashi__fetch_url で読む(PDF も読める)" : "WebFetch で読む"}。${
 	mcp
 		? `
@@ -101,6 +106,7 @@ export class ClaudeCodeHead implements Head {
 					"mcp__ashi__find_papers",
 					"mcp__ashi__read_paper",
 					"mcp__ashi__archived_copy",
+					"mcp__ashi__search_notes",
 				);
 			else {
 				tools.push("WebFetch");

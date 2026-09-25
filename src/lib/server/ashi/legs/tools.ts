@@ -2,7 +2,8 @@ import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import type { Config } from "../config.ts";
 import type { Tool } from "../head/head.ts";
-import type { Store } from "../state.ts";
+import type { Note, Store } from "../state.ts";
+import { bigrams, jaccard } from "./guard.ts";
 
 /**
  * 頭に渡す道具。どれも読むだけで、外の世界にも状態ディレクトリにも書き込まない。
@@ -234,34 +235,69 @@ export function fetchUrlTool(
 }
 
 /** これまでに書いたノートを読む道具。状態ディレクトリは読むだけ */
+/**
+ * ノートを語で探す。蓄積が増えると頭に見せる最近のノート(10 件)から外れる分が増えるので、
+ * 頭が自分で古いノートを引けるようにする(2026-09-25)。
+ * 語は空白・読点で区切り、当たった語の数で並べる(題・要約・テーマは本文の 3 倍)。
+ * 語が 1 つも丸ごと当たらないときのために、文字の近さ(bigram)も少し足す。件数が数千になったらベクトル検索に替える
+ */
+export function searchNotes(store: Store, query: string, limit = 10): Note[] {
+	const terms = query
+		.toLowerCase()
+		.split(/[\s、,。]+/)
+		.filter((t) => t.length > 0);
+	if (!terms.length) return [];
+	const qg = bigrams(query);
+	return store
+		.notes()
+		.map((n) => {
+			const head = [n.title, n.summary, n.theme].join(" ").toLowerCase();
+			const body = (store.noteBody(n.id) ?? "").toLowerCase();
+			let score = 0;
+			for (const t of terms) {
+				if (head.includes(t)) score += 3;
+				else if (body.includes(t)) score += 1;
+			}
+			score += jaccard(qg, bigrams(`${n.title} ${n.summary}`)) * 2;
+			return { n, score };
+		})
+		.filter((x) => x.score >= 1)
+		.sort(
+			(a, b) => b.score - a.score || b.n.createdAt.localeCompare(a.n.createdAt),
+		)
+		.slice(0, limit)
+		.map((x) => x.n);
+}
+
 export function noteTools(store: Store): Tool[] {
 	return [
 		{
 			name: "search_notes",
 			description:
-				"これまでに書いた知識のノートを語で探す。題・要約・本文に語を含むものの id と題を返す。",
+				"これまでに書いた知識のノートを探す。語を空白で区切って並べると、多く当たるもの・題と要約に当たるものほど上に出る。古いノートにも届く(最近のノートの一覧に出るのは 10 件だけ)。id・日付・テーマ・題・要約を返す。本文は id で読む。",
 			inputSchema: {
 				type: "object",
-				properties: { query: { type: "string" } },
+				properties: {
+					query: {
+						type: "string",
+						description: "語を空白で区切って(例: 稼働表 偽装請負 裁判例)",
+					},
+				},
 				required: ["query"],
 				additionalProperties: false,
 			},
 			readOnly: true,
 			async run(input) {
-				const q = String((input as { query?: unknown }).query ?? "")
-					.trim()
-					.toLowerCase();
+				const q = String((input as { query?: unknown }).query ?? "").trim();
 				if (!q) return "語が空";
-				const hits = store
-					.notes()
-					.filter((n) =>
-						[n.title, n.summary, n.theme, store.noteBody(n.id) ?? ""].some(
-							(s) => s.toLowerCase().includes(q),
-						),
-					)
-					.slice(-20);
+				const hits = searchNotes(store, q);
 				return hits.length
-					? hits.map((n) => `${n.id}\t${n.theme}\t${n.title}`).join("\n")
+					? hits
+							.map(
+								(n) =>
+									`[${n.id}] ${n.createdAt.slice(0, 10)} (${n.theme}) ${n.title}\n  ${n.summary.slice(0, 160)}`,
+							)
+							.join("\n")
 					: "見つからない";
 			},
 		},

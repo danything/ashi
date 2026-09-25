@@ -3,7 +3,8 @@ import { DEFAULT_CONFIG } from "./lib/server/ashi/config.ts";
 import type { Tool } from "./lib/server/ashi/head/head.ts";
 import { archiveTool } from "./lib/server/ashi/legs/archive.ts";
 import { paperTools } from "./lib/server/ashi/legs/papers.ts";
-import { fetchUrlTool } from "./lib/server/ashi/legs/tools.ts";
+import { fetchUrlTool, noteTools } from "./lib/server/ashi/legs/tools.ts";
+import { Store } from "./lib/server/ashi/state.ts";
 
 /**
  * Claude Code の頭に Ashi の道具を渡す MCP サーバー(stdio)。CLI が `--mcp-config` で起動する。
@@ -17,7 +18,18 @@ import { fetchUrlTool } from "./lib/server/ashi/legs/tools.ts";
  */
 
 const cfg = DEFAULT_CONFIG;
-const TOOLS: Tool[] = [fetchUrlTool(cfg), ...paperTools(cfg), archiveTool(cfg)];
+/** 状態ディレクトリ(`--home=<dir>`)。あればノートを探す道具も出す。本文は頭が Read で notes/ から読む */
+const home = process.argv
+	.find((a) => a.startsWith("--home="))
+	?.slice("--home=".length);
+const TOOLS: Tool[] = [
+	fetchUrlTool(cfg),
+	...paperTools(cfg),
+	archiveTool(cfg),
+	...(home
+		? noteTools(new Store(home)).filter((t) => t.name === "search_notes")
+		: []),
+];
 const byName = new Map(TOOLS.map((t) => [t.name, t]));
 
 interface Rpc {

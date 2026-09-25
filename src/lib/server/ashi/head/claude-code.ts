@@ -220,6 +220,9 @@ export class ClaudeCodeHead implements Head {
 				clearTimeout(timer);
 				resolve({ stdout, stderr, code });
 			});
+			// CLI がプロンプトを読み切る前に終わると、書き込みが EPIPE になる。終わり方は close の
+			// 終了コードと stderr で分かるので、ここでは受け止めるだけにする(受け止めないとプロセスごと落ちる)
+			child.stdin.on("error", () => {});
 			child.stdin.end(stdin);
 		});
 	}

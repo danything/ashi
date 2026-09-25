@@ -1,5 +1,6 @@
 <script lang="ts">
-import { onMount, tick, untrack } from "svelte";
+import { tick, untrack } from "svelte";
+import { afterNavigate } from "$app/navigation";
 import Icon from "$lib/components/Icon.svelte";
 import Logo from "$lib/components/Logo.svelte";
 import { when } from "$lib/format";
@@ -33,8 +34,9 @@ function toEnd(behavior: ScrollBehavior = "smooth") {
 	window.scrollTo({ top: document.documentElement.scrollHeight, behavior });
 }
 
-// 開いたときは最新(いちばん下)から見せる
-onMount(() => toEnd("instant"));
+// 開いたときは最新(いちばん下)から見せる。onMount だと、ほかの画面から移ってきたときに
+// SvelteKit が移動の後でスクロールを上に戻してしまうので、移動が済んだ後に送る(リロードでも呼ばれる)
+afterNavigate(() => toEnd("instant"));
 
 async function send(e: SubmitEvent) {
 	e.preventDefault();
@@ -192,7 +194,8 @@ function onKey(e: KeyboardEvent) {
 	/* 入力欄は画面の下に貼り付ける */
 	.composer {
 		position: sticky;
-		bottom: 1rem;
+		/* ページ下の余白と同じ位置に貼り付ける(違うと、いちばん下まで来たときに入力欄がずれる) */
+		bottom: var(--main-pad-bottom);
 		display: flex;
 		flex-direction: column;
 		gap: 0.4rem;

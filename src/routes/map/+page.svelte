@@ -292,11 +292,11 @@ function play() {
 		<div class="canvas" bind:this={el}></div>
 
 		<div class="overlay controls">
-			<div class="row">
+			<div class="row head-row">
 				<button type="button" class="mini" onclick={play} disabled={steps.length < 2}>
 					<Icon name={playing ? "check" : "arrow-right"} size={0.9} />{playing ? "止める" : "育ち方を再生"}
 				</button>
-				<span class="tiny muted nums">{when(steps[step])} まで ・ 点 {shown.nodes} ・ 線 {shown.links}</span>
+				<span class="tiny muted nums stat">{when(steps[step])} まで ・ 点 {shown.nodes} ・ 線 {shown.links}</span>
 			</div>
 			<input type="range" min="0" max={steps.length - 1} bind:value={step} aria-label="いつまでを見せるか" />
 			<div class="row toggles">
@@ -379,7 +379,21 @@ function play() {
 		left: 0.75rem;
 		display: grid;
 		gap: 0.35rem;
-		width: min(26rem, calc(100% - 1.5rem));
+		width: min(30rem, calc(100% - 1.5rem));
+	}
+	/* 再生中に数の桁が変わっても、折り返したり戻ったりして枠の高さが揺れないように */
+	.head-row {
+		flex-wrap: nowrap;
+	}
+	.head-row button {
+		flex: none;
+	}
+	.stat {
+		min-width: 0;
+		overflow: hidden;
+		font-variant-numeric: tabular-nums;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 	.row {
 		display: flex;

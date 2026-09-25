@@ -14,6 +14,7 @@ const NAV: [string, string, IconName][] = [
 	["/notes", "ノート", "book"],
 	["/questions", "問い", "help"],
 	["/diary", "日記", "calendar"],
+	["/map", "つながり", "share"],
 	["/owner", "持ち主", "user"],
 	["/x", "X", "message-circle"],
 	["/context", "頭の中", "brain"],

@@ -66,7 +66,8 @@ web は WebSearch で探し、${mcp ? "mcp__ashi__fetch_url で読む(PDF も読
 	mcp
 		? `
 論文は mcp__ashi__find_papers(題・語・DOI)で探し、無料で読める版があれば mcp__ashi__read_paper で本文を読む。
-出版社のページが 403 や有料で読めなくても、たいてい PMC やリポジトリに公開版がある。blocked に書くのは、公開版も無かったときだけ。`
+出版社のページが 403 や有料で読めなくても、たいてい PMC やリポジトリに公開版がある。blocked に書くのは、公開版も無かったときだけ。
+政府のサイト(go.jp)などがロボットを締め出して 403 のときは、mcp__ashi__archived_copy で Wayback Machine の写しを読む(写しの日付を確かめる)。blocked に書くのは、写しも無かったときだけ。`
 		: ""
 }
 ファイルを書く道具やコマンドは無い。`;
@@ -99,6 +100,7 @@ export class ClaudeCodeHead implements Head {
 					"mcp__ashi__fetch_url",
 					"mcp__ashi__find_papers",
 					"mcp__ashi__read_paper",
+					"mcp__ashi__archived_copy",
 				);
 			else {
 				tools.push("WebFetch");

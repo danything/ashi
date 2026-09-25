@@ -2,6 +2,7 @@
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { makeHead } from "./lib/server/ashi/head/make.ts";
+import { archiveTool } from "./lib/server/ashi/legs/archive.ts";
 import { paperTools } from "./lib/server/ashi/legs/papers.ts";
 import { fetchUrlTool, noteTools } from "./lib/server/ashi/legs/tools.ts";
 import {
@@ -42,7 +43,12 @@ function legs(): Legs {
 	return {
 		store,
 		head: makeHead(cfg, store.home),
-		tools: [fetchUrlTool(cfg), ...paperTools(cfg), ...noteTools(store)],
+		tools: [
+			fetchUrlTool(cfg),
+			...paperTools(cfg),
+			archiveTool(cfg),
+			...noteTools(store),
+		],
 	};
 }
 

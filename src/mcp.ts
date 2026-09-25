@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { DEFAULT_CONFIG } from "./lib/server/ashi/config.ts";
 import type { Tool } from "./lib/server/ashi/head/head.ts";
+import { archiveTool } from "./lib/server/ashi/legs/archive.ts";
 import { paperTools } from "./lib/server/ashi/legs/papers.ts";
 import { fetchUrlTool } from "./lib/server/ashi/legs/tools.ts";
 
@@ -16,7 +17,7 @@ import { fetchUrlTool } from "./lib/server/ashi/legs/tools.ts";
  */
 
 const cfg = DEFAULT_CONFIG;
-const TOOLS: Tool[] = [fetchUrlTool(cfg), ...paperTools(cfg)];
+const TOOLS: Tool[] = [fetchUrlTool(cfg), ...paperTools(cfg), archiveTool(cfg)];
 const byName = new Map(TOOLS.map((t) => [t.name, t]));
 
 interface Rpc {

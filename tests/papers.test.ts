@@ -129,7 +129,12 @@ describe("MCP サーバー", () => {
 		const tools =
 			(list?.result as { tools: { name: string }[] } | undefined)?.tools ?? [];
 		const names = tools.map((t) => t.name);
-		expect(names).toEqual(["fetch_url", "find_papers", "read_paper"]);
+		expect(names).toEqual([
+			"fetch_url",
+			"find_papers",
+			"read_paper",
+			"archived_copy",
+		]);
 		const init = await handle({
 			jsonrpc: "2.0",
 			id: 2,

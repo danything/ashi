@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 import { stopAllClaudeCode } from "./ashi/head/claude-code.ts";
 import type { Head, Tool } from "./ashi/head/head.ts";
 import { makeHead } from "./ashi/head/make.ts";
+import { archiveTool } from "./ashi/legs/archive.ts";
 import {
 	fetchBlockage,
 	raiseBlocker,
@@ -52,6 +53,9 @@ export function getTools(): Tool[] {
 	return [
 		fetchUrlTool(store.config(), {}, watch),
 		...paperTools(store.config()),
+		archiveTool(store.config(), {}, (host) =>
+			resolveBlockers(store, `fetch:${host}`, new Date()),
+		),
 		...noteTools(store),
 	];
 }

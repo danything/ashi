@@ -33,39 +33,41 @@ let posting = $state(false);
 				{/if}
 			</div>
 			{#if data.account}
-				<p>
-					<a href="https://x.com/{data.account.username}" target="_blank" rel="noopener noreferrer">@{data.account.username}</a>
-					<span class="muted small"> ・ {when(data.account.connectedAt)} につないだ</span>
-				</p>
-				<p class="small muted">
-					メンションを最後に読んだ: {data.account.lastMentionsAt ? when(data.account.lastMentionsAt) : "まだ"}
-				</p>
-				<form
-					method="POST"
-					action="?/postNow"
-					use:enhance={() => {
-						posting = true;
-						return async ({ update }) => {
-							await update();
-							posting = false;
-						};
-					}}
-				>
-					<button type="submit" class="small" aria-busy={posting} disabled={posting}>いま 1 件投稿させる</button>
-				</form>
-				{#if posting}<p class="tiny muted">Ashi が書いている(数十秒かかる)</p>{/if}
-				{#if form?.message}<p class="note err small">{form.message}</p>{/if}
-				{#if form && "posted" in form}
-					<p class="note ok small">
-						投稿した: {form.posted}
-						<a href="https://x.com/{data.account.username}/status/{form.id}" target="_blank" rel="noopener noreferrer">見る</a>
-					</p>
-				{/if}
-				<div class="cluster">
-					<a class="button outline small" href="/x/login" data-sveltekit-reload>つなぎ直す</a>
-					<form method="POST" action="?/disconnect" use:enhance>
-						<button type="submit" class="ghost small">切る</button>
-					</form>
+				<div class="stack account">
+					<div>
+						<a href="https://x.com/{data.account.username}" target="_blank" rel="noopener noreferrer"><strong>@{data.account.username}</strong></a>
+						<p class="small muted">
+							{when(data.account.connectedAt)} につないだ ・ メンションを最後に読んだ:
+							{data.account.lastMentionsAt ? when(data.account.lastMentionsAt) : "まだ"}
+						</p>
+					</div>
+					<div class="cluster actions">
+						<form
+							method="POST"
+							action="?/postNow"
+							use:enhance={() => {
+								posting = true;
+								return async ({ update }) => {
+									await update();
+									posting = false;
+								};
+							}}
+						>
+							<button type="submit" class="small" aria-busy={posting} disabled={posting}>いま 1 件投稿させる</button>
+						</form>
+						<a class="button outline small" href="/x/login" data-sveltekit-reload>つなぎ直す</a>
+						<form method="POST" action="?/disconnect" use:enhance>
+							<button type="submit" class="ghost small">切る</button>
+						</form>
+					</div>
+					{#if posting}<p class="tiny muted">Ashi が書いている(数十秒かかる)</p>{/if}
+					{#if form?.message}<p class="note err small">{form.message}</p>{/if}
+					{#if form && "posted" in form}
+						<p class="note ok small">
+							投稿した: {form.posted}
+							<a href="https://x.com/{data.account.username}/status/{form.id}" target="_blank" rel="noopener noreferrer">見る</a>
+						</p>
+					{/if}
 				</div>
 			{:else}
 				<p class="small">
@@ -188,6 +190,15 @@ let posting = $state(false);
 	}
 	form {
 		margin: 0;
+	}
+	.account {
+		--gap: 0.9rem;
+	}
+	.account p {
+		margin-top: 0.15rem;
+	}
+	.actions {
+		--gap: 0.5rem;
 	}
 	.file {
 		width: auto;

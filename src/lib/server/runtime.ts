@@ -215,8 +215,26 @@ function startMentions(signal: AbortSignal): void {
 				resolveBlockers(store, "x:stream", new Date());
 				wait = 5_000;
 			} catch (e) {
-				console.warn("[ashi] x-stream", e);
-				wait = 60_000;
+				const status = e instanceof XError ? e.status : 0;
+				if (status === 401 || status === 403) {
+					// 断られたものを毎分叩いても変わらない。知らせて、しばらく置く(見に行く方式が 5 分おきに回る)
+					await raiseBlocker(
+						store,
+						"x",
+						{
+							key: "x:stream",
+							title: "X のメンションをその場で受け取れない(X Activity API)",
+							detail: e instanceof Error ? e.message.slice(0, 300) : String(e),
+							remedy:
+								"X の開発者ポータルで、このアプリ(xool と同じアプリ)に X Activity API が使えるか確かめる(プランや申し込みが要ることがある)。使えなくても、5 分おきに見に行く方式で返事はする。",
+						},
+						new Date(),
+					);
+					wait = 6 * 60 * 60_000;
+				} else {
+					console.warn("[ashi] x-stream", e);
+					wait = 60_000;
+				}
 			} finally {
 				streamUp = false;
 			}

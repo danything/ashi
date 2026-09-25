@@ -1,27 +1,11 @@
-import { fail } from "@sveltejs/kit";
+import { fail, redirect } from "@sveltejs/kit";
 import { fetchUrlTool } from "$lib/server/ashi/legs/tools";
 import { newId } from "$lib/server/ashi/state";
-import { md } from "$lib/server/markdown";
 import { store, wakeNow } from "$lib/server/runtime";
 import type { Actions, PageServerLoad } from "./$types";
 
-export const load: PageServerLoad = () => {
-	const walk = store.walk();
-	const cfg = store.config();
-	const states = store.feedStates();
-	return {
-		feeds: cfg.feeds.map((f) => ({
-			...f,
-			state: states[f.id],
-			requested: walk.crawlRequests.includes(f.id),
-		})),
-		feedMinHours: cfg.feedMinHours,
-		html: md(store.owner()),
-		sources: store.sources().reverse(),
-		pending: store.materialCount() - walk.profiledMaterials,
-		profileEvery: cfg.profileEvery,
-	};
-};
+/** 持ち主の地図は「頭の中」の画面に、自分と並べた。ここに残すのはフォームの送り先(actions)だけ */
+export const load: PageServerLoad = () => redirect(303, "/context");
 
 const MAX_BODY = 100_000;
 

@@ -1,6 +1,7 @@
 import type { Proposal } from "$lib/server/ashi/state";
 import { md } from "$lib/server/markdown";
 import { store } from "$lib/server/runtime";
+import { blockedView } from "$lib/server/views";
 import type { Actions, PageServerLoad } from "./$types";
 
 /** 改善案を issue にするリポジトリ(公開の GitHub) */
@@ -38,6 +39,8 @@ export const load: PageServerLoad = () => {
 	return {
 		open: all.filter((p) => p.status === "open"),
 		done: all.filter((p) => p.status !== "open").slice(0, 50),
+		// 弾かれたことを並べる(どちらも「Ashi が進めなかったこと」なので見比べて直す)
+		blocked: blockedView(),
 	};
 };
 

@@ -1,5 +1,6 @@
 <script lang="ts">
 import Icon from "$lib/components/Icon.svelte";
+import DiaryPane from "$lib/components/panes/DiaryPane.svelte";
 import { TRACK_LABEL, when } from "$lib/format";
 
 let { data } = $props();
@@ -7,73 +8,87 @@ let { data } = $props();
 
 <svelte:head><title>ノート | Ashi</title></svelte:head>
 
-<div class="stack" style="--gap: 1.25rem">
-	<div class="head">
-		<hgroup>
-			<h1>ノート</h1>
-			<p>歩いて分かったこと。{data.notes.length} 件{data.q ? `(「${data.q}」で絞った)` : ""}。</p>
-		</hgroup>
-		<!-- Pico の role="group" で入力欄とボタンを 1 つにつなげる(fieldset の既定の役割も group だが、Pico は属性で見る) -->
-		<form method="GET" class="search">
-			<!-- svelte-ignore a11y_no_redundant_roles -->
-			<fieldset role="group">
-				<input name="q" type="text" value={data.q} placeholder="題・要約・テーマで探す" aria-label="探す" />
-				<button type="submit"><Icon name="search" size={1} />探す</button>
-			</fieldset>
-		</form>
-	</div>
-
-	{#if data.notes.length}
-		<div class="grid">
-			{#each data.notes as n (n.id)}
-				<a class="panel card" href="/notes/{n.id}">
-					<div class="cluster">
-						<span class="tag {n.track === 'owner' ? 'info' : 'accent'}">{TRACK_LABEL[n.track]}</span>
-						<span class="muted tiny grow">{n.theme}</span>
-						<span class="muted tiny nums">{when(n.createdAt).slice(0, 10)}</span>
-					</div>
-					<strong class="title">{n.title}</strong>
-					<p class="small muted clamp3">{n.summary}</p>
-				</a>
-			{/each}
+<h1 class="sr-only">ノートと日記</h1>
+<div class="panes">
+	<section class="pane">
+		<div class="pane-head">
+			<hgroup>
+				<h2>ノート({data.notes.length})</h2>
+				<p>歩いて分かったこと{data.q ? `。「${data.q}」で絞った` : ""}。</p>
+			</hgroup>
+			<!-- Pico の role="group" で入力欄とボタンを 1 つにつなげる -->
+			<form method="GET" class="search">
+				<input type="hidden" name="day" value={data.diary.day ?? ""} />
+				<!-- svelte-ignore a11y_no_redundant_roles -->
+				<fieldset role="group">
+					<input name="q" type="text" value={data.q} placeholder="題・要約・テーマ" aria-label="探す" />
+					<button type="submit" class="small"><Icon name="search" size={1} /></button>
+				</fieldset>
+			</form>
 		</div>
-	{:else}
-		<div class="panel"><p class="empty">{data.q ? "見つからない。" : "まだノートが無い。"}</p></div>
-	{/if}
+		{#if data.notes.length}
+			<div class="panel">
+				<ul class="rows">
+					{#each data.notes as n (n.id)}
+						<li>
+							<a class="note-row" href="/notes/{n.id}">
+								<span class="meta">
+									<span class="tag {n.track === 'owner' ? 'info' : 'accent'}">{TRACK_LABEL[n.track]}</span>
+									<span class="muted tiny">{n.theme}</span>
+									<span class="muted tiny nums">{when(n.createdAt).slice(5, 16)}</span>
+								</span>
+								<strong class="title">{n.title}</strong>
+								<span class="small muted clamp2">{n.summary}</span>
+							</a>
+						</li>
+					{/each}
+				</ul>
+			</div>
+		{:else}
+			<div class="panel"><p class="empty">{data.q ? "見つからない。" : "まだノートが無い。"}</p></div>
+		{/if}
+	</section>
+
+	<section class="pane">
+		<DiaryPane data={data.diary} />
+	</section>
 </div>
 
 <style>
 	.search {
-		width: min(22rem, 100%);
+		width: min(18rem, 100%);
 		margin: 0;
 	}
 	.search fieldset {
 		margin: 0;
 	}
-	.grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
-		gap: 0.75rem;
-	}
-	.card {
+	.note-row {
 		display: flex;
 		flex-direction: column;
-		gap: 0.4rem;
+		gap: 0.2rem;
+		padding: 0.15rem 0;
 		color: inherit;
 		text-decoration: none;
-		transition: border-color 0.15s;
 	}
-	.card:hover {
-		border-color: var(--pico-primary);
+	.note-row:hover .title {
+		color: var(--pico-primary);
+	}
+	.meta {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+	.meta .nums {
+		margin-left: auto;
 	}
 	.title {
 		line-height: 1.45;
 	}
-	.clamp3 {
+	.clamp2 {
 		display: -webkit-box;
 		overflow: hidden;
 		-webkit-box-orient: vertical;
-		-webkit-line-clamp: 3;
-		line-clamp: 3;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
 	}
 </style>

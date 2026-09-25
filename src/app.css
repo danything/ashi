@@ -264,6 +264,74 @@ a.button.big {
 	font-size: 0.9rem;
 }
 
+/*
+ * 並べて見比べる枠(ペイン)。広い画面では枠ごとに中だけスクロールし、ヘッダーの下に貼り付く。
+ * ページ全体はほとんど動かさず、見出しの位置が変わらないようにする(目が泳がないように)。
+ * 狭い画面では縦に積んで、ふつうに流す。列の数は --cols(既定 2)
+ */
+.panes {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 1rem;
+	align-items: start;
+}
+.pane {
+	display: flex;
+	min-width: 0;
+	flex-direction: column;
+	gap: 1rem;
+}
+@media (min-width: 1100px) {
+	.panes {
+		grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr));
+	}
+	.panes > .pane {
+		position: sticky;
+		top: calc(var(--ui-header-h) + 0.75rem);
+		max-height: calc(100vh - var(--ui-header-h) - 1.5rem);
+		overflow-y: auto;
+		overscroll-behavior: contain;
+		/* 影が切れないように少し内側に余白 */
+		padding: 0.15rem 0.35rem 1rem;
+		scrollbar-width: thin;
+	}
+	.panes > .pane > .pane-head {
+		position: sticky;
+		top: -0.15rem;
+		z-index: 2;
+	}
+	/* 面そのものを枠にしたときは、面の余白のまま */
+	.panes > .panel.pane {
+		padding: 1rem 1.1rem;
+	}
+}
+/* 枠の頭。枠の中でスクロールしても見出しは残す */
+.pane-head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-end;
+	gap: 0.25rem 0.75rem;
+	margin: 0 -0.35rem;
+	background: var(--ui-bg);
+	padding: 0.25rem 0.35rem 0.5rem;
+}
+.pane-head > hgroup {
+	flex: 1 1 14rem;
+	margin: 0;
+}
+.pane-head > hgroup > h2 {
+	margin: 0;
+	font-size: 1.15rem;
+}
+.pane-head > hgroup > p {
+	margin: 0.15rem 0 0;
+	color: var(--ui-muted);
+	font-size: 0.85rem;
+}
+.pane-head form {
+	margin: 0;
+}
+
 /* ---- 面 ---- */
 .panel {
 	border: 1px solid var(--ui-base-300);
@@ -542,4 +610,14 @@ details.fold[open] > summary {
 	to {
 		transform: rotate(360deg);
 	}
+}
+
+/* 読み上げにだけ出す見出し(並べた画面は枠ごとの見出しで足りるので) */
+.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
 }

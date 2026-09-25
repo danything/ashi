@@ -8,61 +8,28 @@ import Logo from "$lib/components/Logo.svelte";
 let { data, children } = $props();
 
 /**
- * ナビ。画面が増えたので、近いものはタブでまとめる(URL はそのまま)。
- * [ナビの先, 名前, アイコン, まとめる画面(先頭はナビの先と同じ)と、タブの名前]
+ * ナビ。束ねた画面(ノート | 日記、自分 | 持ち主の地図、改善案 | 弾かれたこと)は 1 つの画面に並べてあり、
+ * 古い URL(/diary・/owner・/blocked)は束ねた画面へ送る。[先, 名前, アイコン, 同じ項目として光らせる先]
  */
-const NAV: [string, string, IconName, [string, string][]][] = [
+const NAV: [string, string, IconName, string[]][] = [
 	["/", "いま", "home", []],
 	["/chat", "話す", "message-circle", []],
-	[
-		"/notes",
-		"ノート",
-		"book",
-		[
-			["/notes", "ノート"],
-			["/diary", "日記"],
-		],
-	],
-	[
-		"/questions",
-		"問い",
-		"help",
-		[
-			["/questions", "問い"],
-			["/map", "つながり"],
-		],
-	],
-	[
-		"/context",
-		"頭の中",
-		"brain",
-		[
-			["/context", "自分"],
-			["/owner", "持ち主の地図"],
-		],
-	],
+	["/notes", "ノート", "book", ["/diary"]],
+	["/questions", "問い", "help", []],
+	["/map", "つながり", "share", []],
+	["/context", "頭の中", "brain", ["/owner"]],
 	["/x", "X", "message-circle", []],
-	[
-		"/proposals",
-		"直すこと",
-		"wrench",
-		[
-			["/proposals", "改善案"],
-			["/blocked", "弾かれたこと"],
-		],
-	],
+	["/proposals", "直すこと", "wrench", ["/blocked"]],
 ];
 const under = (path: string, href: string) =>
 	href === "/" ? path === "/" : path === href || path.startsWith(`${href}/`);
-const group = (href: string) =>
-	NAV.find(([h]) => h === href)?.[3].map(([h]) => h) ?? [href];
 const here = (href: string) =>
-	group(href).some((h) => under(page.url.pathname, h)) ? "page" : undefined;
-/** いまの画面が属するまとまりのタブ(1 画面だけのまとまりは出さない) */
-const tabs = $derived(
-	NAV.find(([, , , t]) => t.some(([h]) => under(page.url.pathname, h)))?.[3] ??
-		[],
-);
+	[href, ...(NAV.find(([h]) => h === href)?.[3] ?? [])].some((h) =>
+		under(page.url.pathname, h),
+	)
+		? "page"
+		: undefined;
+/** 直すことの数(開いている改善案 + 弾かれていること) */
 const badge = (href: string) =>
 	href === "/proposals" ? data.proposals + data.blocked : 0;
 </script>
@@ -104,8 +71,8 @@ const badge = (href: string) =>
 			</nav>
 		</header>
 
-		{#if data.blocked > 0 && page.url.pathname !== "/blocked"}
-			<a class="blocked-bar" href="/blocked">
+		{#if data.blocked > 0 && page.url.pathname !== "/proposals"}
+			<a class="blocked-bar" href="/proposals">
 				<Icon name="alert" size={1} />
 				弾かれていることが {data.blocked} 件あります。権限を足すと先へ進めます
 				<Icon name="arrow-right" size={1} />
@@ -113,13 +80,6 @@ const badge = (href: string) =>
 		{/if}
 
 		<main class="page-container site-main">
-			{#if tabs.length > 1}
-				<nav class="tabs" aria-label="この画面のまとまり">
-					{#each tabs as [href, label] (href)}
-						<a {href} aria-current={under(page.url.pathname, href) ? "page" : undefined}>{label}</a>
-					{/each}
-				</nav>
-			{/if}
 			{@render children()}
 		</main>
 	</div>
@@ -220,28 +180,5 @@ const badge = (href: string) =>
 	.site-main {
 		flex: 1 1 auto;
 		padding: 1.5rem 1rem 3rem;
-	}
-	/* Pico は nav の中身を左右に振り分けるので、左に寄せ直す */
-	.tabs {
-		display: flex;
-		justify-content: flex-start;
-		gap: 0.25rem;
-		margin-bottom: 1.25rem;
-		border-bottom: 1px solid var(--ui-base-300);
-	}
-	.tabs a {
-		margin-bottom: -1px;
-		border-bottom: 2px solid transparent;
-		padding: 0.4rem 0.9rem;
-		color: var(--ui-muted);
-		font-weight: 600;
-		text-decoration: none;
-	}
-	.tabs a:hover {
-		color: var(--pico-color);
-	}
-	.tabs a[aria-current="page"] {
-		border-bottom-color: var(--pico-primary);
-		color: var(--pico-primary);
 	}
 </style>

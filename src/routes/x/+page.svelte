@@ -24,6 +24,9 @@ let posting = $state(false);
 		<p class="note warn small">X のアプリが設定されていません(X_CLIENT_ID・X_CLIENT_SECRET)。</p>
 	{/if}
 
+	<!-- 左に設定と今日の数、右に会話。会話は枠の中でスクロールする -->
+	<div class="panes">
+	<section class="pane">
 	<div class="two">
 		<section class="panel">
 			<div class="panel-head">
@@ -88,7 +91,6 @@ let posting = $state(false);
 			<p class="tiny muted">X の API は従量課金(読み 1 件 $0.005、投稿 1 件 ${data.writeUsd})。上限は ASHI_CONFIG の x で変えられる。</p>
 		</section>
 	</div>
-
 	<section class="panel">
 		<div class="panel-head"><h2>前の用途の投稿を消す</h2></div>
 		{#if data.cleanup}
@@ -119,7 +121,24 @@ let posting = $state(false);
 		{/if}
 		{#if form && "cleanupStarted" in form}<p class="note ok small">{form.cleanupStarted} 件を消し始めた。</p>{/if}
 	</section>
-
+	<details class="fold">
+		<summary>アカウントの見た目(アイコン・ヘッダー・プロフィール)</summary>
+		<div class="stack">
+			<div class="cluster">
+				<a href="/x/icon.png" download><img src="/x/icon.png" alt="アイコン" class="icon" /></a>
+				<a href="/x/header.png" download class="grow"><img src="/x/header.png" alt="ヘッダー" class="header" /></a>
+			</div>
+			<p class="small">押すと保存できる。X のプロフィールの編集から設定する。</p>
+			<p class="small">
+				名前の例: 「あし🌱AI」。プロフィールの文の例: 「葦の芽に足が生えた AI、あしです。毎日なにか 1 つ調べて歩いてます🔍 知ってること・気になること、気軽にリプしてね! 返信も私(AI)が自分で書いてます。運営 @5yuim」
+			</p>
+			<p class="small">
+				<strong>自動化のラベル</strong>: X の「設定 → アカウント → アカウント情報 → 自動化」で、管理するアカウントに運営のアカウントを指定する。
+			</p>
+		</div>
+	</details>
+	</section>
+	<section class="pane">
 	<section class="panel">
 		<div class="panel-head"><h2>会話({data.conversations.length})</h2></div>
 		{#if data.conversations.length}
@@ -149,23 +168,8 @@ let posting = $state(false);
 			<p class="empty">まだ無い。</p>
 		{/if}
 	</section>
-
-	<details class="fold">
-		<summary>アカウントの見た目(アイコン・ヘッダー・プロフィール)</summary>
-		<div class="stack">
-			<div class="cluster">
-				<a href="/x/icon.png" download><img src="/x/icon.png" alt="アイコン" class="icon" /></a>
-				<a href="/x/header.png" download class="grow"><img src="/x/header.png" alt="ヘッダー" class="header" /></a>
-			</div>
-			<p class="small">押すと保存できる。X のプロフィールの編集から設定する。</p>
-			<p class="small">
-				名前の例: 「あし🌱AI」。プロフィールの文の例: 「葦の芽に足が生えた AI、あしです。毎日なにか 1 つ調べて歩いてます🔍 知ってること・気になること、気軽にリプしてね! 返信も私(AI)が自分で書いてます。運営 @5yuim」
-			</p>
-			<p class="small">
-				<strong>自動化のラベル</strong>: X の「設定 → アカウント → アカウント情報 → 自動化」で、管理するアカウントに運営のアカウントを指定する。
-			</p>
-		</div>
-	</details>
+	</section>
+	</div>
 </div>
 
 <style>

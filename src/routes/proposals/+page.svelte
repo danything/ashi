@@ -1,21 +1,21 @@
 <script lang="ts">
 import { enhance } from "$app/forms";
 import Icon from "$lib/components/Icon.svelte";
+import BlockedPane from "$lib/components/panes/BlockedPane.svelte";
 import { when } from "$lib/format";
 
 let { data } = $props();
 </script>
 
-<svelte:head><title>改善案 | Ashi</title></svelte:head>
+<svelte:head><title>直すこと | Ashi</title></svelte:head>
 
-<div class="stack" style="--gap: 1.25rem">
-	<div class="head">
+<h1 class="sr-only">直すこと</h1>
+<div class="panes">
+<section class="pane">
+	<div class="pane-head">
 		<hgroup>
-			<h1>改善案</h1>
-			<p>
-				Ashi が内省のときに、自分の仕組み(足の動き・道具・プロンプト・画面)について出した注文。
-				直すかどうかは持ち主が決める。「issue にする」で GitHub の issue の画面が題と本文入りで開く。
-			</p>
+			<h2>改善案({data.open.length})</h2>
+			<p>Ashi が内省で、自分の仕組みについて出した注文。直すかは持ち主が決める。「issue にする」で題と本文入りの issue の画面が開く。</p>
 		</hgroup>
 	</div>
 
@@ -79,6 +79,11 @@ let { data } = $props();
 			</ul>
 		</details>
 	{/if}
+</section>
+
+<section class="pane">
+	<BlockedPane data={data.blocked} />
+</section>
 </div>
 
 <style>

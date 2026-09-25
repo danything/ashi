@@ -3,6 +3,7 @@ import { system } from "$lib/server/ashi/prompts";
 import { hashText } from "$lib/server/ashi/state";
 import { md } from "$lib/server/markdown";
 import { isStepping, resetLearning, store } from "$lib/server/runtime";
+import { ownerView } from "$lib/server/views";
 import type { Actions, PageServerLoad } from "./$types";
 
 /** 頭が毎回受け取っているもの。コア原則・自己記述・持ち主の地図と、それを束ねた system */
@@ -19,6 +20,8 @@ export const load: PageServerLoad = () => {
 		stranger: store.config().stranger,
 		dialogues: store.recentDialogues(5),
 		stepping: isStepping(),
+		// 持ち主の地図を並べる(フォームは /owner の actions)
+		owner: ownerView(),
 		counts: {
 			questions: store.questions().length,
 			notes: store.notes().length,
@@ -32,10 +35,12 @@ export const actions: Actions = {
 	reset: async ({ request }) => {
 		const f = await request.formData();
 		if (String(f.get("confirm") ?? "").trim() !== "リセット") {
-			return fail(400, { message: "確かめの欄に「リセット」と入れてください" });
+			return fail(400, {
+				resetMessage: "確かめの欄に「リセット」と入れてください",
+			});
 		}
 		const r = resetLearning();
-		if (!r.ok) return fail(409, { message: r.message });
+		if (!r.ok) return fail(409, { resetMessage: r.message });
 		return { archive: r.archive };
 	},
 };

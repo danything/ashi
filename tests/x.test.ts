@@ -161,7 +161,10 @@ describe("メンションと投稿", () => {
 });
 
 describe("歩みの中の X", () => {
-	test("メンションを読み、頭が返すと決めたものだけ返信し、会話から生まれた問いは個性に", async () => {
+	test("メンションを読み、頭が返すと決めたものだけ返信し、会話から生まれた問いは個性に(歩みとは別の係)", async () => {
+		const { checkMentions } = await import(
+			"../src/lib/server/ashi/legs/converse.ts"
+		);
 		const store = freshStore(["a"]);
 		connect(store);
 		const { calls, f } = fakeX((url, init) => {
@@ -171,7 +174,6 @@ describe("歩みの中の X", () => {
 			return new Response("nf", { status: 404 });
 		});
 		const head = new FakeHead({
-			explore: () => explore(),
 			converse: (req) => {
 				expect(req.prompt).toContain('<visitor id="m2" from="@someone">');
 				return {
@@ -196,14 +198,17 @@ describe("歩みの中の X", () => {
 				};
 			},
 		});
-		await step({
+		const r = await checkMentions({
 			store,
 			head,
-			tools: [],
 			now: () => now,
-			rng: () => 0.99,
 			env,
-			net: { fetch: f },
+			fetch: f,
+			notify: async () => {},
+		});
+		expect(r).toMatchObject({
+			fetched: 1,
+			replied: ["人ではまだ見つかっていません。似た現象はあります"],
 		});
 		const reply = calls.find((c) => c.url.endsWith("/tweets"));
 		expect(JSON.parse(String(reply?.init.body))).toEqual({
@@ -219,6 +224,20 @@ describe("歩みの中の X", () => {
 			store.questions().find((x) => x.text.startsWith("人の初夜効果"))?.track,
 		).toBe("self");
 		expect(store.budget(localDay(now))).toMatchObject({ xReplies: 1 });
+
+		// 歩みはメンションを読まない
+		const walkHits = calls.length;
+		store.saveWalk({ ...store.walk(), sleepingUntil: undefined });
+		await step({
+			store,
+			head: new FakeHead({ explore: () => explore() }),
+			tools: [],
+			now: () => now,
+			rng: () => 0.99,
+			env,
+			net: { fetch: f },
+		});
+		expect(calls.length).toBe(walkHits);
 	});
 
 	test("内省で出た投稿を上限の中で投稿する。長すぎる文は投稿しない", async () => {
@@ -365,4 +384,129 @@ test("URL 入りの投稿は 0.2 ドルで数える", async () => {
 	const { f } = fakeX(() => Response.json({ data: { id: "u" } }));
 	await postToX(store, "出典 https://example.com", now, undefined, env, f);
 	expect(store.budget(localDay(now)).xUsd).toBeCloseTo(0.2);
+});
+
+describe("X Activity API のストリーム", () => {
+	const line = (over: Record<string, unknown> = {}) =>
+		JSON.stringify({
+			data: {
+				event_type: "post.reply.create",
+				payload: {
+					id: "2103300000000000000",
+					text: "@DoanyBot 仕事に入る派!",
+					author_id: "u9",
+					conversation_id: "2103299957017154012",
+					in_reply_to_tweet_id: "2103299957017154012",
+					...over,
+				},
+				includes: { users: [{ id: "u9", username: "5yuim" }] },
+			},
+		});
+
+	test("届いた返信を会話に足して返事待ちにし、lastMentionId を進め、重複と自分の投稿は足さない", async () => {
+		const { acceptStreamEvent } = await import(
+			"../src/lib/server/ashi/legs/x-stream.ts"
+		);
+		const store = freshStore();
+		connect(store, { lastMentionId: "1629119896885022721" });
+		expect(acceptStreamEvent(store, line(), now)).toBe(true);
+		expect(pendingConversations(store)[0]).toMatchObject({
+			id: "2103299957017154012",
+			pending: ["2103300000000000000"],
+		});
+		expect(store.conversations()[0]?.messages[0]).toMatchObject({
+			username: "5yuim",
+			replyTo: "2103299957017154012",
+		});
+		expect(store.xAccount()?.lastMentionId).toBe("2103300000000000000");
+		expect(acceptStreamEvent(store, line(), now)).toBe(false);
+		expect(
+			acceptStreamEvent(
+				store,
+				line({ id: "2103300000000000001", author_id: "ashi-id" }),
+				now,
+			),
+		).toBe(false);
+		expect(acceptStreamEvent(store, "not json", now)).toBe(false);
+		expect(
+			acceptStreamEvent(
+				store,
+				JSON.stringify({
+					data: { event_type: "like.create", payload: { id: "1", text: "x" } },
+				}),
+				now,
+			),
+		).toBe(false);
+		// X は届いたイベントごとに数えるので、重複して届いた分も払う(最初の 1 件 + 重複の 1 件)
+		expect(store.budget(localDay(now)).xUsd).toBeCloseTo(0.01);
+	});
+
+	test("購読が無いものだけ作る(Ashi の利用者トークンで)", async () => {
+		const { ensureSubscriptions } = await import(
+			"../src/lib/server/ashi/legs/x-stream.ts"
+		);
+		const store = freshStore();
+		connect(store);
+		const { calls, f } = fakeX((_url, init) => {
+			if (init.method === "GET")
+				return Response.json({
+					data: [
+						{
+							event_type: "post.mention.create",
+							filter: { user_id: "ashi-id" },
+						},
+					],
+				});
+			return Response.json({ data: { subscription_id: "s" } });
+		});
+		expect(await ensureSubscriptions(store, now, env, f)).toEqual([
+			"post.reply.create",
+		]);
+		const post = calls.find((c) => c.init.method === "POST");
+		expect(JSON.parse(String(post?.init.body))).toEqual({
+			event_type: "post.reply.create",
+			filter: { user_id: "ashi-id" },
+			tag: "ashi",
+		});
+		expect(new Headers(post?.init.headers).get("authorization")).toBe(
+			"Bearer at",
+		);
+	});
+
+	test("ストリームを行ごとに読み、keep-alive の空行は飛ばす。張れなければ status を返す", async () => {
+		const { readStream } = await import(
+			"../src/lib/server/ashi/legs/x-stream.ts"
+		);
+		const body = new ReadableStream({
+			start(c) {
+				c.enqueue(new TextEncoder().encode('{"a":1}\n\r\n{"b"'));
+				c.enqueue(new TextEncoder().encode(":2}\n"));
+				c.close();
+			},
+		});
+		const seen: string[] = [];
+		const ok = (async () => new Response(body)) as unknown as typeof fetch;
+		expect(
+			await readStream(
+				(l) => seen.push(l),
+				new AbortController().signal,
+				{ X_BEARER_TOKEN: "b" },
+				ok,
+			),
+		).toEqual({ ok: true, status: 200 });
+		expect(seen).toEqual(['{"a":1}', '{"b":2}']);
+		const denied = (async () =>
+			new Response("no", { status: 403 })) as unknown as typeof fetch;
+		expect(
+			await readStream(
+				() => {},
+				new AbortController().signal,
+				{ X_BEARER_TOKEN: "b" },
+				denied,
+			),
+		).toEqual({ ok: false, status: 403 });
+		expect(
+			await readStream(() => {}, new AbortController().signal, {}, denied),
+		).toEqual({ ok: false, status: 0 });
+	});
 });

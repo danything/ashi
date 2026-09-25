@@ -9,9 +9,6 @@ import {
 	type Usage,
 } from "../head/head.ts";
 import {
-	CONVERSE_SCHEMA,
-	type ConverseAnswer,
-	conversePrompt,
 	EXPLORE_SCHEMA,
 	type ExploreAnswer,
 	explorePrompt,
@@ -47,17 +44,7 @@ import {
 } from "./guard.ts";
 import { restingThemes, SEEDING, selectQuestion } from "./select.ts";
 import type { GetDeps } from "./tools.ts";
-import {
-	canPost,
-	canReply,
-	fetchMentions,
-	pendingConversations,
-	postToX,
-	settle,
-	xBlockage,
-	xLength,
-	xReady,
-} from "./x.ts";
+import { canPost, postToX, xBlockage, xLength } from "./x.ts";
 
 /**
  * 足の 1 歩。状態を読み、行き先を選び、頭に考えさせ、ガードレールを通して書き戻し、休む。
@@ -214,23 +201,6 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 			legs.env,
 			notify,
 		);
-	}
-
-	// X のメンションを読む(間隔と額の上限は fetchMentions が見る)。頭は呼ばない
-	if (xReady(store, cfg, now)) {
-		try {
-			const n = await fetchMentions(
-				store,
-				cfg,
-				now,
-				legs.env ?? process.env,
-				legs.net?.fetch ?? fetch,
-			);
-			if (n > 0) store.log("mentions", { count: n });
-			resolveBlockers(store, "x:", now);
-		} catch (e) {
-			await raiseBlocker(store, "x", xBlockage(e), now, notify);
-		}
 	}
 
 	// 読み取り専用の道具しか頭に渡さない
@@ -459,73 +429,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 			};
 		}
 
-		// X で届いたメンションに返すかを決める(返す・返さないは頭、数と額の上限は足)
-		const waiting = pendingConversations(store).slice(-5);
-		if (
-			outcome.kind !== "broke" &&
-			waiting.length > 0 &&
-			canReply(store, cfg, now) &&
-			left > 0
-		) {
-			const remaining =
-				cfg.x.maxRepliesPerDay - (store.budget(localDay(now)).xReplies ?? 0);
-			const { output, usage } = await head.think<ConverseAnswer>({
-				task: "converse",
-				system: sys(),
-				prompt: conversePrompt(waiting, remaining),
-				schema: CONVERSE_SCHEMA,
-				maxCostUsd: left,
-			});
-			charge(usage);
-			const replied: string[] = [];
-			const skipped: { id: string; why: string }[] = [];
-			for (const r of Array.isArray(output.replies) ? output.replies : []) {
-				const conv = waiting.find((c) =>
-					c.pending.includes(String(r?.mention_id)),
-				);
-				if (!conv) continue;
-				const text = typeof r.text === "string" ? r.text.trim() : "";
-				if (
-					r.reply === true &&
-					text &&
-					xLength(text) <= 280 &&
-					canReply(store, cfg, now)
-				) {
-					try {
-						await postToX(
-							store,
-							text,
-							now,
-							{ tweetId: r.mention_id, conversationId: conv.id },
-							legs.env ?? process.env,
-							legs.net?.fetch ?? fetch,
-						);
-						replied.push(text);
-					} catch (e) {
-						await raiseBlocker(store, "x", xBlockage(e), now, notify);
-						break;
-					}
-				} else {
-					skipped.push({
-						id: r.mention_id,
-						why: String(r.why ?? "").slice(0, 200),
-					});
-				}
-				settle(store, conv.id, [r.mention_id]);
-			}
-			// 来客から生まれた問いは個性の材料
-			store.updateQuestions((qs) => {
-				const raw = (output.new_questions ?? []).map((q) => ({
-					...q,
-					track: "self",
-				}));
-				return trimOpenQuestions(
-					[...qs, ...acceptNewQuestions(raw, qs, cfg, undefined, now)],
-					cfg,
-				);
-			});
-			store.log("conversed", { replied, skipped, usd: usage.costUsd });
-		}
+		// X のメンションへの返事は歩みとは別(legs/converse.ts、サーバーのタイマーから)
 
 		// 内省。順番が来たか、疲れていたら。予算が残っていなければ次へ持ち越す
 		const w = store.walk();

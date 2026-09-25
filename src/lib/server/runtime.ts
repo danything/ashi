@@ -7,10 +7,16 @@ import {
 	raiseBlocker,
 	resolveBlockers,
 } from "./ashi/legs/blockers.ts";
+import { checkMentions } from "./ashi/legs/converse.ts";
 import { paperTools } from "./ashi/legs/papers.ts";
 import { fetchUrlTool, noteTools } from "./ashi/legs/tools.ts";
 import { Walker } from "./ashi/legs/walk.ts";
 import { CLEANUP_EVERY_MS, runCleanup } from "./ashi/legs/x-cleanup.ts";
+import {
+	acceptStreamEvent,
+	ensureSubscriptions,
+	readStream,
+} from "./ashi/legs/x-stream.ts";
 import { Store } from "./ashi/state.ts";
 
 /**
@@ -79,6 +85,7 @@ export function startWalking(): void {
 	});
 	void walker.run(ac.signal);
 	startCleanupTimer();
+	startMentions(ac.signal);
 }
 
 export function isWalking(): boolean {
@@ -136,4 +143,83 @@ export function kickCleanup(): void {
 	void runCleanup(store, new Date()).catch((e) =>
 		console.warn("[ashi] x-cleanup", e),
 	);
+}
+
+/**
+ * X のメンションに返す係。ストリーム(X Activity API)で届いたらすぐ、届かなくても見に行く方式で拾う。
+ * 歩みとは別に回す(歩みの中だと、休んでいる間と間隔の分だけ返事が 1〜2 時間遅れた)
+ */
+let streamUp = false;
+let conversing = false;
+let converseTimer: ReturnType<typeof setTimeout> | undefined;
+
+function converseSoon(delayMs: number): void {
+	if (converseTimer) return;
+	converseTimer = setTimeout(async () => {
+		converseTimer = undefined;
+		if (conversing) return converseSoon(30_000);
+		conversing = true;
+		try {
+			const r = await checkMentions({
+				store,
+				head: getHead(),
+				pollMinutes: streamUp ? 60 : 5,
+			});
+			if (r?.replied.length)
+				console.log(`[ashi] x ${r.replied.length} 件返した`);
+		} catch (e) {
+			console.warn("[ashi] x-converse", e);
+		} finally {
+			conversing = false;
+		}
+	}, delayMs);
+	converseTimer.unref();
+}
+
+function startMentions(signal: AbortSignal): void {
+	// 見に行く方式(ストリームが落ちている間の保険、返事待ちの取りこぼしも拾う)
+	setInterval(() => converseSoon(0), 60_000).unref();
+	void (async () => {
+		let wait = 5_000;
+		while (!signal.aborted) {
+			await new Promise((r) => setTimeout(r, wait).unref());
+			const cfg = store.config();
+			if (!cfg.x.enabled || !store.xAccount() || !process.env.X_BEARER_TOKEN) {
+				wait = 5 * 60_000;
+				continue;
+			}
+			try {
+				await ensureSubscriptions(store, new Date());
+				const r = await readStream((line) => {
+					streamUp = true;
+					// 同じ会話に続けて来ることがあるので、少し待ってまとめて返事を考える
+					if (acceptStreamEvent(store, line, new Date())) converseSoon(15_000);
+				}, signal);
+				if (!r.ok) {
+					streamUp = false;
+					await raiseBlocker(
+						store,
+						"x",
+						{
+							key: "x:stream",
+							title: "X のメンションをその場で受け取れない(ストリーム)",
+							detail: `activity/stream ${r.status}`,
+							remedy:
+								"Infisical の x-bearer-token が、Ashi をつないだ X のアプリ(xool と同じアプリ)の Bearer Token か確かめる(xool の x-bearer-token への参照にする)。それまでは 5 分おきに見に行く。",
+						},
+						new Date(),
+					);
+					wait = 30 * 60_000;
+					continue;
+				}
+				resolveBlockers(store, "x:stream", new Date());
+				wait = 5_000;
+			} catch (e) {
+				console.warn("[ashi] x-stream", e);
+				wait = 60_000;
+			} finally {
+				streamUp = false;
+			}
+		}
+	})();
 }

@@ -294,13 +294,15 @@ export async function fetchMentions(
 	now: Date,
 	env: Env = process.env,
 	doFetch: typeof fetch = fetch,
+	/** 見に行く間隔(分)。ストリームが張れている間は長くする */
+	everyMinutes: number = cfg.x.mentionsEveryMinutes,
 ): Promise<number> {
 	const account = store.xAccount();
 	if (!account || !xReady(store, cfg, now)) return 0;
 	if (
 		account.lastMentionsAt &&
 		now.getTime() - new Date(account.lastMentionsAt).getTime() <
-			cfg.x.mentionsEveryMinutes * 60_000
+			everyMinutes * 60_000
 	) {
 		return 0;
 	}

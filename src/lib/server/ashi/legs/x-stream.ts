@@ -164,6 +164,8 @@ export async function readStream(
 	signal: AbortSignal,
 	env: Env = process.env,
 	doFetch: typeof fetch = fetch,
+	/** 200 が返ってつながったとき */
+	onOpen?: () => void,
 ): Promise<{ ok: boolean; status: number }> {
 	const bearer = env.X_BEARER_TOKEN;
 	if (!bearer) return { ok: false, status: 0 };
@@ -172,6 +174,7 @@ export async function readStream(
 		signal,
 	});
 	if (!res.ok || !res.body) return { ok: false, status: res.status };
+	onOpen?.();
 	const reader = res.body.getReader();
 	const decoder = new TextDecoder();
 	let buf = "";

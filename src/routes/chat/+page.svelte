@@ -150,10 +150,8 @@ function onKey(e: KeyboardEvent) {
 <style>
 	.chat {
 		display: flex;
-		max-width: 48rem;
 		flex-direction: column;
 		gap: 1rem;
-		margin-inline: auto;
 	}
 	.log {
 		display: flex;

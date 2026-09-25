@@ -7,27 +7,64 @@ import Logo from "$lib/components/Logo.svelte";
 
 let { data, children } = $props();
 
-/** ナビ。持ち主と頭の中は、学んだものを見る画面の後ろに */
-const NAV: [string, string, IconName][] = [
-	["/", "いま", "home"],
-	["/chat", "話す", "message-circle"],
-	["/notes", "ノート", "book"],
-	["/questions", "問い", "help"],
-	["/diary", "日記", "calendar"],
-	["/map", "つながり", "share"],
-	["/owner", "持ち主", "user"],
-	["/x", "X", "message-circle"],
-	["/context", "頭の中", "brain"],
-	["/proposals", "改善案", "wrench"],
+/**
+ * ナビ。画面が増えたので、近いものはタブでまとめる(URL はそのまま)。
+ * [ナビの先, 名前, アイコン, まとめる画面(先頭はナビの先と同じ)と、タブの名前]
+ */
+const NAV: [string, string, IconName, [string, string][]][] = [
+	["/", "いま", "home", []],
+	["/chat", "話す", "message-circle", []],
+	[
+		"/notes",
+		"ノート",
+		"book",
+		[
+			["/notes", "ノート"],
+			["/diary", "日記"],
+		],
+	],
+	[
+		"/questions",
+		"問い",
+		"help",
+		[
+			["/questions", "問い"],
+			["/map", "つながり"],
+		],
+	],
+	[
+		"/context",
+		"頭の中",
+		"brain",
+		[
+			["/context", "自分"],
+			["/owner", "持ち主の地図"],
+		],
+	],
+	["/x", "X", "message-circle", []],
+	[
+		"/proposals",
+		"直すこと",
+		"wrench",
+		[
+			["/proposals", "改善案"],
+			["/blocked", "弾かれたこと"],
+		],
+	],
 ];
+const under = (path: string, href: string) =>
+	href === "/" ? path === "/" : path === href || path.startsWith(`${href}/`);
+const group = (href: string) =>
+	NAV.find(([h]) => h === href)?.[3].map(([h]) => h) ?? [href];
 const here = (href: string) =>
-	(
-		href === "/"
-			? page.url.pathname === "/"
-			: page.url.pathname.startsWith(href)
-	)
-		? "page"
-		: undefined;
+	group(href).some((h) => under(page.url.pathname, h)) ? "page" : undefined;
+/** いまの画面が属するまとまりのタブ(1 画面だけのまとまりは出さない) */
+const tabs = $derived(
+	NAV.find(([, , , t]) => t.some(([h]) => under(page.url.pathname, h)))?.[3] ??
+		[],
+);
+const badge = (href: string) =>
+	href === "/proposals" ? data.proposals + data.blocked : 0;
 </script>
 
 <svelte:head><title>Ashi</title></svelte:head>
@@ -45,7 +82,7 @@ const here = (href: string) =>
 					{#each NAV as [href, label, icon] (href)}
 						<a class="button ghost small" aria-current={here(href)} {href}>
 							<Icon name={icon} size={1} />{label}
-							{#if href === "/proposals" && data.proposals > 0}<span class="count">{data.proposals}</span>{/if}
+							{#if badge(href) > 0}<span class="count">{badge(href)}</span>{/if}
 						</a>
 					{/each}
 				</div>
@@ -76,17 +113,15 @@ const here = (href: string) =>
 		{/if}
 
 		<main class="page-container site-main">
+			{#if tabs.length > 1}
+				<nav class="tabs" aria-label="この画面のまとまり">
+					{#each tabs as [href, label] (href)}
+						<a {href} aria-current={under(page.url.pathname, href) ? "page" : undefined}>{label}</a>
+					{/each}
+				</nav>
+			{/if}
 			{@render children()}
 		</main>
-
-		<footer class="page-container site-footer">
-			<span>Ashi — AIに、足を。</span>
-			<span class="grow"></span>
-			<a href="/blocked">弾かれたこと</a>
-			<a href="https://github.com/danything/ashi/blob/main/docs/permissions.md" rel="noopener noreferrer" target="_blank">権限の付け方</a>
-			<a href="https://github.com/danything/ashi" rel="noopener noreferrer" target="_blank">GitHub</a>
-			<span>{data.user.name}</span>
-		</footer>
 	</div>
 {/if}
 
@@ -186,21 +221,27 @@ const here = (href: string) =>
 		flex: 1 1 auto;
 		padding: 1.5rem 1rem 3rem;
 	}
-	.site-footer {
+	/* Pico は nav の中身を左右に振り分けるので、左に寄せ直す */
+	.tabs {
 		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		gap: 0.25rem 1rem;
-		border-top: 1px solid var(--ui-base-300);
-		padding: 0.9rem 1rem;
-		color: var(--ui-muted);
-		font-size: 0.78rem;
+		justify-content: flex-start;
+		gap: 0.25rem;
+		margin-bottom: 1.25rem;
+		border-bottom: 1px solid var(--ui-base-300);
 	}
-	.site-footer a {
-		color: inherit;
+	.tabs a {
+		margin-bottom: -1px;
+		border-bottom: 2px solid transparent;
+		padding: 0.4rem 0.9rem;
+		color: var(--ui-muted);
+		font-weight: 600;
 		text-decoration: none;
 	}
-	.site-footer a:hover {
+	.tabs a:hover {
+		color: var(--pico-color);
+	}
+	.tabs a[aria-current="page"] {
+		border-bottom-color: var(--pico-primary);
 		color: var(--pico-primary);
 	}
 </style>

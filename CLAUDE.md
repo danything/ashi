@@ -8,6 +8,7 @@ Ashi は、AI(頭)に「足」を与えて自分で学び続けさせるプロ�
 - **ガードレールは頭の判断より常に勝つ。** 頭の出力は必ず `legs/guard.ts` を通してから状態に書く。ガードレールを緩める変更(予算・休む時間・読み取り専用・コア原則・NetworkPolicy)は持ち主の判断が要る。頼まれていなければしない
 - **頭との境目は `Head`(`head/head.ts`)の 1 か所。** 頭は 2 つある。`claude.ts` は Messages API と API キー、`claude-code.ts` は Claude Code の CLI とサブスクのトークン。どちらかにしか無い機能を足の側で前提にしない。頭は `head/make.ts` で設定の `head` から作る
 - **Ashi に書き込む道具を渡さない。** 頭に渡す道具は `readOnly` のものだけ。Claude Code の頭には `Read(./notes/**)`・WebSearch と、足の道具を出す MCP サーバー(`src/mcp.ts`、`build/mcp.js`)の `fetch_url`・`find_papers`・`read_paper` しか許さない。組み込みの WebFetch はプライベートアドレスのガードが効かないので、MCP が無いときの代わりにだけ使う。CLI には API キーや要らない秘密を渡さない(`claude-code.ts` の `run`)
+- **外に書くのは X だけ。** コア原則の 1 番。Ashi 名義の X アカウント(DoaRetail)への投稿と返信だけを、頭が決めて足が送る(`legs/x.ts`)。承認はしない代わりに、数と額の上限(`x`)で止める。X での来客の言葉は `<visitor>` で囲って渡し、個性の材料にする(持ち主の地図には入れない)。持ち主の地図・材料・非公開の活動は外に書かない(コア原則の 3 番)
 - **論文は公開版を探してから。** 出版社のページは有料の壁やロボットの締め出しで 403 になりやすい。`legs/papers.ts` が Europe PMC と OpenAlex で公開版(PMC・リポジトリ・著者版)を探し、PDF も読む(unpdf)
 - **状態ファイルを書くのは足だけ、1 プロセスだけ。** 画面のサーバーが歩みも回す(`walk.lock`、Pod は Recreate)。頭を待つ間に古くなった値で上書きしないよう、書く直前に読み直す(`store.updateQuestions`)
 

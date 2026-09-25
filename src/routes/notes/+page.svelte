@@ -13,9 +13,13 @@ let { data } = $props();
 			<h1>ノート</h1>
 			<p>歩いて分かったこと。{data.notes.length} 件{data.q ? `(「${data.q}」で絞った)` : ""}。</p>
 		</hgroup>
+		<!-- Pico の role="group" で入力欄とボタンを 1 つにつなげる(fieldset の既定の役割も group だが、Pico は属性で見る) -->
 		<form method="GET" class="search">
-			<input name="q" type="search" value={data.q} placeholder="題・要約・テーマで探す" aria-label="探す" />
-			<button type="submit"><Icon name="search" size={1} />探す</button>
+			<!-- svelte-ignore a11y_no_redundant_roles -->
+			<fieldset role="group">
+				<input name="q" type="text" value={data.q} placeholder="題・要約・テーマで探す" aria-label="探す" />
+				<button type="submit"><Icon name="search" size={1} />探す</button>
+			</fieldset>
 		</form>
 	</div>
 
@@ -40,16 +44,11 @@ let { data } = $props();
 
 <style>
 	.search {
-		display: flex;
-		gap: 0.4rem;
+		width: min(22rem, 100%);
 		margin: 0;
 	}
-	.search input {
-		width: 16rem;
+	.search fieldset {
 		margin: 0;
-	}
-	.search button {
-		flex: none;
 	}
 	.grid {
 		display: grid;

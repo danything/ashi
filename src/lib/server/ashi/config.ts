@@ -61,6 +61,18 @@ export interface Config {
 	feeds: Feed[];
 	/** 同じ足跡を読みに行く間隔の下限(時間) */
 	feedMinHours: number;
+	/**
+	 * Ashi の X アカウント。投稿も返信も頭が決め、足は数と額の上限で止める。
+	 * X の API は従量課金(読み 1 件 0.005・投稿 1 件 0.015 ドル、2026-09)
+	 */
+	x: {
+		enabled: boolean;
+		dailyUsd: number;
+		maxPostsPerDay: number;
+		maxRepliesPerDay: number;
+		/** メンションを読みに行く間隔の下限(分) */
+		mentionsEveryMinutes: number;
+	};
 	/** 1 歩で増やしてよい問いの数 */
 	maxNewQuestions: number;
 	/** 開いたまま抱えておける問いの数。超えたら点の低いものから手放す */
@@ -93,6 +105,13 @@ export const DEFAULT_CONFIG: Config = {
 	reflectEvery: 5,
 	feeds: [],
 	feedMinHours: 6,
+	x: {
+		enabled: false,
+		dailyUsd: 1,
+		maxPostsPerDay: 3,
+		maxRepliesPerDay: 10,
+		mentionsEveryMinutes: 60,
+	},
 	maxNewQuestions: 3,
 	maxOpenQuestions: 50,
 	maxToolRounds: 8,
@@ -118,6 +137,7 @@ export function normalizeConfig(raw: unknown): Config {
 		budget?: Partial<Config["budget"]>;
 		sleep?: Partial<Config["sleep"]>;
 		fetch?: Partial<Config["fetch"]>;
+		x?: Partial<Config["x"]>;
 	};
 	const d = DEFAULT_CONFIG;
 	const minMinutes = clamp(r.sleep?.minMinutes, 1, 24 * 60, d.sleep.minMinutes);
@@ -164,6 +184,19 @@ export function normalizeConfig(raw: unknown): Config {
 		reflectEvery: Math.round(clamp(r.reflectEvery, 1, 1000, d.reflectEvery)),
 		feeds: normalizeFeeds(r.feeds),
 		feedMinHours: clamp(r.feedMinHours, 1, 24 * 30, d.feedMinHours),
+		x: {
+			enabled: typeof r.x?.enabled === "boolean" ? r.x.enabled : d.x.enabled,
+			dailyUsd: clamp(r.x?.dailyUsd, 0, 100, d.x.dailyUsd),
+			maxPostsPerDay: Math.round(
+				clamp(r.x?.maxPostsPerDay, 0, 50, d.x.maxPostsPerDay),
+			),
+			maxRepliesPerDay: Math.round(
+				clamp(r.x?.maxRepliesPerDay, 0, 100, d.x.maxRepliesPerDay),
+			),
+			mentionsEveryMinutes: Math.round(
+				clamp(r.x?.mentionsEveryMinutes, 5, 24 * 60, d.x.mentionsEveryMinutes),
+			),
+		},
 		maxNewQuestions: Math.round(
 			clamp(r.maxNewQuestions, 0, 20, d.maxNewQuestions),
 		),

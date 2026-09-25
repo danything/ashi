@@ -10,8 +10,8 @@ import type { Store } from "../state.ts";
  */
 
 export interface BlockerRecord extends Blockage {
-	/** head: 頭(Claude API)/ feed: 足跡の巡回 / fetch: 頭の fetch_url / report: 頭が歩いていて気づいたもの */
-	source: "head" | "feed" | "fetch" | "report";
+	/** head: 頭(Claude API)/ feed: 足跡の巡回 / fetch: 頭の fetch_url / report: 頭が歩いていて気づいたもの / x: Ashi の X アカウント */
+	source: "head" | "feed" | "fetch" | "report" | "x";
 	firstAt: string;
 	lastAt: string;
 	count: number;

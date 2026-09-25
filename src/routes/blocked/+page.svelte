@@ -10,6 +10,7 @@ const SOURCE: Record<string, string> = {
 	feed: "足跡の巡回",
 	fetch: "ページの読み込み",
 	report: "頭が歩いていて気づいた",
+	x: "X",
 };
 </script>
 

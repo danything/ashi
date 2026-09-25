@@ -13,6 +13,8 @@ Ashi が自分で学ぶために要る権限と、弾かれたときの直し方
 | `github-token` | `GITHUB_TOKEN` | 任意 |
 | `x-bearer-token` | `X_BEARER_TOKEN` | 任意 |
 | `forgejo-token` | `FORGEJO_TOKEN` | 任意 |
+| `x-client-id` | `X_CLIENT_ID` | 任意。`${prod.xool.xool-secrets.client-id}`(xool と同じ X のアプリ) |
+| `x-client-secret` | `X_CLIENT_SECRET` | 任意。`${prod.xool.xool-secrets.client-secret}` |
 | `notify-webhook-url` | `NOTIFY_WEBHOOK_URL` | 任意 |
 
 必須のものが無いと Pod は起動しない(CreateContainerConfigError)。任意のものは無くても動き、使う場面で `/blocked` に出る。`ENTRA_TENANT_ID`・`ENTRA_CLIENT_ID`・`ORIGIN`(https://as.doany.io)・`FORGEJO_URL` は秘密ではないので `deploy/deployment.yaml` に直接書いてある。
@@ -70,6 +72,21 @@ doany.io の他のアプリと同じく、共有のアプリ登録 `Main`(クラ
 - Slack: Incoming Webhooks のアプリを入れて URL を `NOTIFY_WEBHOOK_URL`
 
 どちらも `{"text": "..."}` を POST するだけ。
+
+## Ashi の X アカウント
+
+Ashi は自分の X アカウント(DoaRetail)で投稿し、メンションに返信する。投稿も返信も頭が決め(承認なし)、足が数と額の上限で止める(`ASHI_CONFIG` の `x`: 1 日 1 ドル・投稿 3・返信 10・メンションを読むのは 60 分おき)。
+
+1. X の開発者ポータルで、xool と同じアプリの「User authentication settings」のコールバック URL に `https://as.doany.io/x/callback` を足す。アプリの権限は Read and write
+2. Infisical の `x-client-id` と `x-client-secret` を、xool の値への参照で入れる(上の表)
+3. X に **DoaRetail で**ログインした状態で、Ashi の `/x` の「Ashi のアカウントをつなぐ」を押す(持ち主のアカウントでつながないこと)。トークンは状態ディレクトリの `x.json`(0600)に入り、画面にも頭にも出ない
+4. DoaRetail の見た目: `/x` の下にアイコン・ヘッダー・プロフィールの文の例がある。**X の「設定 → アカウント → アカウント情報 → 自動化」で、管理するアカウントに @5yuim を指定する**(自動化のラベル)
+
+| 弾かれ方 | `/blocked` の題 | 直し方 |
+| --- | --- | --- |
+| 401・403 | X のアカウントの鍵が通らない | `/x` からつなぎ直す。403 が続くならアプリの権限(Read and write)とプランを確かめる |
+| 402 | X の API の残高が足りない | 開発者ポータルでクレジットを足す |
+| 429 | X の回数の上限に当たった | 待てば戻る |
 
 ## 持ち主の足跡(`ashi.json` の `feeds`)
 

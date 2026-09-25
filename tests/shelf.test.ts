@@ -109,21 +109,32 @@ describe("applyMerges", () => {
 });
 
 describe("ownerPull", () => {
-	test("親が先回り・地図・対話・X で持ち主と話して生まれた個性の問いを数える", () => {
-		const owner = q({ id: "o", track: "owner" });
+	test("親をたどって持ち主に行き着く個性の問いを数え、問い探しと記録なしは分からないにする", () => {
 		const qs = [
-			owner,
-			q({ track: "self", parentId: "o" }),
+			q({ id: "o", track: "owner" }),
+			q({ id: "c", track: "self", parentId: "o" }),
+			// 孫の世代: 親は self だが、祖父が先回りの問い(1 代しか見ずに数え落としていた)
+			q({ id: "g", track: "self", parentId: "c" }),
 			q({ track: "self", source: "x", via: "someone,5yuim" }),
 			q({ track: "self", source: "x", via: "someone" }),
-			q({ track: "self", source: "seed" }),
+			q({ id: "s", track: "self", source: "seed" }),
+			// 問い探しの子も分からない
+			q({ track: "self", parentId: "s", source: "explore" }),
 			q({ track: "self" }),
 		];
 		expect(ownerPull(qs, ["5yuim"])).toEqual({
-			fromOwner: 2,
+			fromOwner: 3,
 			known: 4,
-			total: 5,
+			total: 7,
 		});
+	});
+
+	test("親が循環していても止まる", () => {
+		const qs = [
+			q({ id: "a", track: "self", parentId: "b" }),
+			q({ id: "b", track: "self", parentId: "a" }),
+		];
+		expect(ownerPull(qs, [])).toEqual({ fromOwner: 0, known: 0, total: 2 });
 	});
 });
 
@@ -142,7 +153,11 @@ describe("内省の棚卸し", () => {
 				}),
 			),
 		]);
-		store.saveWalk({ ...store.walk(), steps: 4 });
+		store.saveWalk({
+			...store.walk(),
+			steps: 4,
+			recentThemes: ["労働時間の定義", "労働時間", "労働時間の定義"],
+		});
 		const head = new FakeHead({
 			explore: () => explore(),
 			reflect: (req) => {
@@ -159,7 +174,7 @@ describe("内省の棚卸し", () => {
 					proposals: [],
 					posts: [],
 					merges: [{ keep: "e1", drop: ["e2"], theme: "つながらない権利" }],
-					themes: [],
+					themes: [{ from: ["労働時間の定義"], to: "労働時間" }],
 				};
 			},
 		});
@@ -169,6 +184,96 @@ describe("内省の棚卸し", () => {
 		expect(
 			store.recentLog(3).find((e) => e.event === "reflected"),
 		).toMatchObject({ merged: 1 });
+		// 付け替えたテーマは歩いた記録にも当たる(割れたままだと休ませる判定が効かない)
+		const themes = store.walk().recentThemes;
+		expect(themes).not.toContain("労働時間の定義");
+		expect(themes.slice(-3)).toEqual(["労働時間", "労働時間", "労働時間"]);
+	});
+});
+
+describe("閉じた問いとの重複と、テーマの枠", () => {
+	const RIGHT =
+		"フランスやオーストラリアの「つながらない権利」は、勤務時間外の連絡を法的にどう扱い、どう定義しているのか。";
+	const RIGHT2 =
+		"フランスやオーストラリアの「つながらない権利」は、勤務時間外の連絡を法律でどう扱い、どう定めているのか。";
+
+	test("統合で手放した問いの言い換えは受け取らず、統合先の echoes を足す", () => {
+		const keep = q({
+			id: "k",
+			text: "つながらない権利の効果",
+			theme: "労働時間",
+		});
+		const dropped = q({
+			id: "d",
+			text: RIGHT,
+			theme: "労働時間",
+			status: "dropped",
+			mergedInto: "k",
+		});
+		const got = acceptNewQuestions(
+			[{ text: RIGHT2, theme: "労働時間" }],
+			[keep, dropped],
+			cfg,
+			undefined,
+			now,
+		);
+		expect(got).toEqual([]);
+		expect(keep.echoes).toBe(1);
+	});
+
+	test("答えた問い・棚の問いの言い換えも開き直さない。点数で手放しただけの問いは受け取る", () => {
+		for (const status of ["answered", "parked"] as const) {
+			const closed = q({ id: "c", text: RIGHT, status });
+			expect(
+				acceptNewQuestions([{ text: RIGHT2 }], [closed], cfg, undefined, now),
+			).toEqual([]);
+			expect(closed.echoes).toBe(1);
+		}
+		const trimmed = q({ text: RIGHT, status: "dropped" });
+		expect(
+			acceptNewQuestions([{ text: RIGHT2 }], [trimmed], cfg, undefined, now),
+		).toHaveLength(1);
+	});
+
+	test("見たことのないテーマ名でも、近い開いた問いのテーマの枠で数え、名前を揃える", () => {
+		const full = [1, 2, 3].map((i) =>
+			q({
+				id: `f${i}`,
+				theme: "労働時間",
+				text: `勤務時間外の連絡とつながらない権利 ${"その".repeat(i)}${i}`,
+			}),
+		);
+		// 近いが同じではない(0.32)
+		const near =
+			"つながらない権利を定めた国で、時間外の連絡の賃金はどう扱われるか";
+		expect(
+			acceptNewQuestions(
+				[{ text: near, theme: "働く時間の境界" }],
+				full,
+				cfg,
+				undefined,
+				now,
+			),
+		).toEqual([]);
+		const two = full.slice(0, 2);
+		const got = acceptNewQuestions(
+			[{ text: near, theme: "働く時間の境界" }],
+			two,
+			cfg,
+			undefined,
+			now,
+		);
+		expect(got[0]?.theme).toBe("労働時間");
+		// 近い問いが無ければ、新しいテーマのまま
+		expect(
+			acceptNewQuestions(
+				[{ text: "潮の満ち引きは月だけで決まるのか", theme: "海" }],
+				full,
+				cfg,
+				undefined,
+				now,
+			)[0]?.theme,
+		).toBe("海");
 	});
 });
 

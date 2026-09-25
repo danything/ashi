@@ -29,7 +29,7 @@ const SOURCE: Record<string, string> = {
 	<section class="panel">
 		<div class="panel-head">
 			<h2>開いている問い({data.open.length})</h2>
-			<span class="tag" title="個性の問いのうち、親が先回りの問い・持ち主の地図・持ち主との対話・X で持ち主と話して生まれたもの(出どころの記録があるものの中で)">
+			<span class="tag" title="個性の問いのうち、親をたどって先回りの問い・持ち主の地図・持ち主との対話・X での持ち主との会話に行き着くもの。問い探しから生まれたもの・記録の無いものは分母に入れない">
 				個性のうち持ち主から {data.pull.fromOwner} / {data.pull.known}
 			</span>
 		</div>

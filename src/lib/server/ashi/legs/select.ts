@@ -34,8 +34,8 @@ export interface Choice {
 	question: Question;
 	/** さいころで決めた系統 */
 	track: Track;
-	/** score: 点数の順 / detour: 寄り道 */
-	reason: "score" | "detour";
+	/** score: 点数の順 / detour: 寄り道 / echo: 言い換えが繰り返し出た問いを一度歩く */
+	reason: "score" | "detour" | "echo";
 	score: number;
 }
 
@@ -45,6 +45,9 @@ export interface SeedNeeded {
 	/** いま休ませているテーマ(探させる問いから外す) */
 	avoid: string[];
 }
+
+/** この回数だけ言い換えが出て、まだ歩いていない問いは先に歩く */
+export const ECHO_LIMIT = 3;
 
 /** 問いを探しただけの歩みの印。テーマとしては数えない */
 export const SEEDING = "(問いを探す)";
@@ -97,6 +100,13 @@ export function selectQuestion(
 		.sort((a, b) => b.score - a.score);
 	const [top, ...rest] = candidates;
 	if (!top) return { seed: track, avoid };
+	// 言い換えが ECHO_LIMIT 回以上出たのに、まだ 1 度も歩いていない問いは、1 回だけ先に歩く。
+	// 点数には足さない。繰り返しは関心の強さより堂々巡りの印のことが多く、点数に足すと堂々巡りを
+	// 後押しする。歩けば答えが出るか棚に移るので、繰り返しがそこで止まる(Ashi の案、2026-09-25)
+	const echo = candidates.find(
+		(c) => (c.question.echoes ?? 0) >= ECHO_LIMIT && c.question.visits === 0,
+	);
+	if (echo) return { ...echo, track, reason: "echo" };
 	if (rest.length > 0 && rng() < cfg.detourRate) {
 		const pick = rest[Math.floor(rng() * rest.length)] ?? top;
 		return { ...pick, track, reason: "detour" };

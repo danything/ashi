@@ -131,7 +131,7 @@ describe("step", () => {
 						feasibility: 1,
 					},
 					{
-						text: "b の問い",
+						text: "潮の満ち引きは月だけで決まるのか",
 						theme: "b",
 						track: "self",
 						interest: 1,
@@ -146,7 +146,10 @@ describe("step", () => {
 		const o = await step({ store, head, tools: [], now: at, rng: noDetour });
 		expect(o.kind).toBe("seeded");
 		expect(head.calls[0]?.prompt).toContain("休ませているテーマ(a)以外");
-		expect(store.questions().map((x) => x.text)).toEqual(["問い", "b の問い"]);
+		expect(store.questions().map((x) => x.text)).toEqual([
+			"問い",
+			"潮の満ち引きは月だけで決まるのか",
+		]);
 		expect(store.walk().recentThemes[0]).toBe("(問いを探す)");
 	});
 

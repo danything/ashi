@@ -350,13 +350,13 @@ ${feeds}`;
 
 export function explorePrompt(
 	q: Question,
-	reason: "score" | "detour",
+	reason: "score" | "detour" | "echo",
 	c: WalkContext,
 ): string {
 	const searched = q.searchedWhere?.length
 		? `\nこれまでに探した場所(同じ所は探し直さず、別の場所を当たること): ${q.searchedWhere.join("、")}`
 		: "";
-	return `次の問いを歩いてください${reason === "detour" ? "(足がさいころを振って選んだ寄り道です)" : ""}。
+	return `次の問いを歩いてください${reason === "detour" ? "(足がさいころを振って選んだ寄り道です)" : reason === "echo" ? "(言い換えが何度も出たのにまだ歩いていない問いなので、足が先に回しました。答えを出すか、見つからなければ found を none に。堂々巡りをここで止めるのが目的です)" : ""}。
 
 問い: ${q.text}
 テーマ: ${q.theme}
@@ -636,7 +636,7 @@ ${
 		: "(無い)"
 }
 
-個性(self)の開いた問いのうち、持ち主から生まれたもの(親が先回りの問い・持ち主の地図・持ち主との対話・X で持ち主と話して): ${shelf.pull.fromOwner} / ${shelf.pull.known}(出どころの記録がある ${shelf.pull.known} 本のうち。記録が無いもの ${shelf.pull.total - shelf.pull.known} 本)
+個性(self)の開いた問いのうち、持ち主から生まれたもの(親が先回りの問い・持ち主の地図・持ち主との対話・X で持ち主と話して): ${shelf.pull.fromOwner} / ${shelf.pull.known}(親をたどって出どころの分かる ${shelf.pull.known} 本のうち。問い探しから生まれたもの・記録の無いものは分からないに数え、${shelf.pull.total - shelf.pull.known} 本)
 個性が持ち主の写しになっていないかの目安です。高ければ、次の個性の問いは持ち主の話から離れたところから探してください。
 
 `

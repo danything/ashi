@@ -129,3 +129,23 @@ describe("restingThemes", () => {
 		expect(restingThemes(["a", "(問いを探す)", "a", "a"], cfg)).toContain("a");
 	});
 });
+
+describe("言い換えの繰り返し(echoes)", () => {
+	test("echoes が 3 以上でまだ歩いていない問いは、点数が低くても 1 回だけ先に歩く", () => {
+		const hi = q({ id: "hi", interest: 1, importance: 1 });
+		const loop = q({ id: "loop", interest: 0, importance: 0, echoes: 3 });
+		const c = walked(selectQuestion([hi, loop], [], cfg, dice(0.9)));
+		expect(c.question.id).toBe("loop");
+		expect(c.reason).toBe("echo");
+		// 1 度歩いたら、あとは点数の順
+		const walkedOnce = { ...loop, visits: 1 };
+		expect(
+			walked(selectQuestion([hi, walkedOnce], [], cfg, dice(0.9))).question.id,
+		).toBe("hi");
+		// 2 回までは点数どおり
+		expect(
+			walked(selectQuestion([hi, { ...loop, echoes: 2 }], [], cfg, dice(0.9)))
+				.question.id,
+		).toBe("hi");
+	});
+});

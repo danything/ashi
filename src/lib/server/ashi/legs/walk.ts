@@ -107,7 +107,7 @@ export type StepOutcome =
 	| {
 			kind: "walked";
 			questionId: string;
-			reason: "score" | "detour";
+			reason: "score" | "detour" | "echo";
 			noteId: string;
 			profiled: boolean;
 			reflected: boolean;
@@ -537,16 +537,22 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 			// 頭が決めた統合とテーマの付け替えを、足が状態に当てる
 			let merged = 0;
 			let renamed = 0;
+			let renames = new Map<string, string>();
 			store.updateQuestions((qs) => {
 				const r = applyMerges(qs, output.merges, output.themes);
 				merged = r.merged;
 				renamed = r.renamed;
+				renames = r.renames;
 				return r.questions;
 			});
 			addBridgeIdeas(store, output.bridge_ideas, undefined, now);
 			// 次の一歩は内省のたびに書き直す(古い意図を引きずらない)
+			// 付け替えたテーマは歩いた記録にも当てる。古い名前が残ると、同じテーマの歩みが 2 つの名前に
+			// 割れて、休ませる判定(themeWindowMax)がしばらく効かなかった(Ashi の指摘、2026-09-25)
+			const latest = store.walk();
 			store.saveWalk({
-				...store.walk(),
+				...latest,
+				recentThemes: latest.recentThemes.map((t) => renames.get(t) ?? t),
 				lastReflectStep: w.steps,
 				intentions: acceptIntentions(output.next_steps),
 			});

@@ -55,7 +55,6 @@ export interface RawQuestion {
 	track?: unknown;
 }
 
-/** 頭が出した新しい問いのうち、形が正しく、重複しないものを上限まで */
 /** 日本語の短い文の近さ。文字 bigram の Jaccard 係数(記号と空白は除く) */
 export function bigrams(text: string): Set<string> {
 	const t = text
@@ -88,8 +87,12 @@ export interface QuestionFrom {
 
 /**
  * 頭が出した新しい問いのうち、形が正しく、重複しないものを上限まで。
- * - 文字がほぼ同じ問い(NEAR_DUPLICATE 以上)は受け取らず、既存の問いの echoes を足す
- * - テーマの開いた問いが maxOpenPerTheme に達していたら受け取らない
+ * - 文字がほぼ同じ問い(NEAR_DUPLICATE 以上)は受け取らず、既存の問いの echoes を足す。
+ *   比べる相手は開いた問いだけでなく、統合で手放した問い(統合先の echoes を足す)・答えた問い・
+ *   未測定の棚の問いも(言い換えるだけで、内省でまとめた分や閉じた問いが開き直っていた。Ashi の指摘、2026-09-25)。
+ *   点数の低さで手放しただけの問い(mergedInto の無い dropped)は比べない。また出てきたなら、もう一度歩く価値がある
+ * - テーマの開いた問いが maxOpenPerTheme に達していたら受け取らない。見たことのないテーマ名でも、
+ *   近い(SIMILAR 以上の)開いた問いがあれば、そのテーマの問いとして数えて名前も揃える(新しい名前で上限を抜けていた)
  */
 export function acceptNewQuestions(
 	raw: RawQuestion[] | undefined,
@@ -101,8 +104,17 @@ export function acceptNewQuestions(
 	from?: QuestionFrom,
 ): Question[] {
 	const seen = new Set(existing.map((q) => normalizeText(q.text)));
+	const byId = new Map(existing.map((q) => [q.id, q]));
 	const open = existing.filter((q) => q.status === "open");
 	const grams = open.map((q) => ({ q, g: bigrams(q.text) }));
+	const closed = existing
+		.filter(
+			(q) =>
+				q.status === "answered" ||
+				q.status === "parked" ||
+				(q.status === "dropped" && q.mergedInto),
+		)
+		.map((q) => ({ q, g: bigrams(q.text) }));
 	const perTheme = new Map<string, number>();
 	for (const q of open) perTheme.set(q.theme, (perTheme.get(q.theme) ?? 0) + 1);
 	const out: Question[] = [];
@@ -113,13 +125,23 @@ export function acceptNewQuestions(
 		const key = normalizeText(text);
 		if (!key || seen.has(key)) continue;
 		const g = bigrams(text);
-		const twin = grams.find((x) => jaccard(g, x.g) >= NEAR_DUPLICATE);
+		const twin =
+			grams.find((x) => jaccard(g, x.g) >= NEAR_DUPLICATE) ??
+			closed.find((x) => jaccard(g, x.g) >= NEAR_DUPLICATE);
 		if (twin) {
-			// 同じ問いがまた出た。受け取らず、数だけ足す(何度も気になっているのは大事)
-			twin.q.echoes = (twin.q.echoes ?? 0) + 1;
+			// 同じ問いがまた出た。受け取らず、数だけ足す。統合で手放した問いなら統合先に
+			const into = mergedTarget(twin.q, byId);
+			into.echoes = (into.echoes ?? 0) + 1;
 			continue;
 		}
-		const theme = normalizeTheme(r.theme);
+		let theme = normalizeTheme(r.theme);
+		if (!perTheme.has(theme)) {
+			const near = grams
+				.map((x) => ({ x, v: jaccard(g, x.g) }))
+				.filter((o) => o.v >= SIMILAR && o.x.q.status === "open")
+				.sort((a, b) => b.v - a.v)[0];
+			if (near) theme = near.x.q.theme;
+		}
 		if (
 			cfg.maxOpenPerTheme &&
 			(perTheme.get(theme) ?? 0) >= cfg.maxOpenPerTheme
@@ -147,6 +169,19 @@ export function acceptNewQuestions(
 		out.push(q);
 	}
 	return out;
+}
+
+/** 統合で手放した問いの行き先をたどる(統合先がさらに統合されていることがある) */
+function mergedTarget(q: Question, byId: Map<string, Question>): Question {
+	let cur = q;
+	const visited = new Set<string>();
+	while (cur.mergedInto && !visited.has(cur.id)) {
+		visited.add(cur.id);
+		const next = byId.get(cur.mergedInto);
+		if (!next) break;
+		cur = next;
+	}
+	return cur;
 }
 
 /** 近い問いの組(統合の候補)。同じ系統の開いた問いで、SIMILAR 以上 NEAR_DUPLICATE 未満。近い順 */
@@ -189,8 +224,15 @@ export function applyMerges(
 	qs: Question[],
 	merges: unknown,
 	themes: unknown,
-): { questions: Question[]; merged: number; renamed: number } {
+): {
+	questions: Question[];
+	merged: number;
+	renamed: number;
+	/** テーマの付け替え(古い名前 → 新しい名前)。歩いたテーマの記録(recentThemes)にも当てる */
+	renames: Map<string, string>;
+} {
 	const byId = new Map(qs.map((q) => [q.id, { ...q }]));
+	const renames = new Map<string, string>();
 	let merged = 0;
 	let renamed = 0;
 	for (const m of (Array.isArray(merges) ? merges : []).slice(
@@ -223,6 +265,7 @@ export function applyMerges(
 				.filter((x): x is string => typeof x === "string")
 				.map(normalizeTheme),
 		);
+		for (const f of from) if (f !== to) renames.set(f, to);
 		for (const q of byId.values()) {
 			if (q.status === "open" && from.has(q.theme) && q.theme !== to) {
 				q.theme = to;
@@ -230,12 +273,20 @@ export function applyMerges(
 			}
 		}
 	}
-	return { questions: qs.map((q) => byId.get(q.id) ?? q), merged, renamed };
+	return {
+		questions: qs.map((q) => byId.get(q.id) ?? q),
+		merged,
+		renamed,
+		renames,
+	};
 }
 
 /**
  * 個性(self)の開いた問いのうち、持ち主から生まれたものの割合。LLM を使わない機械的な数字。
- * 持ち主から = 親が先回り(owner)の問い、持ち主の地図、持ち主との対話、X で持ち主と話して
+ * 親をたどり、途中に先回り(owner)の問いがあるか、根が持ち主の地図・持ち主との対話・X での持ち主との
+ * 会話なら「持ち主から」。親を 1 代しか見ておらず、孫の世代で増えた群を数え落としていた(Ashi の指摘、2026-09-25)。
+ * 根が問い探し(seed)のものは「分からない」に数える。問い探しでも頭は持ち主の地図を丸ごと見ているので、
+ * 持ち主と無関係とは言えない。出どころの記録が無いものも「分からない」
  */
 export function ownerPull(
 	qs: Question[],
@@ -247,22 +298,43 @@ export function ownerPull(
 	let fromOwner = 0;
 	let known = 0;
 	for (const q of self) {
-		const parent = q.parentId ? byId.get(q.parentId) : undefined;
-		if (!q.source && !parent) continue;
+		const r = lineage(q, byId, handles);
+		if (r === "unknown") continue;
 		known++;
-		const viaOwner = q.via
-			?.split(",")
-			.some((v) => handles.has(v.trim().toLowerCase()));
-		if (
-			parent?.track === "owner" ||
-			q.source === "profile" ||
-			q.source === "chat" ||
-			(q.source === "x" && viaOwner)
-		) {
-			fromOwner++;
-		}
+		if (r === "owner") fromOwner++;
 	}
 	return { fromOwner, known, total: self.length };
+}
+
+function lineage(
+	q: Question,
+	byId: Map<string, Question>,
+	handles: Set<string>,
+): "owner" | "other" | "unknown" {
+	const visited = new Set<string>();
+	let cur: Question | undefined = q;
+	while (cur && !visited.has(cur.id)) {
+		visited.add(cur.id);
+		if (cur !== q && cur.track === "owner") return "owner";
+		const parent: Question | undefined = cur.parentId
+			? byId.get(cur.parentId)
+			: undefined;
+		if (!parent) break;
+		cur = parent;
+	}
+	// 根(親をたどり切った問い)の出どころ
+	const root = cur ?? q;
+	if (root.parentId && byId.has(root.parentId)) return "unknown"; // 循環
+	if (root.source === "profile" || root.source === "chat") return "owner";
+	if (root.source === "x") {
+		const viaOwner = root.via
+			?.split(",")
+			.some((v) => handles.has(v.trim().toLowerCase()));
+		return viaOwner ? "owner" : "other";
+	}
+	if (root.source === "seed" || !root.source) return "unknown";
+	// 歩いて生まれたのに親が残っていない(リセット前の親など)
+	return "unknown";
 }
 
 /** 抱えている問いが多すぎたら、点の低いものから手放す */

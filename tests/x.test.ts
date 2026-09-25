@@ -520,3 +520,38 @@ describe("X Activity API のストリーム", () => {
 		).toEqual({ ok: false, status: 0 });
 	});
 });
+
+test("見に行けても、ストリームの弾かれは片づけない", async () => {
+	const { checkMentions } = await import(
+		"../src/lib/server/ashi/legs/converse.ts"
+	);
+	const { raiseBlocker, openBlockers } = await import(
+		"../src/lib/server/ashi/legs/blockers.ts"
+	);
+	const store = freshStore();
+	connect(store);
+	await raiseBlocker(
+		store,
+		"x",
+		{ key: "x:stream", title: "s", remedy: "r" },
+		now,
+		async () => {},
+	);
+	await raiseBlocker(
+		store,
+		"x",
+		{ key: "x:auth", title: "a", remedy: "r" },
+		now,
+		async () => {},
+	);
+	const { f } = fakeX(() => Response.json({ meta: {} }));
+	await checkMentions({
+		store,
+		head: new FakeHead({}),
+		now: () => now,
+		env,
+		fetch: f,
+		notify: async () => {},
+	});
+	expect(openBlockers(store).map((b) => b.key)).toEqual(["x:stream"]);
+});

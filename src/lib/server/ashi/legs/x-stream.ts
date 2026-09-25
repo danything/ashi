@@ -9,6 +9,8 @@ import { call, chargeX, READ_USD, XError } from "./x.ts";
  *   一覧はアプリの鍵で読む(利用者トークンだと 403)
  * - 受け取り: GET /2/activity/stream を張りっぱなしにする(アプリの Bearer)。外に受け口を開けずに済む
  * - 料金: 届いたイベント 1 件ごとに投稿の読み取り 1 件分(0.005 ドル)。見に行く方式と同じ
+ * - backfill_minutes(切れていた間の分をもらう)は今のプランでは 400 になる。切れていた間の分は見に行く方式が拾う
+ * - X は最初の keep-alive(約 20 秒後)と一緒にヘッダーを返すので、つながるまで 20 秒ほどかかる
  * - 切れたら少し待って張り直す。張れないとき(Bearer が別のアプリなど)は、見に行く方式が 5 分おきに回る
  */
 
@@ -169,7 +171,7 @@ export async function readStream(
 ): Promise<{ ok: boolean; status: number }> {
 	const bearer = env.X_BEARER_TOKEN;
 	if (!bearer) return { ok: false, status: 0 };
-	const res = await doFetch(`${API}/activity/stream?backfill_minutes=5`, {
+	const res = await doFetch(`${API}/activity/stream`, {
 		headers: { authorization: `Bearer ${bearer}` },
 		signal,
 	});

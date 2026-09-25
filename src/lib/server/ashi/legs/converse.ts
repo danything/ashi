@@ -57,7 +57,9 @@ export async function checkMentions(ctx: {
 			ctx.pollMinutes ?? cfg.x.mentionsEveryMinutes,
 		);
 		if (fetched > 0) store.log("mentions", { count: fetched });
-		resolveBlockers(store, "x:", now);
+		// 見に行けたら片づくのは見に行く側のものだけ(x:stream はストリームがつながったときに片づける)
+		for (const key of ["x:auth", "x:limit", "x:billing", "x:error"])
+			resolveBlockers(store, key, now);
 	} catch (e) {
 		await raiseBlocker(store, "x", xBlockage(e), now, notify);
 		return { fetched: 0, replied: [], skipped: 0 };

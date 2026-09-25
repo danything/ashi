@@ -1,11 +1,12 @@
 import type { Store, XConversation } from "../state.ts";
-import { call, chargeX, READ_USD } from "./x.ts";
+import { call, chargeX, READ_USD, XError } from "./x.ts";
 
 /**
  * X Activity API で、Ashi へのメンションと返信をその場で受け取る(見に行く方式だと返事が遅れた)。
  *
  * - 購読: post.mention.create(@メンション)と post.reply.create(Ashi の投稿への直接の返信)を、
- *   Ashi のアカウントの user_id で。非公開のイベントなので、Ashi の利用者トークン(tweet.read)で作る
+ *   Ashi のアカウントの user_id で。非公開のイベントなので、Ashi の利用者トークン(tweet.read)で作る。
+ *   一覧はアプリの鍵で読む(利用者トークンだと 403)
  * - 受け取り: GET /2/activity/stream を張りっぱなしにする(アプリの Bearer)。外に受け口を開けずに済む
  * - 料金: 届いたイベント 1 件ごとに投稿の読み取り 1 件分(0.005 ドル)。見に行く方式と同じ
  * - 切れたら少し待って張り直す。張れないとき(Bearer が別のアプリなど)は、見に行く方式が 5 分おきに回る
@@ -34,15 +35,20 @@ export async function ensureSubscriptions(
 ): Promise<string[]> {
 	const account = store.xAccount();
 	if (!account) return [];
-	const list = await call<{ data?: Subscription[] }>(
-		store,
-		"GET",
-		"activity/subscriptions",
-		undefined,
-		now,
-		env,
-		doFetch,
-	);
+	// 一覧はアプリの鍵(Bearer)で読む。利用者トークンで読むと 403 になる(2026-09-25、これで
+	// 「X Activity API が使えない」と取り違えていた)。作るほうは利用者トークン(非公開のイベントなので)
+	const bearer = env.X_BEARER_TOKEN;
+	if (!bearer) return [];
+	const res = await doFetch(`${API}/activity/subscriptions`, {
+		headers: { authorization: `Bearer ${bearer}` },
+		signal: AbortSignal.timeout(15_000),
+	});
+	if (!res.ok)
+		throw new XError(
+			`X ${res.status}: ${(await res.text()).slice(0, 300)}`,
+			res.status,
+		);
+	const list = (await res.json()) as { data?: Subscription[] };
 	const have = new Set(
 		(list.data ?? [])
 			.filter((s) => s.filter?.user_id === account.userId)

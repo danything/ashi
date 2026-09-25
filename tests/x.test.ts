@@ -448,7 +448,7 @@ describe("X Activity API のストリーム", () => {
 		const store = freshStore();
 		connect(store);
 		const { calls, f } = fakeX((_url, init) => {
-			if (init.method === "GET")
+			if ((init.method ?? "GET") === "GET")
 				return Response.json({
 					data: [
 						{
@@ -459,9 +459,19 @@ describe("X Activity API のストリーム", () => {
 				});
 			return Response.json({ data: { subscription_id: "s" } });
 		});
-		expect(await ensureSubscriptions(store, now, env, f)).toEqual([
-			"post.reply.create",
-		]);
+		expect(
+			await ensureSubscriptions(
+				store,
+				now,
+				{ ...env, X_BEARER_TOKEN: "app" },
+				f,
+			),
+		).toEqual(["post.reply.create"]);
+		// 一覧はアプリの鍵、作るのは利用者トークン
+		const list = calls.find((c) => (c.init.method ?? "GET") === "GET");
+		expect(new Headers(list?.init.headers).get("authorization")).toBe(
+			"Bearer app",
+		);
 		const post = calls.find((c) => c.init.method === "POST");
 		expect(JSON.parse(String(post?.init.body))).toEqual({
 			event_type: "post.reply.create",

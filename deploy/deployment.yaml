@@ -61,6 +61,9 @@ spec:
               value: Asia/Tokyo
             # 止めるとき、処理中の要求を待つ上限(秒、adapter-node)。既定の 30 秒だと Gateway との
             # keep-alive の接続が残って待ち切ることがある。対話の返事を待たせている途中なら切れる
+            # 受け取る本文の上限(adapter-node、既定 512KB)。X のアーカイブの tweets.js は数 MB ある
+            - name: BODY_SIZE_LIMIT
+              value: 50M
             - name: SHUTDOWN_TIMEOUT
               value: "10"
             # 足跡の Forgejo はクラスタの中の Service へ直接行く(ノードから Gateway の 443 に折り返せないため)。

@@ -217,9 +217,9 @@ export class XError extends Error {
 }
 
 /** トークン付きで X を呼ぶ。401 ならリフレッシュして 1 回だけやり直す */
-async function call<T>(
+export async function call<T>(
 	store: Store,
-	method: "GET" | "POST",
+	method: "GET" | "POST" | "DELETE",
 	path: string,
 	body: unknown,
 	now: Date,

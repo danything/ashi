@@ -27,6 +27,7 @@ import type { FeedState } from "./legs/feeds.ts";
  *   bridges.json    橋の候補(個性で思いついた、まだ推測の持ち帰り)
  *   x.json          Ashi の X アカウントの鍵(OAuth 2.0 のアクセス・リフレッシュトークン)。頭には見せない
  *   conversations.json  X でほかの人と交わした会話(来客の材料。持ち主の地図には入れない)
+ *   cleanup.json    X のアカウントの前の用途の投稿を消す係の残り(アーカイブの tweets.js から)
  *   proposals.json  Ashi が内省で出した自分の仕組みへの改善案(持ち主が GitHub の issue にする)
  *   blockers.json   弾かれたこと(権限・鍵・課金・巡回の失敗)と、その直し方
  *   feeds.json      足跡ごとの、最後に読んだ時刻と取り込み済みの鍵
@@ -143,6 +144,18 @@ export interface XConversation {
 	/** まだ返事を考えていないメンションの ID */
 	pending: string[];
 	lastAt: string;
+}
+
+/** X の前の用途の投稿を消す係。15 分に 50 件ずつ消し、残りはここに持つ(Pod が入れ替わっても続きから) */
+export interface XCleanup {
+	total: number;
+	remaining: string[];
+	deleted: number;
+	/** 消せなかった(404 以外で断られた)ID */
+	failed: string[];
+	startedAt: string;
+	lastRunAt?: string;
+	lastError?: string;
 }
 
 export interface Source {
@@ -426,6 +439,18 @@ export class Store {
 
 	saveConversations(cs: XConversation[]): void {
 		this.writeJson("conversations.json", cs);
+	}
+
+	xCleanup(): XCleanup | undefined {
+		return this.readJson<XCleanup | null>("cleanup.json", null) ?? undefined;
+	}
+
+	saveXCleanup(c: XCleanup | undefined): void {
+		if (!c) {
+			rmSync(this.path("cleanup.json"), { force: true });
+			return;
+		}
+		this.writeJson("cleanup.json", c);
 	}
 
 	bridgeIdeas(): BridgeIdea[] {

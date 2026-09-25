@@ -88,6 +88,37 @@ let posting = $state(false);
 	</div>
 
 	<section class="panel">
+		<div class="panel-head"><h2>前の用途の投稿を消す</h2></div>
+		{#if data.cleanup}
+			<div class="cluster">
+				<span class="nums">{data.cleanup.deleted} / {data.cleanup.total} 件消した</span>
+				<span class="muted small">残り {data.cleanup.left} 件{data.cleanup.failed ? `、消せなかった ${data.cleanup.failed} 件` : ""}</span>
+				<span class="grow"></span>
+				{#if data.cleanup.left > 0}
+					<form method="POST" action="?/cleanupStop" use:enhance><button type="submit" class="ghost small">止める</button></form>
+				{/if}
+			</div>
+			<div class="meter"><span style:width="{Math.round((data.cleanup.deleted / Math.max(1, data.cleanup.total)) * 100)}%"></span></div>
+			<p class="tiny muted">
+				15 分に 50 件ずつ(X の上限)。{data.cleanup.doneAt ? `終わるのは ${when(data.cleanup.doneAt)} ごろ。` : "終わった。"}
+				{data.cleanup.lastRunAt ? `最後に回したのは ${when(data.cleanup.lastRunAt)}。` : ""}
+			</p>
+			{#if data.cleanup.lastError}<p class="note warn tiny">{data.cleanup.lastError}</p>{/if}
+		{:else}
+			<p class="small">
+				X のアーカイブ(設定 → アカウント → データのアーカイブをダウンロード)の zip の中の <code>data/tweets.js</code> を渡すと、
+				Ashi をつなぐより前の投稿を 15 分に 50 件ずつ消す。Ashi の投稿は消さない。
+			</p>
+			{#if form && "cleanupMessage" in form}<p class="note err small">{form.cleanupMessage}</p>{/if}
+			<form method="POST" action="?/cleanup" enctype="multipart/form-data" use:enhance class="cluster">
+				<input type="file" name="archive" accept=".js" required class="file" />
+				<button type="submit" class="outline small">消し始める</button>
+			</form>
+		{/if}
+		{#if form && "cleanupStarted" in form}<p class="note ok small">{form.cleanupStarted} 件を消し始めた。</p>{/if}
+	</section>
+
+	<section class="panel">
 		<div class="panel-head"><h2>会話({data.conversations.length})</h2></div>
 		{#if data.conversations.length}
 			<div class="stack tight">
@@ -156,6 +187,10 @@ let posting = $state(false);
 		padding: 0.35rem 0.6rem;
 	}
 	form {
+		margin: 0;
+	}
+	.file {
+		width: auto;
 		margin: 0;
 	}
 	.icon {

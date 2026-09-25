@@ -10,6 +10,7 @@ import {
 import { paperTools } from "./ashi/legs/papers.ts";
 import { fetchUrlTool, noteTools } from "./ashi/legs/tools.ts";
 import { Walker } from "./ashi/legs/walk.ts";
+import { CLEANUP_EVERY_MS, runCleanup } from "./ashi/legs/x-cleanup.ts";
 import { Store } from "./ashi/state.ts";
 
 /**
@@ -77,6 +78,7 @@ export function startWalking(): void {
 		);
 	});
 	void walker.run(ac.signal);
+	startCleanupTimer();
 }
 
 export function isWalking(): boolean {
@@ -105,4 +107,33 @@ export function resetLearning():
 
 export function isStepping(): boolean {
 	return walker?.stepping === true;
+}
+
+/**
+ * X の前の用途の投稿を消す係を 15 分ごとに回す(削除は 15 分に 50 件まで)。
+ * 歩いているプロセスだけで回す(状態ファイルを 2 つのプロセスで書き合わない)
+ */
+function startCleanupTimer(): void {
+	const tick = () => {
+		runCleanup(store, new Date())
+			.then(
+				(r) =>
+					r &&
+					console.log(`[ashi] x-cleanup ${r.deleted} 件消した、残り ${r.left}`),
+			)
+			.catch((e) => console.warn("[ashi] x-cleanup", e));
+	};
+	// 起動のたびに間を空けずに回すと上限に当たりやすいので、前回から 15 分空いていれば回す
+	const last = store.xCleanup()?.lastRunAt;
+	if (!last || Date.now() - new Date(last).getTime() >= CLEANUP_EVERY_MS)
+		setTimeout(tick, 10_000).unref();
+	setInterval(tick, CLEANUP_EVERY_MS).unref();
+}
+
+/** 画面から受け取った直後に 1 回回す(待たずに始める) */
+export function kickCleanup(): void {
+	if (!walker) return;
+	void runCleanup(store, new Date()).catch((e) =>
+		console.warn("[ashi] x-cleanup", e),
+	);
 }

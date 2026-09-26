@@ -1,6 +1,6 @@
 <script lang="ts">
 import { tick, untrack } from "svelte";
-import { afterNavigate } from "$app/navigation";
+import { afterNavigate, invalidateAll } from "$app/navigation";
 import Icon from "$lib/components/Icon.svelte";
 import Logo from "$lib/components/Logo.svelte";
 import { when } from "$lib/format";
@@ -14,14 +14,29 @@ interface Msg {
 	added?: string[];
 }
 // 前回までの対話も文脈として頭に渡す。開いたときの分だけでよい(以後は画面の中で積む)
-let msgs = $state<Msg[]>(
-	untrack(() =>
-		data.past.flatMap((c): Msg[] => [
-			{ role: "user", text: c.question },
-			{ role: "assistant", text: c.reply, html: c.html },
-		]),
-	),
-);
+const fromPast = (past: typeof data.past): Msg[] =>
+	past.flatMap((c): Msg[] => [
+		{ role: "user", text: c.question },
+		{ role: "assistant", text: c.reply, html: c.html, added: c.added },
+	]);
+let msgs = $state<Msg[]>(untrack(() => fromPast(data.past)));
+
+// 返事を待つ間に画面を移って戻ったとき: 頭はまだ考えているので、送った発言と「考えている」を出し、
+// 返事が保存されるまで数秒おきに読み直す。保存されたら対話を読み直した分で置き換える
+let waiting = $state(untrack(() => data.pending));
+$effect(() => {
+	if (!waiting) return;
+	const timer = setInterval(async () => {
+		await invalidateAll();
+		if (!data.pending) {
+			msgs = fromPast(data.past);
+			waiting = null;
+			await tick();
+			toEnd();
+		}
+	}, 4000);
+	return () => clearInterval(timer);
+});
 let input = $state("");
 let busy = $state(false);
 let problem = $state("");
@@ -41,7 +56,7 @@ afterNavigate(() => toEnd("instant"));
 async function send(e: SubmitEvent) {
 	e.preventDefault();
 	const message = input.trim();
-	if (!message || busy) return;
+	if (!message || busy || waiting) return;
 	const history = msgs.map(({ role, text }) => ({ role, text }));
 	msgs.push({ role: "user", text: message });
 	input = "";
@@ -122,7 +137,10 @@ function onKey(e: KeyboardEvent) {
 				</div>
 			{/if}
 		{/each}
-		{#if busy}
+		{#if waiting}
+			<div class="me">{waiting.question}</div>
+		{/if}
+		{#if busy || waiting}
 			<div class="ashi">
 				<span class="avatar"><Logo /></span>
 				<div class="panel bubble cluster small muted"><span class="spin"></span>考えている(ノートを引いていると数十秒かかる)</div>
@@ -135,7 +153,7 @@ function onKey(e: KeyboardEvent) {
 		<!-- 1 行にして、発言を読む幅を広く取る。長く書くと 6 行まで伸びる -->
 		<div class="line">
 			<textarea bind:value={input} rows="1" placeholder="最近何を覚えた?(Ctrl + Enter で送る)" onkeydown={onKey} disabled={busy} aria-label="話しかける"></textarea>
-			<button type="submit" class="small" disabled={busy || !input.trim()}><Icon name="send" size={1} />送る</button>
+			<button type="submit" class="small" disabled={busy || !!waiting || !input.trim()}><Icon name="send" size={1} />送る</button>
 		</div>
 	</form>
 </div>

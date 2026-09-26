@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { chat } from "../src/lib/server/ashi/legs/chat.ts";
+import { chat, chatInFlight } from "../src/lib/server/ashi/legs/chat.ts";
 import {
 	mergeNews,
 	newsBlock,
@@ -84,5 +84,52 @@ describe("ニュースの見出しを目にしておく", () => {
 		expect(prompt).toContain("台風26号 沖縄に接近へ");
 		expect(prompt).toContain("ここに無い出来事は知らない");
 		expect(newsBlock([])).toContain("ニュースは目にしていない");
+	});
+});
+
+describe("話す: 画面を移っても消えない", () => {
+	test("頭が考えている間は発言が見え、答えたら問いに加えたものごと保存される", async () => {
+		const store = freshStore();
+		let release: () => void = () => {};
+		const gate = new Promise<void>((r) => {
+			release = r;
+		});
+		const head = new FakeHead({
+			chat: () => ({
+				reply: "調べておくね",
+				stances: [],
+				unverified: [],
+				new_questions: [
+					{
+						text: "台風の進路予報はどう作られるか",
+						theme: "気象",
+						track: "self",
+						interest: 0.5,
+						importance: 0.5,
+						feasibility: 0.5,
+					},
+				],
+				crawl: [],
+			}),
+		});
+		const think = head.think.bind(head);
+		head.think = (async (req) => {
+			await gate;
+			return think(req);
+		}) as typeof head.think;
+		const running = chat(
+			{ store, head, tools: [], now: () => now },
+			"持ち主",
+			[],
+			"台風どうだった?",
+		);
+		await Bun.sleep(10);
+		expect(chatInFlight("持ち主")?.question).toBe("台風どうだった?");
+		release();
+		await running;
+		expect(chatInFlight("持ち主")).toBeUndefined();
+		expect(store.recentChats(1)[0]?.added).toEqual([
+			"台風の進路予報はどう作られるか",
+		]);
 	});
 });

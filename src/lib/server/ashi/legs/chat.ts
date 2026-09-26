@@ -41,6 +41,19 @@ export class ChatRefused extends Error {}
 const MAX_TURNS = 20;
 const MAX_CHARS = 4000;
 
+/**
+ * いま頭が考えている発言(話しかけた人ごと)。返事を待つ間に画面を移って戻ると、送った発言が
+ * 保存前で見えず、消えたように見えた。画面はこれを見て「考えている」を出し、返事が来るまで待つ。
+ * 1 プロセスなので、ここに持てば足りる
+ */
+const thinking = new Map<string, { question: string; at: string }>();
+
+export function chatInFlight(
+	by: string,
+): { question: string; at: string } | undefined {
+	return thinking.get(by);
+}
+
 export async function chat(
 	ctx: {
 		store: Store;
@@ -77,6 +90,7 @@ export async function chat(
 	// 先頭は user でなければならない
 	while (turns[0]?.role === "assistant") turns.shift();
 
+	thinking.set(by, { question: text, at: now.toISOString() });
 	try {
 		const { output, usage } = await head.think<ChatAnswer>({
 			task: "chat",
@@ -133,6 +147,7 @@ export async function chat(
 			by,
 			question: text,
 			reply,
+			added,
 			usd: usage.costUsd,
 		});
 		store.log("chat", { by, added, usd: usage.costUsd });
@@ -148,5 +163,7 @@ export async function chat(
 				ctx.notify ?? webhookNotify,
 			);
 		throw e;
+	} finally {
+		thinking.delete(by);
 	}
 }

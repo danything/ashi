@@ -764,6 +764,8 @@ export interface ChatEntry {
 	by: string;
 	question: string;
 	reply: string;
+	/** その返事で問いに加えたもの(画面の「問いに加えた」) */
+	added?: string[];
 	usd: number;
 }
 

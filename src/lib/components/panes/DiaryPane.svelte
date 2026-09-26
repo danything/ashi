@@ -24,8 +24,10 @@ const label = (d: string) => d.slice(5).replace("-", "/");
 {/if}
 
 <style>
+	/* Pico は nav の中身を左右に振り分けるので、左から詰める(日付が端から端まで散らばっていた) */
 	.days {
 		display: flex;
+		justify-content: flex-start;
 		gap: 0.25rem;
 		overflow-x: auto;
 		scrollbar-width: none;

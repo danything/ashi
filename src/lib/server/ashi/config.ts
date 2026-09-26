@@ -87,6 +87,19 @@ export interface Config {
 		turns: number;
 	};
 	/**
+	 * 世の中の動きを、見出しだけ目にしておく(legs/news.ts)。人が話す前にニュースや窓の外で
+	 * なんとなく知っているのと同じ形にする。話しながら検索はさせない(持ち主の指摘、2026-09-26)
+	 */
+	news: {
+		enabled: boolean;
+		/** RSS / RDF の URL */
+		feeds: string[];
+		/** 読む間隔(時間) */
+		everyHours: number;
+		/** 覚えている日数。過ぎた見出しは忘れる */
+		keepDays: number;
+	};
+	/**
 	 * 個性の系統をこの回数歩くごとに 1 回、自己記述を渡さずに歩く(0 で止める)。
 	 * 自己記述が毎回入っていると、見つけた型が世界の側のものか、自己記述が探させたものかを区別できない
 	 */
@@ -133,6 +146,15 @@ export const DEFAULT_CONFIG: Config = {
 	},
 	stranger: { enabled: true, model: "claude-sonnet-5", turns: 3 },
 	selfBlindEvery: 5,
+	news: {
+		enabled: true,
+		feeds: [
+			"https://www.nhk.or.jp/rss/news/cat0.xml",
+			"https://news.yahoo.co.jp/rss/topics/top-picks.xml",
+		],
+		everyHours: 12,
+		keepDays: 3,
+	},
 	maxNewQuestions: 3,
 	maxOpenQuestions: 50,
 	maxToolRounds: 12,
@@ -160,6 +182,7 @@ export function normalizeConfig(raw: unknown): Config {
 		fetch?: Partial<Config["fetch"]>;
 		x?: Partial<Config["x"]>;
 		stranger?: Partial<Config["stranger"]>;
+		news?: Partial<Config["news"]>;
 	};
 	const d = DEFAULT_CONFIG;
 	const minMinutes = clamp(r.sleep?.minMinutes, 1, 24 * 60, d.sleep.minMinutes);
@@ -233,6 +256,20 @@ export function normalizeConfig(raw: unknown): Config {
 					? r.stranger.model
 					: d.stranger.model,
 			turns: Math.round(clamp(r.stranger?.turns, 1, 6, d.stranger.turns)),
+		},
+		news: {
+			enabled:
+				typeof r.news?.enabled === "boolean" ? r.news.enabled : d.news.enabled,
+			feeds: Array.isArray(r.news?.feeds)
+				? r.news.feeds
+						.filter(
+							(x): x is string =>
+								typeof x === "string" && /^https?:\/\//.test(x),
+						)
+						.slice(0, 10)
+				: d.news.feeds,
+			everyHours: clamp(r.news?.everyHours, 1, 24 * 7, d.news.everyHours),
+			keepDays: clamp(r.news?.keepDays, 1, 30, d.news.keepDays),
 		},
 		selfBlindEvery: Math.round(
 			clamp(r.selfBlindEvery, 0, 100, d.selfBlindEvery),

@@ -508,6 +508,15 @@ export class Store {
 		this.writeJson("conversations.json", cs);
 	}
 
+	/** 目にしたニュースの見出し(legs/news.ts)。学びではないのでリセットしない */
+	news(): NewsState {
+		return this.readJson<NewsState>("news.json", { items: [] });
+	}
+
+	saveNews(n: NewsState): void {
+		this.writeJson("news.json", n);
+	}
+
 	xCleanup(): XCleanup | undefined {
 		return this.readJson<XCleanup | null>("cleanup.json", null) ?? undefined;
 	}
@@ -722,6 +731,12 @@ export interface LogEntry {
 	at: string;
 	event: string;
 	[key: string]: unknown;
+}
+
+/** 目にしたニュースの見出し。見出しだけで、中身は読まない */
+export interface NewsState {
+	lastAt?: string;
+	items: { title: string; at: string; source: string }[];
 }
 
 /** よそ者との対話 1 回分 */

@@ -27,6 +27,7 @@ import {
 	claimQuestions,
 	trimOpenQuestions,
 } from "./guard.ts";
+import { newsBlock } from "./news.ts";
 import { crawlIds } from "./walk.ts";
 
 /**
@@ -87,6 +88,7 @@ export async function chat(
 				store.questions(),
 				feedStatus(store, now),
 				blockersText(store),
+				newsBlock(store.news().items),
 			),
 			schema: CHAT_SCHEMA,
 			tools: ctx.tools.filter((t) => t.readOnly === true),

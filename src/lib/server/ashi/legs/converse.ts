@@ -8,6 +8,7 @@ import {
 import { localDay, type Store } from "../state.ts";
 import { raiseBlocker, resolveBlockers, webhookNotify } from "./blockers.ts";
 import { acceptNewQuestions, allowance, trimOpenQuestions } from "./guard.ts";
+import { newsBlock } from "./news.ts";
 import {
 	canReply,
 	fetchMentions,
@@ -102,7 +103,7 @@ export async function checkMentions(ctx: {
 		const r = await head.think<ConverseAnswer>({
 			task: "converse",
 			system: system(store.core(), store.self(), store.owner()),
-			prompt: conversePrompt(waiting, remaining),
+			prompt: conversePrompt(waiting, remaining, newsBlock(store.news().items)),
 			schema: CONVERSE_SCHEMA,
 			maxCostUsd: left,
 		});

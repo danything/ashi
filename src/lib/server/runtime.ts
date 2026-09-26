@@ -9,6 +9,7 @@ import {
 	resolveBlockers,
 } from "./ashi/legs/blockers.ts";
 import { checkMentions } from "./ashi/legs/converse.ts";
+import { refreshNews } from "./ashi/legs/news.ts";
 import { paperTools } from "./ashi/legs/papers.ts";
 import { fetchUrlTool, noteTools } from "./ashi/legs/tools.ts";
 import { Walker } from "./ashi/legs/walk.ts";
@@ -103,6 +104,7 @@ export function startWalking(): void {
 	);
 	void walker.run(ac.signal);
 	startCleanupTimer();
+	startNewsTimer();
 	startMentions(ac.signal);
 }
 
@@ -153,6 +155,19 @@ function startCleanupTimer(): void {
 	if (!last || Date.now() - new Date(last).getTime() >= CLEANUP_EVERY_MS)
 		setTimeout(tick, 10_000).unref();
 	setInterval(tick, CLEANUP_EVERY_MS).unref();
+}
+
+/** ニュースの見出しを目にしておく。1 時間ごとに見て、読む間隔(news.everyHours)が来ていれば読む */
+function startNewsTimer(): void {
+	const tick = () => {
+		refreshNews(store, new Date())
+			.then(
+				(r) => r && console.log(`[ashi] news ${r.items.length} 件を覚えている`),
+			)
+			.catch((e) => console.warn("[ashi] news", e));
+	};
+	setTimeout(tick, 15_000).unref();
+	setInterval(tick, 3600_000).unref();
 }
 
 /** 画面から受け取った直後に 1 回回す(待たずに始める) */

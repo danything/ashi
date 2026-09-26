@@ -32,7 +32,7 @@ $effect(() => {
 			msgs = fromPast(data.past);
 			waiting = null;
 			await tick();
-			toEnd();
+			toLastMessage();
 		}
 	}, 4000);
 	return () => clearInterval(timer);
@@ -49,9 +49,25 @@ function toEnd(behavior: ScrollBehavior = "smooth") {
 	window.scrollTo({ top: document.documentElement.scrollHeight, behavior });
 }
 
-// 開いたときは最新(いちばん下)から見せる。onMount だと、ほかの画面から移ってきたときに
-// SvelteKit が移動の後でスクロールを上に戻してしまうので、移動が済んだ後に送る(リロードでも呼ばれる)
-afterNavigate(() => toEnd("instant"));
+/**
+ * 最後のメッセージの一番上を、ヘッダーのすぐ下に合わせる。返事が来たときに一番下まで送ると、
+ * 長い返事の始まりが画面の外に出て読めなかった(持ち主の指摘、2026-09-26)
+ */
+function toLastMessage(behavior: ScrollBehavior = "smooth") {
+	const all = document.querySelectorAll<HTMLElement>("[data-msg]");
+	const last = all[all.length - 1];
+	if (!last) return;
+	const header =
+		document.querySelector<HTMLElement>(".site-header")?.offsetHeight ?? 0;
+	window.scrollTo({
+		top: last.getBoundingClientRect().top + window.scrollY - header - 12,
+		behavior,
+	});
+}
+
+// 開いたとき・ほかの画面から移ってきたときは、最後のメッセージの始まりから見せる。onMount だと、
+// ほかの画面から移ってきたときに SvelteKit が移動の後でスクロールを上に戻してしまうので、移動が済んだ後に送る
+afterNavigate(() => toLastMessage("instant"));
 
 async function send(e: SubmitEvent) {
 	e.preventDefault();
@@ -95,7 +111,9 @@ async function send(e: SubmitEvent) {
 	} finally {
 		busy = false;
 		await tick();
-		toEnd();
+		// 返事が来たら返事の始まりへ(送れなかったときは入力欄の見える一番下へ)
+		if (problem) toEnd();
+		else toLastMessage();
 	}
 }
 
@@ -124,9 +142,9 @@ function onKey(e: KeyboardEvent) {
 		{/if}
 		{#each msgs as m, i (i)}
 			{#if m.role === "user"}
-				<div class="me">{m.text}</div>
+				<div class="me" data-msg>{m.text}</div>
 			{:else}
-				<div class="ashi">
+				<div class="ashi" data-msg>
 					<span class="avatar"><Logo /></span>
 					<div class="panel bubble">
 						<div class="prose">{@html m.html ?? m.text}</div>

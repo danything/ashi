@@ -50,12 +50,14 @@ function toEnd(behavior: ScrollBehavior = "smooth") {
 }
 
 /**
- * 最後のメッセージの一番上を、ヘッダーのすぐ下に合わせる。返事が来たときに一番下まで送ると、
- * 長い返事の始まりが画面の外に出て読めなかった(持ち主の指摘、2026-09-26)
+ * 最後の自分の発言の一番上を、ヘッダーのすぐ下に合わせる(その下に返事が続く)。
+ * 一番下まで送ると長い返事の始まりが画面の外に出て読めず、返事の上に合わせると何への返事か
+ * 分からなかった(持ち主の指摘、2026-09-26)
  */
 function toLastMessage(behavior: ScrollBehavior = "smooth") {
+	const mine = document.querySelectorAll<HTMLElement>(".me[data-msg]");
 	const all = document.querySelectorAll<HTMLElement>("[data-msg]");
-	const last = all[all.length - 1];
+	const last = mine[mine.length - 1] ?? all[all.length - 1];
 	if (!last) return;
 	const header =
 		document.querySelector<HTMLElement>(".site-header")?.offsetHeight ?? 0;
@@ -65,7 +67,7 @@ function toLastMessage(behavior: ScrollBehavior = "smooth") {
 	});
 }
 
-// 開いたとき・ほかの画面から移ってきたときは、最後のメッセージの始まりから見せる。onMount だと、
+// 開いたとき・ほかの画面から移ってきたときは、最後の自分の発言から見せる。onMount だと、
 // ほかの画面から移ってきたときに SvelteKit が移動の後でスクロールを上に戻してしまうので、移動が済んだ後に送る
 afterNavigate(() => toLastMessage("instant"));
 
@@ -111,7 +113,7 @@ async function send(e: SubmitEvent) {
 	} finally {
 		busy = false;
 		await tick();
-		// 返事が来たら返事の始まりへ(送れなかったときは入力欄の見える一番下へ)
+		// 返事が来たら、自分の発言とその返事の始まりが見えるところへ(送れなかったときは入力欄の見える一番下へ)
 		if (problem) toEnd();
 		else toLastMessage();
 	}
@@ -156,7 +158,7 @@ function onKey(e: KeyboardEvent) {
 			{/if}
 		{/each}
 		{#if waiting}
-			<div class="me">{waiting.question}</div>
+			<div class="me" data-msg>{waiting.question}</div>
 		{/if}
 		{#if busy || waiting}
 			<div class="ashi">

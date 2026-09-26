@@ -13,6 +13,8 @@ import {
 	acceptClaims,
 	acceptNewQuestions,
 	claimQuestions,
+	markedClaims,
+	mergeClaims,
 	patternHits,
 	type RawQuestion,
 	trimOpenQuestions,
@@ -128,7 +130,10 @@ export async function talkWithStranger(opts: {
 		.map((q) => ({ ...q, track: "self" }));
 	// 会話の中で記憶だけで言ったことも、X と同じく確かめる問いにして控える(Ashi の改善案、2026-09-26。
 	// 「記憶で言います」と断ったまま確かめない、が起きていた)
-	const claims = acceptClaims(final.unverified);
+	const claims = mergeClaims(
+		acceptClaims(final.unverified),
+		markedClaims(turns.filter((t) => t.by === "ashi").map((t) => t.text)),
+	);
 	if (raw.length || claims.length) {
 		const cfg = store.config();
 		const from = {
@@ -140,7 +145,7 @@ export async function talkWithStranger(opts: {
 			const checks = acceptNewQuestions(
 				claimQuestions(claims, `${field}の話し相手に`),
 				[...qs, ...got],
-				{ ...cfg, maxNewQuestions: 3 },
+				{ ...cfg, maxNewQuestions: claims.length },
 				undefined,
 				now,
 				from,

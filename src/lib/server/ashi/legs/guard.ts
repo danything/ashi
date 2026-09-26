@@ -531,13 +531,55 @@ export function missedPromises(
 	});
 }
 
-/** 外で確かめずに言ったこと。1 回 3 件まで、1 件 200 字まで */
+/** 外で確かめずに言ったこと。1 回 8 件まで、1 件 200 字まで(3 件で切って取りこぼしていた) */
 export function acceptClaims(v: unknown): string[] {
 	if (!Array.isArray(v)) return [];
 	return v
 		.filter((x): x is string => typeof x === "string" && x.trim() !== "")
-		.slice(0, 3)
+		.slice(0, CLAIMS_MAX)
 		.map((x) => x.trim().slice(0, 200));
+}
+
+const CLAIMS_MAX = 8;
+
+/** 自分で付けた「確かめていない」の印 */
+const UNVERIFIED_MARKS = [
+	"記憶だけ",
+	"記憶で言",
+	"記憶頼み",
+	"記憶の印象",
+	"うろ覚え",
+	"確かめていない",
+	"確かめてない",
+	"確かめられていない",
+	"未確認",
+	"たしか",
+];
+
+/**
+ * 発言の中から、自分で「確かめていない」の印を付けた文を抜き出す。頭の申告(unverified)だけに頼ると、
+ * 会話で 3 つ言ったのに 1 つしか積まれないことがあった(Ashi の改善案、2026-09-27)。足でも拾う
+ */
+export function markedClaims(texts: string[]): string[] {
+	const out: string[] = [];
+	for (const t of texts) {
+		for (const s of t.split(/(?<=[。!?!?])|\n/)) {
+			const x = s.trim();
+			if (x.length >= 8 && UNVERIFIED_MARKS.some((m) => x.includes(m)))
+				out.push(x.slice(0, 200));
+		}
+	}
+	return [...new Set(out)].slice(0, CLAIMS_MAX);
+}
+
+/** 頭の申告と足が拾ったものを合わせる(ほぼ同じ文は 1 つに) */
+export function mergeClaims(declared: string[], marked: string[]): string[] {
+	const out = [...declared];
+	for (const m of marked) {
+		const g = bigrams(m);
+		if (!out.some((d) => jaccard(g, bigrams(d)) >= SIMILAR)) out.push(m);
+	}
+	return out.slice(0, CLAIMS_MAX);
 }
 
 /** 確かめずに言ったことを、確かめる問いの形にする。where は「X で @誰々 さんに」など */

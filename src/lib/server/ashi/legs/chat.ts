@@ -25,6 +25,8 @@ import {
 	addStances,
 	allowance,
 	claimQuestions,
+	markedClaims,
+	mergeClaims,
 	trimOpenQuestions,
 } from "./guard.ts";
 import { newsBlock } from "./news.ts";
@@ -121,11 +123,15 @@ export async function chat(
 				now,
 				{ source: "chat" },
 			);
-			// 返事の中で記憶だけで言ったことも、確かめる問いにして控える
+			// 返事の中で記憶だけで言ったことも、確かめる問いにして控える(頭の申告と、足が印から拾ったもの)
+			const claims = mergeClaims(
+				acceptClaims(output.unverified),
+				markedClaims([String(output.reply ?? "")]),
+			);
 			const checks = acceptNewQuestions(
-				claimQuestions(acceptClaims(output.unverified), "持ち主に"),
+				claimQuestions(claims, "持ち主に"),
 				[...qs, ...got],
-				{ ...cfg, maxNewQuestions: 3 },
+				{ ...cfg, maxNewQuestions: claims.length },
 				undefined,
 				now,
 				{ source: "chat" },

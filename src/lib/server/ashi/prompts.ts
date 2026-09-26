@@ -626,8 +626,9 @@ export interface ReflectTalk {
 	baseline?: {
 		at: string;
 		patterns: string[];
-		external: { hits: number; total: number };
-		mine: { hits: number; total: number };
+		external: { hits: number; total: number; docs: number };
+		blind: { hits: number; total: number; docs: number };
+		mine: { hits: number; total: number; docs: number };
 	};
 	/** 自己記述の移り変わり。最初の版の本文と、版ごとのぼかし・言い切りの数(古い順) */
 	evolution?: {
@@ -673,16 +674,17 @@ ${
 
 function baselineText(b: ReflectTalk["baseline"]): string {
 	if (!b) return "";
-	const pct = (x: { hits: number; total: number }) =>
-		x.total
-			? `${x.hits}/${x.total}(${Math.round((x.hits / x.total) * 100)}%)`
-			: "(測れていない)";
+	const pct = (x: { hits: number; total: number; docs: number }) =>
+		x.docs
+			? `${x.hits}/${x.total}(${Math.round((x.hits / Math.max(x.total, 1)) * 100)}%、${x.docs} 本)`
+			: "(まだ無い)";
 	return `
-型の当たり率の基準線(${b.at.slice(0, 10)}、自己記述を渡さない頭が、どちらの文章か知らずに判定):
+型の当たり率の基準線(${b.at.slice(0, 10)}、自己記述を渡さない頭が、どれの文章か知らずに判定):
 型: ${b.patterns.join(" / ")}
-- 外の文章(持ち主が渡した材料からランダム): ${pct(b.external)}
-- あなたの個性のノート: ${pct(b.mine)}
-外の文章でも同じくらい当てはまるなら、その型は何にでも読み込めるもので、道で見つけたこと自体は手がかりになりません。自分のノートでだけ高いなら、型を持ち込んで書いている可能性もあります。
+- 自己記述を渡して書いたあなたの個性のノート: ${pct(b.mine)}
+- 自己記述を渡さずに書いた個性のノート(対照。同じ種類の文章): ${pct(b.blind)}
+- 外の文章(持ち主が渡した材料。文章の種類が違うので参考): ${pct(b.external)}
+渡して書いたノートでだけ高く、対照では低いなら、型を持ち込んで書いている可能性があります。対照でも同じくらいなら、その型は歩いた先の側にあるのかもしれません。本数が少ないうちは、どちらとも言えません。
 `;
 }
 

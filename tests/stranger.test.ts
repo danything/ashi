@@ -8,7 +8,9 @@ import {
 } from "../src/lib/server/ashi/legs/baseline.ts";
 import {
 	hedgeStats,
+	markedClaims,
 	markPromised,
+	mergeClaims,
 	missedPromises,
 	ownerPull,
 	patternHits,
@@ -536,10 +538,72 @@ describe("Ashi の改善案(2026-09-26 夕方)", () => {
 			},
 		});
 		const r = await measureBaseline({ store, head, now, rng: () => 0.3 });
-		expect(r?.baseline.external).toEqual({ hits: 0, total: 3 });
-		expect(r?.baseline.mine).toEqual({ hits: 3, total: 3 });
+		expect(r?.baseline.external).toEqual({ hits: 0, total: 3, docs: 3 });
+		expect(r?.baseline.mine).toEqual({ hits: 3, total: 3, docs: 3 });
+		expect(r?.baseline.blind).toEqual({ hits: 0, total: 0, docs: 0 });
 		expect(head.calls[0]?.system).not.toContain("<self>");
 		expect(await measureBaseline({ store, head, now })).toBeUndefined();
 		expect(latestBaseline(store.recentLog(5))?.mine.hits).toBe(3);
+	});
+});
+
+describe("Ashi の改善案(2026-09-27)", () => {
+	test("基準線の対照に、自己記述を渡さずに書いたノートを使う(外の文章が無くても測れる)", async () => {
+		const store = freshStore();
+		const long = (x: string) => x.repeat(40);
+		const notes = [
+			["abcdef10", false, "自分のノート0。"],
+			["abcdef11", false, "自分のノート1。"],
+			["abcdef12", true, "対照のノート。"],
+		] as const;
+		for (const [id, blind, body] of notes) {
+			store.saveQuestions([
+				...store.questions(),
+				q({ id: `5e1f${id.slice(4)}`, track: "self" }),
+			]);
+			store.addNote(
+				{
+					id,
+					title: "n",
+					theme: "t",
+					questionId: `5e1f${id.slice(4)}`,
+					summary: "",
+					createdAt: "",
+					...(blind ? { blind: true } : {}),
+				},
+				long(body),
+			);
+		}
+		store.saveWalk({ ...store.walk(), selfPatterns: ["誰が測る"] });
+		const head = new FakeHead({
+			baseline: (req) => ({
+				results: [...req.prompt.matchAll(/<doc id="(\w)">\n([^\n]*)/g)].map(
+					(m) => ({
+						doc: m[1],
+						applies: [(m[2] ?? "").startsWith("自分")],
+					}),
+				),
+			}),
+		});
+		const r = await measureBaseline({ store, head, now, rng: () => 0.3 });
+		expect(r?.baseline.mine).toEqual({ hits: 2, total: 2, docs: 2 });
+		expect(r?.baseline.blind).toEqual({ hits: 0, total: 1, docs: 1 });
+		expect(r?.baseline.external.docs).toBe(0);
+	});
+
+	test("自分で「記憶だけで」「うろ覚え」などの印を付けた文は、申告に無くても全部拾う", () => {
+		const said = [
+			"藍は葉を潰すだけでは染まらず、還元の手間が要る、とうろ覚えで言います。大青とインディゴは色素が同じ、と記憶だけで言いますね。",
+			"接着は試験の仕方で順位が入れ替わる、というのは記憶の印象です。ここは関係ない文。",
+		];
+		const marked = markedClaims(said);
+		expect(marked).toHaveLength(3);
+		const merged = mergeClaims(
+			["藍は葉を潰すだけでは染まらず、還元の手間が要る"],
+			marked,
+		);
+		expect(merged).toHaveLength(3);
+		expect(merged.some((x) => x.includes("大青"))).toBe(true);
+		expect(merged.some((x) => x.includes("接着"))).toBe(true);
 	});
 });

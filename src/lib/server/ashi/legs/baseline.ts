@@ -8,10 +8,14 @@ import { localDay, type Store } from "../state.ts";
  * 多重比較の話を聞いて、その型がどんな文章にも読み込めるなら、見つけたことに意味が無いと気づいた
  * (Ashi の改善案、2026-09-26)。比べる相手を足が用意する。
  *
- * - 1 日 1 回、内省の前に。外の文章(持ち主が渡した材料からランダム)と、Ashi 自身の個性のノートを
- *   どちらか分からないように混ぜて、自己記述を渡さない頭に「この型が当てはまるか」だけを判定させる
- * - 当てはまる割合を外の文章と自分のノートで並べる。外でも同じくらい当てはまるなら、その型は
- *   何にでも読み込めるもので、見つけたこと自体は手がかりにならない
+ * - 1 日 1 回、内省の前に。次の 3 つを、どれか分からないように混ぜて、自己記述を渡さない頭に
+ *   「この型が当てはまるか」だけを判定させる
+ *     mine:     自己記述を渡して書いた個性のノート
+ *     blind:    自己記述を渡さずに書いた個性のノート(対照。mine と同じ種類の文章)
+ *     external: 外の文章(持ち主が渡した材料)。文章の種類が違うので参考
+ *   外の文章だけを比べる相手にしていたら、ブログやコードと調べたノートでは文の種類が違い、差が型の
+ *   持ち込みのせいか種類のせいか区別できなかった(Ashi の改善案、2026-09-27)。mine と blind を比べる
+ * - 対照のノートはまだ少ないので、本数もあわせて見せる
  * - 型は内省で頭が挙げた言葉(walk.json の selfPatterns)。記録は log.jsonl の baseline
  */
 
@@ -45,10 +49,13 @@ const SYSTEM = `あなたは文章を読んで、ある見方(型)がその文�
 「当てはまる」は、その型で文章の中身を無理なく説明できるときだけ。こじつければ何にでも当てはまる、は当てはまらないに数えてください。
 答えは指定された JSON の形だけで返してください。`;
 
+type Tally = { hits: number; total: number; docs: number };
+
 export interface Baseline {
 	patterns: string[];
-	external: { hits: number; total: number };
-	mine: { hits: number; total: number };
+	external: Tally;
+	blind: Tally;
+	mine: Tally;
 }
 
 function sample<T>(xs: T[], n: number, rng: () => number): T[] {
@@ -75,7 +82,7 @@ export async function measureBaseline(opts: {
 	if (!patterns.length || walk.lastBaselineDay === today) return undefined;
 
 	const external = sample(store.sources(), PER_SIDE, rng)
-		.map((s) => (store.sourceBody(s.id) ?? "").trim().slice(0, DOC_CHARS))
+		.map((src) => (store.sourceBody(src.id) ?? "").trim().slice(0, DOC_CHARS))
 		.filter((t) => t.length > 200);
 	const selfIds = new Set(
 		store
@@ -83,24 +90,28 @@ export async function measureBaseline(opts: {
 			.filter((q) => q.track === "self")
 			.map((q) => q.id),
 	);
-	const mine = store
-		.notes()
-		.filter((n) => selfIds.has(n.questionId))
-		.slice(-PER_SIDE * 3);
-	const mineTexts = sample(mine, PER_SIDE, rng)
-		.map((n) => (store.noteBody(n.id) ?? "").trim().slice(0, DOC_CHARS))
-		.filter((t) => t.length > 200);
-	if (external.length < 2 || mineTexts.length < 2) return undefined;
+	const selfNotes = store.notes().filter((n) => selfIds.has(n.questionId));
+	const texts = (ns: typeof selfNotes) =>
+		sample(ns, PER_SIDE, rng)
+			.map((n) => (store.noteBody(n.id) ?? "").trim().slice(0, DOC_CHARS))
+			.filter((t) => t.length > 200);
+	const mineTexts = texts(
+		selfNotes.filter((n) => !n.blind).slice(-PER_SIDE * 3),
+	);
+	const blindTexts = texts(selfNotes.filter((n) => n.blind));
+	if (mineTexts.length < 2 || (blindTexts.length < 1 && external.length < 2))
+		return undefined;
 
-	// どちらの文章か分からないように混ぜて、記号だけを付ける
-	const docs = sample(
-		[
-			...external.map((text) => ({ text, side: "external" as const })),
-			...mineTexts.map((text) => ({ text, side: "mine" as const })),
-		],
-		external.length + mineTexts.length,
-		rng,
-	).map((d, i) => ({ ...d, label: String.fromCharCode(65 + i) }));
+	// どれの文章か分からないように混ぜて、記号だけを付ける
+	const all = [
+		...mineTexts.map((text) => ({ text, side: "mine" as const })),
+		...blindTexts.map((text) => ({ text, side: "blind" as const })),
+		...external.map((text) => ({ text, side: "external" as const })),
+	];
+	const docs = sample(all, all.length, rng).map((d, i) => ({
+		...d,
+		label: String.fromCharCode(65 + i),
+	}));
 
 	const prompt = `次の型が、それぞれの文章に当てはまるかを判定してください。
 
@@ -113,9 +124,15 @@ ${docs.map((d) => `<doc id="${d.label}">\n${d.text}\n</doc>`).join("\n\n")}`;
 		results: { doc: string; applies: boolean[] }[];
 	}>({ task: "baseline", system: SYSTEM, prompt, schema: SCHEMA });
 
+	const zero = (side: string) => ({
+		hits: 0,
+		total: 0,
+		docs: docs.filter((d) => d.side === side).length,
+	});
 	const tally = {
-		external: { hits: 0, total: 0 },
-		mine: { hits: 0, total: 0 },
+		external: zero("external"),
+		blind: zero("blind"),
+		mine: zero("mine"),
 	};
 	for (const r of Array.isArray(output.results) ? output.results : []) {
 		const d = docs.find((x) => x.label === r.doc);
@@ -136,10 +153,15 @@ export function latestBaseline(
 ): (Baseline & { at: string }) | undefined {
 	const e = log.find((x) => x.event === "baseline");
 	if (!e) return undefined;
+	const t = (v: unknown): Tally => {
+		const x = (v ?? {}) as Partial<Tally>;
+		return { hits: x.hits ?? 0, total: x.total ?? 0, docs: x.docs ?? 0 };
+	};
 	return {
 		at: String(e.at ?? ""),
 		patterns: (e.patterns as string[]) ?? [],
-		external: (e.external as Baseline["external"]) ?? { hits: 0, total: 0 },
-		mine: (e.mine as Baseline["mine"]) ?? { hits: 0, total: 0 },
+		external: t(e.external),
+		blind: t(e.blind),
+		mine: t(e.mine),
 	};
 }

@@ -3,10 +3,17 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { normalizeConfig } from "../src/lib/server/ashi/config.ts";
 import {
+	latestBaseline,
+	measureBaseline,
+} from "../src/lib/server/ashi/legs/baseline.ts";
+import {
 	hedgeStats,
+	markPromised,
+	missedPromises,
 	ownerPull,
 	patternHits,
 	strangerLanding,
+	trimOpenQuestions,
 	walkTrail,
 } from "../src/lib/server/ashi/legs/guard.ts";
 import { selectQuestion } from "../src/lib/server/ashi/legs/select.ts";
@@ -440,5 +447,99 @@ describe("Ashi の改善案(2026-09-26 午後)", () => {
 			{ word: "独立", firstReply: true, strangerFirst: true },
 			{ word: "誰が測る", firstReply: true, strangerFirst: false },
 		]);
+	});
+});
+
+describe("Ashi の改善案(2026-09-26 夕方)", () => {
+	test("次の一歩に 2 回続けて書かれた問いは先に歩き、上限で手放さない。歩かれなかった理由も出す", () => {
+		let qs = [
+			q({
+				id: "4d18fd51",
+				track: "self",
+				interest: 0,
+				importance: 0,
+				theme: "型",
+			}),
+			q({ id: "aaaaaaa1", track: "self", interest: 1, importance: 1 }),
+		];
+		qs = markPromised(qs, ["[4d18fd51] を歩く"]);
+		expect(qs[0]?.promised).toBe(1);
+		const cfg = {
+			themeStreakLimit: 3,
+			themeWindow: 10,
+			themeWindowMax: 3,
+			detourRate: 0,
+			ownerShare: 0,
+		};
+		const pick = () => {
+			const c = selectQuestion(qs, [], cfg, () => 0.9, now);
+			return "question" in c ? `${c.question.id}:${c.reason}` : "seed";
+		};
+		expect(pick()).toBe("aaaaaaa1:score");
+		qs = markPromised(qs, ["4d18fd51 を今度こそ"]);
+		expect(pick()).toBe("4d18fd51:promised");
+		// 上限 1 本でも、約束した問いは手放さない
+		const trimmed = trimOpenQuestions(qs, { maxOpenQuestions: 1 });
+		expect(trimmed.find((x) => x.id === "4d18fd51")?.status).toBe("open");
+		// 書かれなくなったら印は消える
+		expect(markPromised(qs, [])[0]?.promised).toBeUndefined();
+		const why = missedPromises(
+			["4d18fd51", "42ca7820"],
+			[...qs, q({ id: "42ca7820", status: "dropped" })],
+			["型"],
+		);
+		expect(why[0]?.why).toContain("テーマ「型」を休ませていた");
+		expect(why[1]?.why).toContain("上限で");
+	});
+
+	test("型の当たり率の基準線を、外の文章と自分のノートを混ぜて 1 日 1 回測る", async () => {
+		const store = freshStore();
+		const long = (s: string) => s.repeat(40);
+		for (let i = 0; i < 3; i++)
+			store.addSource(
+				{ id: `5ec0000${i}`, title: "t", kind: "paste", createdAt: "" },
+				long(`外の文章${i}。`),
+			);
+		for (let i = 0; i < 3; i++) {
+			store.saveQuestions([
+				...store.questions(),
+				q({ id: `self000${i}`, track: "self" }),
+			]);
+			store.addNote(
+				{
+					id: `abcdef1${i}`,
+					title: "n",
+					theme: "t",
+					questionId: `self000${i}`,
+					summary: "",
+					createdAt: "",
+				},
+				long(`自分のノート${i}。`),
+			);
+		}
+		store.saveWalk({
+			...store.walk(),
+			selfPatterns: ["当たり前は誰かの選択だった"],
+		});
+		const head = new FakeHead({
+			baseline: (req) => {
+				const docs = [...req.prompt.matchAll(/<doc id="(\w)">\n([^\n]*)/g)].map(
+					(m) => ({ id: m[1], text: m[2] ?? "" }),
+				);
+				// 自分のノートにだけ当てはまると答える
+				return {
+					results: docs.map((d) => ({
+						doc: d.id,
+						applies: [d.text.startsWith("自分")],
+					})),
+				};
+			},
+		});
+		const r = await measureBaseline({ store, head, now, rng: () => 0.3 });
+		expect(r?.baseline.external).toEqual({ hits: 0, total: 3 });
+		expect(r?.baseline.mine).toEqual({ hits: 3, total: 3 });
+		expect(head.calls[0]?.system).not.toContain("<self>");
+		expect(await measureBaseline({ store, head, now })).toBeUndefined();
+		expect(latestBaseline(store.recentLog(5))?.mine.hits).toBe(3);
 	});
 });

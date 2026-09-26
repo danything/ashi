@@ -350,13 +350,13 @@ ${feeds}`;
 
 export function explorePrompt(
 	q: Question,
-	reason: "score" | "detour" | "echo" | "verify",
+	reason: "score" | "detour" | "echo" | "verify" | "promised",
 	c: WalkContext,
 ): string {
 	const searched = q.searchedWhere?.length
 		? `\nこれまでに探した場所(同じ所は探し直さず、別の場所を当たること): ${q.searchedWhere.join("、")}`
 		: "";
-	return `次の問いを歩いてください${reason === "detour" ? "(足がさいころを振って選んだ寄り道です)" : reason === "echo" ? "(言い換えが何度も出たのにまだ歩いていない問いなので、足が先に回しました。答えを出すか、見つからなければ found を none に。堂々巡りをここで止めるのが目的です)" : reason === "verify" ? "(あなたが外で確かめずに言ったことです。日が経っても歩かれていなかったので、足が先に回しました。出典に当たって確かめ、違っていたらノートにそう書いてください)" : ""}。
+	return `次の問いを歩いてください${reason === "detour" ? "(足がさいころを振って選んだ寄り道です)" : reason === "echo" ? "(言い換えが何度も出たのにまだ歩いていない問いなので、足が先に回しました。答えを出すか、見つからなければ found を none に。堂々巡りをここで止めるのが目的です)" : reason === "promised" ? "(あなたが内省の次の一歩に続けて書いた問いです。足が約束どおり先に回しました)" : reason === "verify" ? "(あなたが外で確かめずに言ったことです。日が経っても歩かれていなかったので、足が先に回しました。出典に当たって確かめ、違っていたらノートにそう書いてください)" : ""}。
 
 問い: ${q.text}
 テーマ: ${q.theme}
@@ -474,7 +474,7 @@ export const REFLECT_SCHEMA: JsonSchema = {
 			type: "array",
 			items: { type: "string" },
 			description:
-				"いまの自己記述に出てくる、あなたの型の言葉(繰り返し持ち出す見方を表す短い語。例: 独立・共有・誰が測る)。0〜8 語。足が、よそ者との会話であなたが最初の返事から自分の型を持ち込んでいないかを数える",
+				"いまの自己記述に出てくる、あなたの型(繰り返し持ち出す見方)を表す短い語か句。例: 独立・誰が測る・当たり前は誰かの選択だった。0〜8 個、1 個 40 字まで。足が、よそ者との会話で最初の返事から自分の型を持ち込んでいないかと、型が外の文章にもどれだけ当てはまるか(基準線)を数える",
 		},
 		self_changes: {
 			type: "array",
@@ -617,9 +617,18 @@ export interface ReflectTalk {
 		promised: string[];
 		kept: string[];
 		unmatched: number;
+		/** 次の一歩に書いたのに歩かれなかった問いと、その理由 */
+		missing?: { id: string; why: string }[];
 	};
 	/** 自己記述を渡さずに歩いたノートと、渡して歩いた個性のノート(新しい順、数件ずつ) */
 	blind?: { blind: Note[]; sighted: Note[] };
+	/** 型の当たり率の基準線(直近に測ったもの)。外の文章と自分の個性のノートで、型が当てはまった割合 */
+	baseline?: {
+		at: string;
+		patterns: string[];
+		external: { hits: number; total: number };
+		mine: { hits: number; total: number };
+	};
 	/** 自己記述の移り変わり。最初の版の本文と、版ごとのぼかし・言い切りの数(古い順) */
 	evolution?: {
 		first?: { at: string; text: string };
@@ -653,7 +662,27 @@ function trailText(t: ReflectTalk["trail"]): string {
 前回の内省から歩いた問い(★ は前回の次の一歩に ID を書いた問い):
 ${steps}
 前回の次の一歩に書いた問い ID のうち歩いたもの: ${t.kept.length} / ${t.promised.length}${t.unmatched ? `(ID が書かれていない次の一歩が ${t.unmatched} 件あり、照合できない)` : ""}
+${
+	t.missing?.length
+		? `歩かれなかった問いと、その理由:\n${t.missing.map((m) => `- [${m.id}] ${m.why}`).join("\n")}\n次の一歩に 2 回続けて書いた問いは、足が次の数歩のうちに先に回します。`
+		: ""
+}
 選ばれなかったのか、選ばれて見つからなかったのかは上の一覧で分かります。推測で振り返らないこと。
+`;
+}
+
+function baselineText(b: ReflectTalk["baseline"]): string {
+	if (!b) return "";
+	const pct = (x: { hits: number; total: number }) =>
+		x.total
+			? `${x.hits}/${x.total}(${Math.round((x.hits / x.total) * 100)}%)`
+			: "(測れていない)";
+	return `
+型の当たり率の基準線(${b.at.slice(0, 10)}、自己記述を渡さない頭が、どちらの文章か知らずに判定):
+型: ${b.patterns.join(" / ")}
+- 外の文章(持ち主が渡した材料からランダム): ${pct(b.external)}
+- あなたの個性のノート: ${pct(b.mine)}
+外の文章でも同じくらい当てはまるなら、その型は何にでも読み込めるもので、道で見つけたこと自体は手がかりになりません。自分のノートでだけ高いなら、型を持ち込んで書いている可能性もあります。
 `;
 }
 
@@ -722,7 +751,7 @@ ${dialogues}
 
 よそ者から来た個性の問い ${t.landing.total} 本のうち、持ち主由来のテーマに着地したもの: ${t.landing.home} 本、前からあった自分のテーマに着地したもの: ${t.landing.own} 本、新しいテーマ: ${t.landing.total - t.landing.home - t.landing.own} 本
 持ち主由来が高ければ、相手の話を持ち主の関心へ引き戻しています。自分のテーマが高ければ、自分の型に引き戻しています。どちらも、よそ者は効いていません。
-${trailText(t.trail)}${blindText(t.blind)}${evolutionText(t.evolution)}
+${trailText(t.trail)}${blindText(t.blind)}${evolutionText(t.evolution)}${baselineText(t.baseline)}
 
 持ち主との最近の対話:
 ${chats}

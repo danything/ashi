@@ -82,6 +82,11 @@ export interface Question {
 	 * 残っていたので、足が一定の日数で先に回す(select.ts の VERIFY_AFTER_DAYS。Ashi の改善案、2026-09-26)
 	 */
 	verify?: boolean;
+	/**
+	 * 内省の次の一歩に、続けて書かれた回数。2 回以上なら足が先に歩き、開いた問いの上限で手放さない。
+	 * 3 回続けて書いても選ばれず、上限で黙って手放されてもいた(Ashi の改善案、2026-09-26)。歩いたら消す
+	 */
+	promised?: number;
 	/** 内省で統合され、手放したときの行き先 */
 	mergedInto?: string;
 	/** 探して何も見つからなかった回数 */
@@ -222,6 +227,8 @@ export interface Walk {
 	selfWalks?: number;
 	/** 内省で頭が挙げた、自分の型の言葉。よそ者との会話で持ち込んでいないかを数える */
 	selfPatterns?: string[];
+	/** 型の当たり率の基準線を最後に測った日(1 日 1 回。legs/baseline.ts) */
+	lastBaselineDay?: string;
 	/** この時刻までは起きない(ISO) */
 	sleepingUntil?: string;
 	/** init のとき、または人が `ashi core --accept` したときの core.md のハッシュ */

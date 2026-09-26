@@ -55,7 +55,7 @@ function legs(): Legs {
 function describe(o: StepOutcome): string {
 	switch (o.kind) {
 		case "walked":
-			return `歩いた(${o.reason === "detour" ? "寄り道" : o.reason === "echo" ? "言い換えの繰り返し" : o.reason === "verify" ? "言ったことの確かめ" : "点数順"})ノート ${o.noteId}${o.profiled ? "・地図を書き直した" : ""}${o.reflected ? "・内省した" : ""} → ${o.wakeAt.toLocaleString()} まで休む`;
+			return `歩いた(${o.reason === "detour" ? "寄り道" : o.reason === "echo" ? "言い換えの繰り返し" : o.reason === "verify" ? "言ったことの確かめ" : o.reason === "promised" ? "次の一歩の約束" : "点数順"})ノート ${o.noteId}${o.profiled ? "・地図を書き直した" : ""}${o.reflected ? "・内省した" : ""} → ${o.wakeAt.toLocaleString()} まで休む`;
 		case "seeded":
 			return `${o.track === "owner" ? "先回り" : "個性"}の問いを ${o.added} 個探した${o.reflected ? "・内省した" : ""} → ${o.wakeAt.toLocaleString()} まで休む`;
 		case "asleep":

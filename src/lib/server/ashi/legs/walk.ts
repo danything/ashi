@@ -27,6 +27,7 @@ import {
 	type WalkContext,
 } from "../prompts.ts";
 import { hashText, localDay, newId, type Store, type Track } from "../state.ts";
+import { latestBaseline, measureBaseline } from "./baseline.ts";
 import { raiseBlocker, resolveBlockers, webhookNotify } from "./blockers.ts";
 import { crawlRequested, feedStatus } from "./feeds.ts";
 import {
@@ -42,6 +43,8 @@ import {
 	applyMerges,
 	blindComparison,
 	clampSleep,
+	markPromised,
+	missedPromises,
 	nextMidnight,
 	ownerHandles,
 	ownerPull,
@@ -120,7 +123,7 @@ export type StepOutcome =
 	| {
 			kind: "walked";
 			questionId: string;
-			reason: "score" | "detour" | "echo" | "verify";
+			reason: "score" | "detour" | "echo" | "verify" | "promised";
 			noteId: string;
 			profiled: boolean;
 			reflected: boolean;
@@ -399,8 +402,10 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 					// 見つからなかった回数を数え、上限に達したら未測定の棚へ(同じ所をぐるぐる探さない)
 					const misses = (x.misses ?? 0) + (missed ? 1 : 0);
 					parked = output.answered !== true && misses >= cfg.missesToPark;
+					// 歩いたら、次の一歩の約束の印は消す(約束は果たした)
+					const { promised: _promised, ...rest } = x;
 					return {
-						...x,
+						...rest,
 						visits: x.visits + 1,
 						lastVisitedAt: now.toISOString(),
 						misses,
@@ -532,6 +537,16 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 					});
 				}
 			}
+			// 型の当たり率の基準線を測る(1 日 1 回)。つまずいても内省は続ける
+			try {
+				const b = await measureBaseline({ store, head, now, rng });
+				if (b) charge(b.usage);
+			} catch (e) {
+				if (e instanceof HeadError) charge(e.usage);
+				store.log("baseline-failed", {
+					error: e instanceof Error ? e.message : String(e),
+				});
+			}
 			const selfBefore = store.self();
 			const { output, usage } = await head.think<ReflectAnswer>({
 				task: "reflect",
@@ -566,9 +581,20 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 						chats: store.recentChats(5),
 						stances: (store.walk().stances ?? []).slice(0, 10),
 						landing: strangerLanding(store.questions(), ownerHandles(cfg)),
-						trail: walkTrail(store.recentLog(300), w.intentions ?? []),
+						trail: (() => {
+							const t = walkTrail(store.recentLog(300), w.intentions ?? []);
+							return {
+								...t,
+								missing: missedPromises(
+									t.promised.filter((id) => !t.kept.includes(id)),
+									store.questions(),
+									restingThemes(w.recentThemes, cfg),
+								),
+							};
+						})(),
 						blind: blindComparison(store.notes(), store.questions()),
 						evolution: selfEvolution(store.selfHistory()),
+						baseline: latestBaseline(store.recentLog(500)),
 					},
 				),
 				schema: REFLECT_SCHEMA,
@@ -627,6 +653,10 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 				lastReflectStep: w.steps,
 				intentions: acceptIntentions(output.next_steps),
 			});
+			// 次の一歩に書いた問いに印を付ける(続けて書かれたら、足が先に歩く)
+			store.updateQuestions((qs) =>
+				markPromised(qs, store.walk().intentions ?? []),
+			);
 			// 外に出したいこと(1 件まで)。上限と長さは足が見る
 			const post = Array.isArray(output.posts) ? output.posts[0] : undefined;
 			let posted: string | undefined;

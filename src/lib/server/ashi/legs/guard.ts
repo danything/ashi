@@ -439,14 +439,14 @@ export function selfEvolution(history: { at: string; text: string }[]): {
 	};
 }
 
-/** 内省で頭が挙げた、自分の型の言葉。8 語まで、1 語 20 字まで */
+/** 内省で頭が挙げた、自分の型の言葉や短い句。8 個まで、1 個 40 字まで */
 export function acceptPatterns(v: unknown): string[] {
 	if (!Array.isArray(v)) return [];
 	return [
 		...new Set(
 			v
 				.filter((x): x is string => typeof x === "string" && x.trim() !== "")
-				.map((x) => x.trim().slice(0, 20)),
+				.map((x) => x.trim().slice(0, 40)),
 		),
 	].slice(0, 8);
 }
@@ -474,6 +474,61 @@ export function patternHits(
 			strangerFirst: before.includes(word),
 		}))
 		.filter((p) => p.firstReply);
+}
+
+/** 文の中の問い ID(8 桁の 16 進) */
+export const questionIds = (s: string): string[] =>
+	s.match(/\b[0-9a-f]{8}\b/g) ?? [];
+
+/**
+ * 内省の次の一歩に書かれた問いに、続けて書かれた回数を付ける。書かれなくなったら消す
+ */
+export function markPromised(qs: Question[], intentions: string[]): Question[] {
+	const ids = new Set(intentions.flatMap(questionIds));
+	return qs.map((q) => {
+		if (ids.has(q.id)) return { ...q, promised: (q.promised ?? 0) + 1 };
+		if (q.promised) {
+			const { promised: _, ...rest } = q;
+			return rest;
+		}
+		return q;
+	});
+}
+
+/**
+ * 次の一歩に書いたのに歩かれなかった問いが、なぜ歩かれなかったか。推測でなく状態から言う
+ * (選ばれなかったのか、閉じたのか、統合されたのか、上限で手放されたのか。Ashi の改善案、2026-09-26)
+ */
+export function missedPromises(
+	ids: string[],
+	qs: Question[],
+	resting: string[],
+): { id: string; why: string }[] {
+	const byId = new Map(qs.map((q) => [q.id, q]));
+	return ids.map((id) => {
+		const q = byId.get(id);
+		if (!q) return { id, why: "一覧に無い(ID の書き違いか、リセット前の問い)" };
+		if (q.status === "answered") return { id, why: "答えが出て閉じた" };
+		if (q.status === "parked")
+			return { id, why: "見つからないまま未測定の棚に移った" };
+		if (q.status === "dropped")
+			return {
+				id,
+				why: q.mergedInto
+					? `内省で統合された → [${q.mergedInto}]`
+					: "開いた問いの上限で、点数が低いものとして手放された",
+			};
+		const same = qs
+			.filter((x) => x.status === "open" && x.track === q.track)
+			.sort((a, b) => score(b) - score(a));
+		const rank = same.findIndex((x) => x.id === id) + 1;
+		const reasons = [
+			`${q.track === "owner" ? "先回り" : "個性"}の系統の中で点数 ${rank} 位 / ${same.length} 本`,
+		];
+		if (resting.includes(q.theme))
+			reasons.push(`テーマ「${q.theme}」を休ませていた`);
+		return { id, why: `開いたまま選ばれなかった(${reasons.join("、")})` };
+	});
 }
 
 /** 外で確かめずに言ったこと。1 回 3 件まで、1 件 200 字まで */
@@ -521,8 +576,7 @@ export function walkTrail(
 		if (e.event === "reflected" || e.event === "reset") break;
 		since.push(e);
 	}
-	const idOf = (s: string) => s.match(/\b[0-9a-f]{8}\b/g) ?? [];
-	const promised = [...new Set(intentions.flatMap(idOf))];
+	const promised = [...new Set(intentions.flatMap(questionIds))];
 	const steps = since
 		.filter((e) => e.event === "walked")
 		.reverse()
@@ -545,7 +599,7 @@ export function walkTrail(
 		steps,
 		promised,
 		kept: promised.filter((id) => walked.has(id)),
-		unmatched: intentions.filter((i) => idOf(i).length === 0).length,
+		unmatched: intentions.filter((i) => questionIds(i).length === 0).length,
 	};
 }
 
@@ -628,9 +682,14 @@ export function trimOpenQuestions(
 	qs: Question[],
 	cfg: Pick<Config, "maxOpenQuestions">,
 ): Question[] {
+	// 次の一歩に書かれている問いは手放さない(点数が低くても、頭が歩くと約束したもの)
 	const open = qs
 		.filter((q) => q.status === "open")
-		.sort((a, b) => score(b) - score(a));
+		.sort(
+			(a, b) =>
+				Number(Boolean(b.promised)) - Number(Boolean(a.promised)) ||
+				score(b) - score(a),
+		);
 	const drop = new Set(open.slice(cfg.maxOpenQuestions).map((q) => q.id));
 	if (drop.size === 0) return qs;
 	return qs.map((q) => (drop.has(q.id) ? { ...q, status: "dropped" } : q));

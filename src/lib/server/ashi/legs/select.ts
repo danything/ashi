@@ -38,7 +38,7 @@ export interface Choice {
 	 * score: 点数の順 / detour: 寄り道 / echo: 言い換えが繰り返し出た問いを一度歩く /
 	 * verify: 外で確かめずに言ったことを、日が経ったので確かめる
 	 */
-	reason: "score" | "detour" | "echo" | "verify";
+	reason: "score" | "detour" | "echo" | "verify" | "promised";
 	score: number;
 }
 
@@ -126,6 +126,20 @@ export function selectQuestion(
 			score: score(overdue),
 			track,
 			reason: "verify",
+		};
+	// 内省の次の一歩に 2 回続けて書かれた問いは、1 回必ず歩く(休ませているテーマでも。歩いたら印は消える)。
+	// 点数のままだと 3 回続けて書いても選ばれなかった(Ashi の改善案、2026-09-26)
+	const promised = questions
+		.filter(
+			(q) => q.status === "open" && q.track === track && (q.promised ?? 0) >= 2,
+		)
+		.sort((a, b) => (b.promised ?? 0) - (a.promised ?? 0))[0];
+	if (promised)
+		return {
+			question: promised,
+			score: score(promised),
+			track,
+			reason: "promised",
 		};
 	// 言い換えが ECHO_LIMIT 回以上出たのに、まだ 1 度も歩いていない問いは、1 回だけ先に歩く。
 	// 点数には足さない。繰り返しは関心の強さより堂々巡りの印のことが多く、点数に足すと堂々巡りを

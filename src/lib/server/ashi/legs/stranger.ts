@@ -13,6 +13,7 @@ import {
 	acceptClaims,
 	acceptNewQuestions,
 	claimQuestions,
+	patternHits,
 	type RawQuestion,
 	trimOpenQuestions,
 } from "./guard.ts";
@@ -155,6 +156,7 @@ export async function talkWithStranger(opts: {
 		turns,
 		added,
 		takeaway: text(final.takeaway).slice(0, 300),
+		patterns: patternHits(turns, store.walk().selfPatterns ?? []),
 	};
 	store.appendDialogue(dialogue);
 	store.log("stranger", { field, model: stranger.name, added });

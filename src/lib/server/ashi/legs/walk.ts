@@ -32,6 +32,7 @@ import { crawlRequested, feedStatus } from "./feeds.ts";
 import {
 	acceptIntentions,
 	acceptNewQuestions,
+	acceptPatterns,
 	acceptProposals,
 	acceptSearched,
 	acceptSelf,
@@ -44,6 +45,7 @@ import {
 	nextMidnight,
 	ownerHandles,
 	ownerPull,
+	selfEvolution,
 	similarPairs,
 	strangerLanding,
 	trimOpenQuestions,
@@ -566,6 +568,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 						landing: strangerLanding(store.questions(), ownerHandles(cfg)),
 						trail: walkTrail(store.recentLog(300), w.intentions ?? []),
 						blind: blindComparison(store.notes(), store.questions()),
+						evolution: selfEvolution(store.selfHistory()),
 					},
 				),
 				schema: REFLECT_SCHEMA,
@@ -582,7 +585,10 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 					`## ${now.toTimeString().slice(0, 5)}\n\n${diary}`,
 				);
 			const self = acceptSelf(output.self);
-			if (self) store.saveSelf(self);
+			if (self) store.saveSelf(self, now);
+			const patterns = acceptPatterns(output.patterns);
+			if (patterns.length)
+				store.saveWalk({ ...store.walk(), selfPatterns: patterns });
 			// 自己記述を何が動かしたか。頭の申告と、実際に変わったかを並べて残す。
 			// 変わったのに申告が無ければ「申告なし」として数える(申告も頭の自己申告なので)
 			const changes = acceptSelfChanges(output.self_changes);

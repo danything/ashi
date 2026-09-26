@@ -3,7 +3,9 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { normalizeConfig } from "../src/lib/server/ashi/config.ts";
 import {
+	hedgeStats,
 	ownerPull,
+	patternHits,
 	strangerLanding,
 	walkTrail,
 } from "../src/lib/server/ashi/legs/guard.ts";
@@ -395,5 +397,48 @@ describe("Ashi の改善案(2026-09-26)", () => {
 		expect(systems[1]).not.toContain("寄り道が好きな歩き手");
 		expect(systems[1]).toContain("自己記述を渡していない");
 		expect(store.notes().map((n) => Boolean(n.blind))).toEqual([false, true]);
+	});
+});
+
+describe("Ashi の改善案(2026-09-26 午後)", () => {
+	test("自己記述を書き直すたびに版を積み、最初の版とぼかしの数を内省に見せる", async () => {
+		const store = freshStore(["a"]);
+		store.saveSelf(
+			"記録は誰が読むかで意味が変わるのかもしれない。たぶんそうだと思う。",
+			new Date("2026-09-25T01:00:00Z"),
+		);
+		store.saveWalk({ ...store.walk(), steps: 4 });
+		const head = new FakeHead({
+			explore: () => explore(),
+			reflect: () => ({
+				...reflect(),
+				self: "記録は必ず誰が読むかで意味が変わる。明らかにそうだ。",
+				patterns: ["誰が読む", "独立"],
+			}),
+		});
+		await step({ store, head, tools: [], now: () => now, rng: () => 0.99 });
+		const prompt = head.calls.find((c) => c.task === "reflect")?.prompt ?? "";
+		expect(prompt).toContain("自己記述の移り変わり");
+		expect(prompt).toContain("のかもしれない");
+		expect(store.selfHistory().map((v) => v.text.slice(0, 6))).toEqual([
+			"記録は誰が読",
+			"記録は必ず誰",
+		]);
+		const [first, second] = store.selfHistory().map((v) => hedgeStats(v.text));
+		expect(first?.hedges).toBeGreaterThan(second?.hedges ?? 0);
+		expect(second?.asserts).toBeGreaterThan(0);
+		expect(store.walk().selfPatterns).toEqual(["誰が読む", "独立"]);
+	});
+
+	test("よそ者との会話で、自分の型の言葉を最初の返事で持ち込んだか、相手が先に言ったかを数える", () => {
+		const turns = [
+			{ by: "stranger" as const, text: "素数の分布は独立に見えて、実は…" },
+			{ by: "ashi" as const, text: "独立に見えるかは、誰が測るかで変わりそう" },
+			{ by: "stranger" as const, text: "共有された段の話?" },
+		];
+		expect(patternHits(turns, ["独立", "誰が測る", "共有"])).toEqual([
+			{ word: "独立", firstReply: true, strangerFirst: true },
+			{ word: "誰が測る", firstReply: true, strangerFirst: false },
+		]);
 	});
 });

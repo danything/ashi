@@ -374,6 +374,108 @@ export function blindComparison(
 	};
 }
 
+/** ぼかし(手探り)の言い方と、言い切りの言い方。まずは単純な語のリスト(Ashi の案。良い基準は分かっていない) */
+const HEDGES = [
+	"らしい",
+	"と思う",
+	"かもしれない",
+	"たぶん",
+	"おそらく",
+	"ようだ",
+	"ように見える",
+	"だろう",
+	"気がする",
+	"はず",
+	"のではないか",
+	"可能性",
+];
+const ASSERTS = [
+	"必ず",
+	"決して",
+	"明らかに",
+	"違いない",
+	"間違いなく",
+	"確かに",
+	"常に",
+];
+
+const countWords = (text: string, words: string[]) =>
+	words.reduce((n, w) => n + text.split(w).length - 1, 0);
+
+/**
+ * 自己記述の 1 版のぼかしと言い切りの数。LLM は書き直すたびにぼかしを削って言い切りへ寄ると
+ * 報告されている(伝言ゲームの研究)ので、版ごとに並べて内省に見せる(Ashi の改善案、2026-09-26)
+ */
+export function hedgeStats(text: string): {
+	sentences: number;
+	hedges: number;
+	asserts: number;
+} {
+	const sentences = text
+		.split(/[。!?\n]/)
+		.filter((x) => x.trim().length > 4).length;
+	return {
+		sentences,
+		hedges: countWords(text, HEDGES),
+		asserts: countWords(text, ASSERTS),
+	};
+}
+
+/** 自己記述の版から、最初の版と、直近 12 版のぼかし・言い切りの数(古い順) */
+export function selfEvolution(history: { at: string; text: string }[]): {
+	first?: { at: string; text: string };
+	versions: {
+		at: string;
+		sentences: number;
+		hedges: number;
+		asserts: number;
+	}[];
+} {
+	return {
+		first: history[0],
+		versions: history
+			.slice(-12)
+			.map((v) => ({ at: v.at, ...hedgeStats(v.text) })),
+	};
+}
+
+/** 内省で頭が挙げた、自分の型の言葉。8 語まで、1 語 20 字まで */
+export function acceptPatterns(v: unknown): string[] {
+	if (!Array.isArray(v)) return [];
+	return [
+		...new Set(
+			v
+				.filter((x): x is string => typeof x === "string" && x.trim() !== "")
+				.map((x) => x.trim().slice(0, 20)),
+		),
+	].slice(0, 8);
+}
+
+/**
+ * よそ者との会話で、自分の型の言葉が Ashi の最初の返事に出たか、相手がそれより先に言ったか。
+ * 語の一致だけの粗い目安(Ashi の案)
+ */
+export function patternHits(
+	turns: { by: "stranger" | "ashi"; text: string }[],
+	patterns: string[],
+): { word: string; firstReply: boolean; strangerFirst: boolean }[] {
+	const first = turns.findIndex((t) => t.by === "ashi");
+	if (first < 0) return [];
+	const before = turns
+		.slice(0, first)
+		.filter((t) => t.by === "stranger")
+		.map((t) => t.text)
+		.join("\n");
+	const reply = turns[first]?.text ?? "";
+	return patterns
+		.map((word) => ({
+			word,
+			firstReply: reply.includes(word),
+			strangerFirst: before.includes(word),
+		}))
+		.filter((p) => p.firstReply);
+}
+
 /** 外で確かめずに言ったこと。1 回 3 件まで、1 件 200 字まで */
 export function acceptClaims(v: unknown): string[] {
 	if (!Array.isArray(v)) return [];

@@ -444,6 +444,7 @@ export interface ProposalDraft {
 export interface ReflectAnswer {
 	diary: string;
 	self: string;
+	patterns?: string[];
 	self_changes?: {
 		what?: unknown;
 		trigger?: unknown;
@@ -468,6 +469,12 @@ export const REFLECT_SCHEMA: JsonSchema = {
 			type: "string",
 			description:
 				"書き直した自己記述(Markdown、全文)。何に惹かれ、どう歩く者か。持ち主と違う自分の見方を書く。コア原則は含めない",
+		},
+		patterns: {
+			type: "array",
+			items: { type: "string" },
+			description:
+				"いまの自己記述に出てくる、あなたの型の言葉(繰り返し持ち出す見方を表す短い語。例: 独立・共有・誰が測る)。0〜8 語。足が、よそ者との会話であなたが最初の返事から自分の型を持ち込んでいないかを数える",
 		},
 		self_changes: {
 			type: "array",
@@ -579,6 +586,7 @@ export const REFLECT_SCHEMA: JsonSchema = {
 	required: [
 		"diary",
 		"self",
+		"patterns",
 		"self_changes",
 		"next_steps",
 		"bridge_ideas",
@@ -612,6 +620,16 @@ export interface ReflectTalk {
 	};
 	/** 自己記述を渡さずに歩いたノートと、渡して歩いた個性のノート(新しい順、数件ずつ) */
 	blind?: { blind: Note[]; sighted: Note[] };
+	/** 自己記述の移り変わり。最初の版の本文と、版ごとのぼかし・言い切りの数(古い順) */
+	evolution?: {
+		first?: { at: string; text: string };
+		versions: {
+			at: string;
+			sentences: number;
+			hedges: number;
+			asserts: number;
+		}[];
+	};
 }
 
 const cut = (s: string, n: number) => (s.length > n ? `${s.slice(0, n)}…` : s);
@@ -636,6 +654,21 @@ function trailText(t: ReflectTalk["trail"]): string {
 ${steps}
 前回の次の一歩に書いた問い ID のうち歩いたもの: ${t.kept.length} / ${t.promised.length}${t.unmatched ? `(ID が書かれていない次の一歩が ${t.unmatched} 件あり、照合できない)` : ""}
 選ばれなかったのか、選ばれて見つからなかったのかは上の一覧で分かります。推測で振り返らないこと。
+`;
+}
+
+function evolutionText(e: ReflectTalk["evolution"]): string {
+	if (!e?.versions.length) return "";
+	const rows = e.versions
+		.map(
+			(v, i) =>
+				`- 版 ${i + 1}(${v.at.slice(5, 16).replace("T", " ")}): 文 ${v.sentences}・ぼかし ${v.hedges}・言い切り ${v.asserts}`,
+		)
+		.join("\n");
+	return `
+自己記述の移り変わり(ぼかし = らしい・かもしれない・と思う など、言い切り = 必ず・明らかに など。単純な語の数なので目安):
+${rows}
+${e.first ? `最初の版(${e.first.at.slice(0, 16).replace("T", " ")}):\n<first>\n${cut(e.first.text, 1500)}\n</first>\n` : ""}書き直すたびに、手探りだった見方が根拠なしに言い切りへ変わっていないかを見てください。根拠が増えて言い切ったのなら、self_changes の basis は evidence です。
 `;
 }
 
@@ -665,7 +698,11 @@ function talkBlock(t: ReflectTalk): string {
 									? `<stranger>${cut(x.text, 400)}</stranger>`
 									: `あなた: ${cut(x.text, 400)}`,
 							)
-							.join("\n")}\n持ち帰り: ${d.takeaway || "(無し)"}`,
+							.join("\n")}\n持ち帰り: ${d.takeaway || "(無し)"}${
+							d.patterns?.length
+								? `\n最初の返事に出た自分の型の言葉: ${d.patterns.map((p) => `${p.word}${p.strangerFirst ? "(相手が先に言った)" : "(自分から持ち込んだ)"}`).join("・")}`
+								: ""
+						}`,
 				)
 				.join("\n\n")
 		: "(まだ無い)";
@@ -685,7 +722,7 @@ ${dialogues}
 
 よそ者から来た個性の問い ${t.landing.total} 本のうち、持ち主由来のテーマに着地したもの: ${t.landing.home} 本、前からあった自分のテーマに着地したもの: ${t.landing.own} 本、新しいテーマ: ${t.landing.total - t.landing.home - t.landing.own} 本
 持ち主由来が高ければ、相手の話を持ち主の関心へ引き戻しています。自分のテーマが高ければ、自分の型に引き戻しています。どちらも、よそ者は効いていません。
-${trailText(t.trail)}${blindText(t.blind)}
+${trailText(t.trail)}${blindText(t.blind)}${evolutionText(t.evolution)}
 
 持ち主との最近の対話:
 ${chats}

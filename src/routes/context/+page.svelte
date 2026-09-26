@@ -58,6 +58,12 @@ const BRIDGES_SHOWN = 6;
 								{#each d.turns as t, k (k)}
 									<p class="small turn {t.by}"><strong>{t.by === "ashi" ? "Ashi" : d.field}</strong>{t.text}</p>
 								{/each}
+								{#if d.patterns?.length}
+									<p class="tiny muted">
+										最初の返事に出た自分の型の言葉:
+										{#each d.patterns as p (p.word)}<span class="tag {p.strangerFirst ? '' : 'warn'}">{p.word}{p.strangerFirst ? "(相手が先)" : "(自分から)"}</span>{/each}
+									</p>
+								{/if}
 								{#if d.added.length}
 									<div>
 										<p class="tiny muted">生まれた問い</p>

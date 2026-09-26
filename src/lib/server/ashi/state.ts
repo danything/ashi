@@ -8,6 +8,7 @@ import {
 	readFileSync,
 	renameSync,
 	rmSync,
+	statSync,
 	writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
@@ -219,6 +220,8 @@ export interface Walk {
 	stances?: { at: string; text: string }[];
 	/** 個性(self)の系統を歩いた回数。selfBlindEvery 回に 1 回、自己記述を渡さずに歩く */
 	selfWalks?: number;
+	/** 内省で頭が挙げた、自分の型の言葉。よそ者との会話で持ち込んでいないかを数える */
+	selfPatterns?: string[];
 	/** この時刻までは起きない(ISO) */
 	sleepingUntil?: string;
 	/** init のとき、または人が `ashi core --accept` したときの core.md のハッシュ */
@@ -410,8 +413,33 @@ export class Store {
 		return this.readText("self.md");
 	}
 
-	saveSelf(body: string): void {
+	/**
+	 * 自己記述を書き直す。前の版も self-history.jsonl に積む(毎回まるごと置き換えるので、手探りだった見方が
+	 * いつ言い切りに変わったか追えなかった。Ashi の改善案、2026-09-26)。記録が無いときは、今の版を先に積む
+	 */
+	saveSelf(body: string, now: Date = new Date()): void {
+		const hist = this.path("self-history.jsonl");
+		if (!existsSync(hist) && existsSync(this.path("self.md"))) {
+			const prev = this.readText("self.md");
+			if (prev.trim() && prev !== DEFAULT_SELF)
+				appendFileSync(
+					hist,
+					`${JSON.stringify({ at: statSync(this.path("self.md")).mtime.toISOString(), text: prev })}\n`,
+				);
+		}
+		appendFileSync(
+			hist,
+			`${JSON.stringify({ at: now.toISOString(), text: body })}\n`,
+		);
 		this.writeText("self.md", body);
+	}
+
+	/** 自己記述の版。古い順 */
+	selfHistory(): { at: string; text: string }[] {
+		return tailJsonl<{ at: string; text: string }>(
+			this.path("self-history.jsonl"),
+			10_000,
+		).reverse();
 	}
 
 	owner(): string {
@@ -657,6 +685,7 @@ export class Store {
 			"self.md",
 			"bridges.json",
 			"dialogues.jsonl",
+			"self-history.jsonl",
 			"log.jsonl",
 			"walk.json",
 		]) {
@@ -707,6 +736,11 @@ export interface Dialogue {
 	added: string[];
 	/** Ashi が会話から持ち帰ったこと(ひとこと) */
 	takeaway: string;
+	/**
+	 * 自分の型の言葉(内省で頭が挙げたもの)が、Ashi の最初の返事に出たか・相手が先に言ったか。
+	 * テーマ名が新しくても、中身が自分の型のままのことがあった(Ashi の改善案、2026-09-26)
+	 */
+	patterns?: { word: string; firstReply: boolean; strangerFirst: boolean }[];
 }
 
 export interface ChatEntry {

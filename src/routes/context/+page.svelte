@@ -14,6 +14,10 @@ const BRIDGES_SHOWN = 6;
 <!-- 自分(自己記述)と持ち主の地図を並べる。個性が持ち主の写しになっていないかを見比べられるように -->
 <div class="panes">
 	<section class="pane">
+		<div class="pane-head">
+			<span class="pane-name">自分</span>
+			<span class="hint" title="頭が内省のたびに書き直す自己記述と、次の一歩・よそ者との対話・橋の候補">内省のたびに書き直す自己記述と、次の一歩・よそ者との対話・橋の候補</span>
+		</div>
 		{#if !data.coreOk}
 			<p class="note warn small">
 				core.md が承認なしに変わっている。足は歩くのを止めている。サーバーで <code>ashi core --accept</code> を実行すると再開する。

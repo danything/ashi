@@ -303,12 +303,39 @@ a.button.big {
 		padding: 1rem 1.1rem;
 	}
 }
-/* 枠の上の操作の行(検索・ボタン・数の札) */
+/*
+ * 枠の頭の行。どの枠も同じ型にそろえる(左右で頭の有無や形が違い、中身の始まりがずれていた):
+ *   枠の名前(.pane-name)・件数(.count)・説明(.hint、1 行で切る)・右端に操作
+ * 高さを決めて 1 行に収め、隣の枠と中身の始まりをそろえる
+ */
 .pane-head {
 	display: flex;
-	flex-wrap: wrap;
+	flex: none;
 	align-items: center;
-	gap: 0.4rem 0.6rem;
+	gap: 0.6rem;
+	min-height: 2.25rem;
+}
+.pane-name {
+	flex: none;
+	font-size: 0.95rem;
+	font-weight: 700;
+}
+.pane-head .count {
+	flex: none;
+	color: var(--ui-muted);
+	font-size: 0.85rem;
+}
+.pane-head .hint {
+	flex: 1 1 0;
+	min-width: 0;
+	overflow: hidden;
+	color: var(--ui-muted);
+	font-size: 0.8rem;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.pane-head > :is(form, a, button, .tag) {
+	flex: none;
 }
 .pane-head form {
 	margin: 0;

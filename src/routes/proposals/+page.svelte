@@ -12,6 +12,11 @@ let { data } = $props();
 <h1 class="sr-only">直すこと</h1>
 <div class="panes">
 <section class="pane">
+	<div class="pane-head">
+		<span class="pane-name">改善案</span>
+		<span class="count">{data.open.length} 件</span>
+		<span class="hint" title="Ashi が内省で、自分の仕組みについて出した注文。直すかは持ち主が決める">Ashi が内省で出した、自分の仕組みへの注文。直すかは持ち主が決める</span>
+	</div>
 
 	{#each data.open as p (p.id)}
 		<article class="panel item">
@@ -51,7 +56,7 @@ let { data } = $props();
 			</div>
 		</article>
 	{:else}
-		<div class="panel"><p class="empty">いま開いている改善案は無い。内省のたびに Ashi が気づいたことを書く。</p></div>
+		<div class="panel"><p class="empty">いま開いている改善案は無い。</p></div>
 	{/each}
 
 	{#if data.done.length}

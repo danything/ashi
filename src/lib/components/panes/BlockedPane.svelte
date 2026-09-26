@@ -17,7 +17,9 @@ const SOURCE: Record<string, string> = {
 </script>
 
 <div class="pane-head">
-	<span class="grow tiny muted">弾かれたこと {data.open.length} 件。同じ先がうまくいったら自動で片づく</span>
+	<span class="pane-name">弾かれたこと</span>
+	<span class="count">{data.open.length} 件</span>
+	<span class="hint" title="権限・鍵・ログインが足りずに進めなかったこと。同じ先がうまくいったら自動で片づく">持ち主が権限を足せば進めること。うまくいったら自動で片づく</span>
 	<a class="button outline mini" href="https://github.com/danything/ashi/blob/main/docs/permissions.md" rel="noopener noreferrer" target="_blank">権限の付け方</a>
 </div>
 
@@ -37,9 +39,7 @@ const SOURCE: Record<string, string> = {
 		</form>
 	</article>
 {:else}
-	<div class="panel all-clear">
-		<span class="tag ok"><Icon name="check" size={0.9} />いま弾かれていることは無い</span>
-	</div>
+	<div class="panel"><p class="empty">いま弾かれていることは無い。</p></div>
 {/each}
 
 {#if data.closed.length}
@@ -74,10 +74,5 @@ const SOURCE: Record<string, string> = {
 	}
 	form {
 		margin: 0;
-	}
-	.all-clear {
-		display: flex;
-		justify-content: center;
-		padding: 1.5rem;
 	}
 </style>

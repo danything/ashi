@@ -38,8 +38,9 @@ const columns = $derived([
 		{#each columns as c (c.track)}
 			<section class="pane">
 				<div class="pane-head">
-					<span class="tag {c.track === 'owner' ? 'info' : 'accent'}">{TRACK_LABEL[c.track]} {c.qs.length} 本</span>
-					<span class="tiny muted grow">{c.hint}</span>
+					<span class="pane-name">{TRACK_LABEL[c.track]}</span>
+					<span class="tag {c.track === 'owner' ? 'info' : 'accent'}">{c.qs.length} 本</span>
+					<span class="hint" title={c.hint}>{c.hint}</span>
 					{#if c.track === "self"}
 						<span class="tag" title="個性の問いのうち、親をたどって先回りの問い・持ち主の地図・持ち主との対話・X での持ち主との会話に行き着くもの。問い探しから生まれたもの・記録の無いものは分母に入れない">持ち主から {data.pull.fromOwner} / {data.pull.known}</span>
 						{#if data.landing.total}

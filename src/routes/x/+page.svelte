@@ -18,6 +18,10 @@ let posting = $state(false);
 	<!-- 左に設定と今日の数、右に会話。会話は枠の中でスクロールする -->
 	<div class="panes">
 	<section class="pane">
+	<div class="pane-head">
+		<span class="pane-name">設定</span>
+		<span class="hint" title="投稿も返信も Ashi が自分で決める。ほかの人との会話は個性の材料になり、持ち主の地図には入らない">投稿も返信も Ashi が自分で決める。ほかの人との会話は個性の材料になる</span>
+	</div>
 	<div class="two">
 		<section class="panel">
 			<div class="panel-head">
@@ -130,8 +134,11 @@ let posting = $state(false);
 	</details>
 	</section>
 	<section class="pane">
+	<div class="pane-head">
+		<span class="pane-name">会話</span>
+		<span class="count">{data.conversations.length} 件</span>
+	</div>
 	<section class="panel">
-		<div class="panel-head"><h2>会話({data.conversations.length})</h2></div>
 		{#if data.conversations.length}
 			<div class="stack tight">
 				{#each data.conversations as c (c.id)}

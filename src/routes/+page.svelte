@@ -92,11 +92,13 @@ const EVENTS: Record<string, string> = {
 
 	<!-- 3 つを並べ、枠ごとにスクロールする(足どりが下に長く伸びていた) -->
 	<div class="panes" style="--cols: 3">
-		<section class="panel pane">
-			<div class="panel-head">
-				<h2>次に歩きそうな問い</h2>
-				<a href="/questions">すべて</a>
+		<section class="pane">
+			<div class="pane-head">
+				<span class="pane-name">次に歩きそうな問い</span>
+				<span class="hint"></span>
+				<a class="small" href="/questions">すべて</a>
 			</div>
+			<div class="panel">
 			{#if data.next.length}
 				<ul class="rows">
 					{#each data.next as q (q.id)}
@@ -110,13 +112,16 @@ const EVENTS: Record<string, string> = {
 			{:else}
 				<p class="empty">まだ無い。次の 1 歩で頭が問いを探す。</p>
 			{/if}
+			</div>
 		</section>
 
-		<section class="panel pane">
-			<div class="panel-head">
-				<h2>最近のノート</h2>
-				<a href="/notes">すべて</a>
+		<section class="pane">
+			<div class="pane-head">
+				<span class="pane-name">最近のノート</span>
+				<span class="hint"></span>
+				<a class="small" href="/notes">すべて</a>
 			</div>
+			<div class="panel">
 			{#if data.notes.length}
 				<ul class="rows">
 					{#each data.notes as n (n.id)}
@@ -132,10 +137,12 @@ const EVENTS: Record<string, string> = {
 			{:else}
 				<p class="empty">まだ無い。</p>
 			{/if}
+			</div>
 		</section>
 
-	<section class="panel pane">
-		<div class="panel-head"><h2>足どり</h2></div>
+	<section class="pane">
+		<div class="pane-head"><span class="pane-name">足どり</span></div>
+		<div class="panel">
 		{#if data.log.length}
 			<ol class="timeline">
 				{#each data.log as e, i (i)}
@@ -158,7 +165,8 @@ const EVENTS: Record<string, string> = {
 		{:else}
 			<p class="empty">まだ歩いていない。</p>
 		{/if}
-	</section>
+		</div>
+		</section>
 	</div>
 </div>
 

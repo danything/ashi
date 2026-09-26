@@ -20,8 +20,9 @@ const KIND: Record<string, string> = {
 </script>
 
 <div class="pane-head">
-	<span class="grow tiny muted">
-		持ち主の興味の地図。発言・渡した文章・足跡から頭が書き直す{data.pending > 0 ? `(新しい材料 ${data.pending} 件、${data.profileEvery} 歩ごと)` : ""}
+	<span class="pane-name">持ち主の地図</span>
+	<span class="hint" title="あなたの発言・渡した文章・足跡から頭が書き直す">
+		発言・渡した文章・足跡から頭が書き直す{data.pending > 0 ? `(新しい材料 ${data.pending} 件、${data.profileEvery} 歩ごと)` : ""}
 	</span>
 	<form method="POST" action="/owner?/reprofile" use:enhance>
 		<button type="submit" class="outline mini"><Icon name="sparkles" size={0.9} />書き直させる</button>

@@ -12,6 +12,8 @@ let { data } = $props();
 <div class="panes">
 	<section class="pane">
 		<div class="pane-head">
+			<span class="pane-name">ノート</span>
+			<span class="count">{data.notes.length} 件</span>
 			<!-- Pico の role="group" で入力欄とボタンを 1 つにつなげる -->
 			<form method="GET" class="search">
 				<input type="hidden" name="day" value={data.diary.day ?? ""} />

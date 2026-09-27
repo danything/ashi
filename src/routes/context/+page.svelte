@@ -29,6 +29,18 @@ const BRIDGES_SHOWN = 6;
 			<div class="prose">{@html data.self}</div>
 		</section>
 
+		{#if data.corrections.length}
+			<section class="panel">
+				<div class="panel-head">
+					<h2>あなたに伝えていない訂正({data.corrections.length})</h2>
+					<span class="tag warn">次に話すときに伝える</span>
+				</div>
+				<ul class="rows">
+					{#each data.corrections as c (c.id)}<li class="small">{c.text}</li>{/each}
+				</ul>
+			</section>
+		{/if}
+
 		<section class="panel">
 			<div class="panel-head">
 				<h2>次の一歩</h2>

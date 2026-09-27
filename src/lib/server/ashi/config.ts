@@ -100,6 +100,11 @@ export interface Config {
 		keepDays: number;
 	};
 	/**
+	 * 持ち主に言ったことの訂正を、話すときにどう出すか。first: 話題に関係なく、会話の最初に短く先に出す /
+	 * relevant: 関係する話題になったときだけ出す
+	 */
+	ownerCorrections: "first" | "relevant";
+	/**
 	 * 個性の系統をこの回数歩くごとに 1 回、自己記述を渡さずに歩く(0 で止める)。
 	 * 自己記述が毎回入っていると、見つけた型が世界の側のものか、自己記述が探させたものかを区別できない
 	 */
@@ -146,6 +151,7 @@ export const DEFAULT_CONFIG: Config = {
 	},
 	stranger: { enabled: true, model: "claude-sonnet-5", turns: 3 },
 	selfBlindEvery: 5,
+	ownerCorrections: "first",
 	news: {
 		enabled: true,
 		feeds: [
@@ -271,6 +277,7 @@ export function normalizeConfig(raw: unknown): Config {
 			everyHours: clamp(r.news?.everyHours, 1, 24 * 7, d.news.everyHours),
 			keepDays: clamp(r.news?.keepDays, 1, 30, d.news.keepDays),
 		},
+		ownerCorrections: r.ownerCorrections === "relevant" ? "relevant" : "first",
 		selfBlindEvery: Math.round(
 			clamp(r.selfBlindEvery, 0, 100, d.selfBlindEvery),
 		),

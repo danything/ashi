@@ -205,7 +205,7 @@ export const EXPLORE_SCHEMA: JsonSchema = {
 		correction: {
 			type: "string",
 			description:
-				"X で確かめずに言ったことを確かめる問いのときだけ使う。言ったことが違っていたら、その返信に付ける訂正の文(日本語 140 字以内、X の話し方)。合っていた・この問いがそれでないなら空",
+				"外で確かめずに言ったことを確かめる問いのときだけ使う。言ったことが違っていた・弱かったら、訂正の文を書く。X で言ったことなら、その返信に付ける文(日本語 140 字以内、X の話し方)。持ち主に言ったことなら、次に話すときに持ち主に伝える文(何を言って、何が違ったか)。合っていた・この問いがそれでないなら空",
 		},
 		...SLEEP_FIELDS,
 	},
@@ -444,6 +444,7 @@ export interface ProposalDraft {
 export interface ReflectAnswer {
 	diary: string;
 	self: string;
+	owner_corrections?: string[];
 	patterns?: string[];
 	self_changes?: {
 		what?: unknown;
@@ -469,6 +470,12 @@ export const REFLECT_SCHEMA: JsonSchema = {
 			type: "string",
 			description:
 				"書き直した自己記述(Markdown、全文、4000 字まで。超えると保存されず、前の版のまま残る)。何に惹かれ、どう歩く者か。持ち主と違う自分の見方を書く。コア原則は含めない",
+		},
+		owner_corrections: {
+			type: "array",
+			items: { type: "string" },
+			description:
+				"持ち主に言ったことのうち、あとで外れていた・弱かったと分かったもの(何を言って、何が違ったか。1 件 1 文〜2 文)。足が溜めて、次に持ち主と話すときに見せる。無ければ空",
 		},
 		patterns: {
 			type: "array",
@@ -586,6 +593,7 @@ export const REFLECT_SCHEMA: JsonSchema = {
 	required: [
 		"diary",
 		"self",
+		"owner_corrections",
 		"patterns",
 		"self_changes",
 		"next_steps",
@@ -973,6 +981,7 @@ export interface ChatAnswer {
 	reply: string;
 	stances?: string[];
 	unverified?: string[];
+	delivered_corrections?: string[];
 	new_questions: NewQuestion[];
 	crawl: string[];
 }
@@ -986,6 +995,12 @@ export const CHAT_SCHEMA: JsonSchema = {
 			items: { type: "string" },
 			description:
 				"この返事で、ノートで確かめていない事実を記憶だけで言ったもの(「たしか〜」「記憶で言うと〜」と断ったものも含む)を 1 文ずつ。足が確かめる問いにして控える。断り書きは確かめずに済ませる許可ではない。無ければ空",
+		},
+		delivered_corrections: {
+			type: "array",
+			items: { type: "string" },
+			description:
+				"この返事で持ち主に伝えた訂正の ID(下の「持ち主に伝えていない訂正」の [ ] の中)。足が台帳から消す。無ければ空",
 		},
 		stances: {
 			type: "array",
@@ -1001,9 +1016,31 @@ export const CHAT_SCHEMA: JsonSchema = {
 		},
 		...CRAWL_FIELD,
 	},
-	required: ["reply", "stances", "unverified", "new_questions", "crawl"],
+	required: [
+		"reply",
+		"stances",
+		"unverified",
+		"delivered_corrections",
+		"new_questions",
+		"crawl",
+	],
 	additionalProperties: false,
 };
+
+/** 持ち主に伝えていない訂正を、話すときに見せる形 */
+export function correctionsBlock(
+	items: { id: string; text: string; at: string }[],
+	mode: "first" | "relevant",
+): string {
+	if (!items.length) return "";
+	return `持ち主に伝えていない訂正(前に持ち主に言ったことのうち、あとで外れていた・弱かったと分かったもの):
+${items.map((c) => `- [${c.id}] ${c.text}`).join("\n")}
+${
+	mode === "first"
+		? "持ち主の話題に関係なく、返事の最初に短く伝えてください(持ち主がそう決めています)。"
+		: "持ち主の話がこの訂正に関係するときに伝えてください。"
+} 伝えたら delivered_corrections に ID を入れてください(足が台帳から消します)。`;
+}
 
 export function chatPrompt(
 	message: string,
@@ -1012,6 +1049,7 @@ export function chatPrompt(
 	feeds: string,
 	blockers: string,
 	news = "",
+	corrections = "",
 ): string {
 	return `持ち主が話しかけています。いまは歩いておらず、持ち主と話しています。
 何を学んだか、どこを歩いているかを聞かれたら、ノート(search_notes / read_note)を引いて答えてください。
@@ -1029,7 +1067,7 @@ ${feedsBlock(feeds)}
 
 いま弾かれていること(権限・鍵・課金。聞かれたら、何をすれば進めるかも添えて答える):
 ${blockers}
-${news ? `\n${news}\n` : ""}
+${news ? `\n${news}\n` : ""}${corrections ? `\n${corrections}\n` : ""}
 持ち主: ${message}`;
 }
 

@@ -9,6 +9,7 @@ import {
 	CHAT_SCHEMA,
 	type ChatAnswer,
 	chatPrompt,
+	correctionsBlock,
 	system,
 } from "../prompts.ts";
 import { localDay, type Store } from "../state.ts";
@@ -105,6 +106,10 @@ export async function chat(
 				feedStatus(store, now),
 				blockersText(store),
 				newsBlock(store.news().items),
+				correctionsBlock(
+					store.walk().ownerCorrections ?? [],
+					cfg.ownerCorrections,
+				),
 			),
 			schema: CHAT_SCHEMA,
 			tools: ctx.tools.filter((t) => t.readOnly === true),
@@ -146,6 +151,15 @@ export async function chat(
 			...w,
 			crawlRequests: [...new Set([...w.crawlRequests, ...crawl])],
 			stances: addStances(w.stances, output.stances, now),
+			// 伝えた訂正は台帳から消す
+			ownerCorrections: (w.ownerCorrections ?? []).filter(
+				(c) =>
+					!(
+						Array.isArray(output.delivered_corrections)
+							? output.delivered_corrections
+							: []
+					).includes(c.id),
+			),
 		});
 		const reply = String(output.reply ?? "").trim() || "(返事が空でした)";
 		store.appendChat({

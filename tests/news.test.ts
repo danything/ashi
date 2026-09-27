@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { chat, chatInFlight } from "../src/lib/server/ashi/legs/chat.ts";
+import { markedClaims } from "../src/lib/server/ashi/legs/guard.ts";
 import {
 	mergeNews,
 	newsBlock,
 	refreshNews,
 } from "../src/lib/server/ashi/legs/news.ts";
+import { step } from "../src/lib/server/ashi/legs/walk.ts";
 import { FakeHead, freshStore } from "./helpers.ts";
 
 const now = new Date("2026-09-26T12:00:00+09:00");
@@ -130,6 +132,75 @@ describe("話す: 画面を移っても消えない", () => {
 		expect(chatInFlight("持ち主")).toBeUndefined();
 		expect(store.recentChats(1)[0]?.added).toEqual([
 			"台風の進路予報はどう作られるか",
+		]);
+	});
+});
+
+describe("持ち主への訂正の台帳", () => {
+	test("内省で気づいた訂正を溜め、話すときに先に出させ、伝えたら消す", async () => {
+		const store = freshStore(["a"]);
+		store.saveWalk({ ...store.walk(), steps: 4 });
+		const walker = new FakeHead({
+			explore: () => ({
+				title: "t",
+				summary: "s",
+				findings: "f",
+				answered: false,
+				new_questions: [],
+				tiredness: 0.2,
+				sleep_minutes: 30,
+			}),
+			reflect: () => ({
+				diary: "d",
+				self: "私は寄り道が好きな歩き手で、問いの連鎖を追うのが楽しい。",
+				next_steps: [],
+				bridge_ideas: [],
+				proposals: [],
+				posts: [],
+				merges: [],
+				themes: [],
+				owner_corrections: [
+					"自分の話が報酬になる研究は追試で再現しなかった、と前に言い損ねた",
+				],
+			}),
+		});
+		await step({
+			store,
+			head: walker,
+			tools: [],
+			now: () => now,
+			rng: () => 0.99,
+		});
+		const [c] = store.walk().ownerCorrections ?? [];
+		expect(c?.text).toContain("追試で再現しなかった");
+		const head = new FakeHead({
+			chat: () => ({
+				reply: "先に訂正です",
+				stances: [],
+				unverified: [],
+				delivered_corrections: [c?.id],
+				new_questions: [],
+				crawl: [],
+			}),
+		});
+		await chat(
+			{ store, head, tools: [], now: () => now },
+			"持ち主",
+			[],
+			"こんにちは",
+		);
+		expect(head.calls[0]?.prompt).toContain("返事の最初に短く伝えてください");
+		expect(head.calls[0]?.prompt).toContain(c?.id ?? "?");
+		expect(store.walk().ownerCorrections).toEqual([]);
+	});
+
+	test("印だけの文は直前の主張と合わせて 1 本にし、断った文は拾わない", () => {
+		expect(
+			markedClaims([
+				"ハキリアリは、菌を枯らす葉を運ばなくなる回避学習をするらしい。うろ覚えだけど。確かめたことにしないでおくね。",
+			]),
+		).toEqual([
+			"ハキリアリは、菌を枯らす葉を運ばなくなる回避学習をするらしい。うろ覚えだけど。",
 		]);
 	});
 });

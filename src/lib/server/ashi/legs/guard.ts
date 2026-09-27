@@ -558,6 +558,32 @@ export function missedPromises(
 	});
 }
 
+/** 持ち主への訂正を台帳に足す(ほぼ同じものは重ねない、20 件まで) */
+export function addOwnerCorrections(
+	prev:
+		| { id: string; text: string; at: string; questionId?: string }[]
+		| undefined,
+	texts: unknown,
+	now: Date,
+	questionId?: string,
+): { id: string; text: string; at: string; questionId?: string }[] {
+	const out = [...(prev ?? [])];
+	for (const t of (Array.isArray(texts) ? texts : [texts]).slice(0, 5)) {
+		if (typeof t !== "string" || !t.trim()) continue;
+		const text = t.trim().slice(0, 400);
+		const g = bigrams(text);
+		if (out.some((c) => jaccard(g, bigrams(c.text)) >= NEAR_DUPLICATE))
+			continue;
+		out.push({
+			id: newId(),
+			text,
+			at: now.toISOString(),
+			...(questionId ? { questionId } : {}),
+		});
+	}
+	return out.slice(-20);
+}
+
 /** 外で確かめずに言ったこと。1 回 8 件まで、1 件 200 字まで(3 件で切って取りこぼしていた) */
 export function acceptClaims(v: unknown): string[] {
 	if (!Array.isArray(v)) return [];
@@ -598,7 +624,28 @@ const DECLINED = [
 	"避ける",
 	"断定しない",
 	"断言しない",
+	"しないでおく",
+	"ことにしない",
+	"数えない",
 ];
+
+/** 印と前置き・語尾を除いた中身の長さ。短ければ、印だけの文(「うろ覚えだけど。」) */
+const substance = (s: string) =>
+	[
+		...UNVERIFIED_MARKS,
+		"だけど",
+		"けど",
+		"ですが",
+		"だが",
+		"ね",
+		"よ",
+		"です",
+		"ます",
+		"で言う",
+		"言います",
+	]
+		.reduce((x, w) => x.split(w).join(""), s)
+		.replace(/[\s\p{P}\p{S}]/gu, "").length;
 
 /**
  * 発言の中から、自分で「確かめていない」の印を付けた文を抜き出す。頭の申告(unverified)だけに頼ると、
@@ -607,17 +654,38 @@ const DECLINED = [
 export function markedClaims(texts: string[]): string[] {
 	const out: string[] = [];
 	for (const t of texts) {
-		for (const s of t.split(/(?<=[。!?!?])|\n/)) {
-			const x = s.trim();
+		const sentences = t
+			.split(/(?<=[。!?!?])|\n/)
+			.map((x) => x.trim())
+			.filter(Boolean);
+		sentences.forEach((x, i) => {
 			if (
-				x.length >= 8 &&
-				UNVERIFIED_MARKS.some((m) => x.includes(m)) &&
-				!DECLINED.some((d) => x.includes(d))
+				!UNVERIFIED_MARKS.some((m) => x.includes(m)) ||
+				DECLINED.some((d) => x.includes(d))
 			)
-				out.push(x.slice(0, 200));
-		}
+				return;
+			// 印だけの文(「うろ覚えだけど。」)は、直前の文が主張の本体。合わせて 1 本にする
+			// (印の文だけを拾い、中身の無い確かめの問いが積まれていた。Ashi の改善案、2026-09-27)
+			if (substance(x) < 12) {
+				const prev = sentences[i - 1];
+				if (
+					prev &&
+					!DECLINED.some((d) => prev.includes(d)) &&
+					substance(prev) >= 12
+				)
+					out.push(`${prev}${x}`.slice(0, 200));
+				return;
+			}
+			out.push(x.slice(0, 200));
+		});
 	}
-	return [...new Set(out)].slice(0, CLAIMS_MAX);
+	// 同じ主張から出た近い候補は 1 本に
+	const uniq: string[] = [];
+	for (const c of out) {
+		const g = bigrams(c);
+		if (!uniq.some((u) => jaccard(g, bigrams(u)) >= SIMILAR)) uniq.push(c);
+	}
+	return uniq.slice(0, CLAIMS_MAX);
 }
 
 /** 頭の申告と足が拾ったものを合わせる(ほぼ同じ文は 1 つに) */

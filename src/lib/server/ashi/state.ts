@@ -227,6 +227,16 @@ export interface Walk {
 	selfWalks?: number;
 	/** 内省で頭が挙げた、自分の型の言葉。よそ者との会話で持ち込んでいないかを数える */
 	selfPatterns?: string[];
+	/**
+	 * 持ち主に言ったことの訂正で、まだ伝えていないもの。話すときに頭に見せ、伝えたら消す
+	 * (持ち主が話題を振らないと訂正を出す機会が無かった。Ashi の改善案、2026-09-27)
+	 */
+	ownerCorrections?: {
+		id: string;
+		text: string;
+		at: string;
+		questionId?: string;
+	}[];
 	/** 型の当たり率の基準線を最後に測った日(1 日 1 回。legs/baseline.ts) */
 	lastBaselineDay?: string;
 	/**

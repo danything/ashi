@@ -41,6 +41,7 @@ import {
 	acceptSelf,
 	acceptSelfChanges,
 	addBridgeIdeas,
+	addOwnerCorrections,
 	allowance,
 	applyMerges,
 	blindComparison,
@@ -482,6 +483,19 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 					await raiseBlocker(store, "x", xBlockage(e), now, notify);
 				}
 			}
+			// 持ち主に言ったことが違っていたら、訂正を台帳に溜める(次に話すときに頭に見せる)
+			if (!q.origin && q.verify && q.source === "chat" && correction) {
+				const w2 = store.walk();
+				store.saveWalk({
+					...w2,
+					ownerCorrections: addOwnerCorrections(
+						w2.ownerCorrections,
+						correction,
+						now,
+						q.id,
+					),
+				});
+			}
 			store.log("walked", {
 				questionId: q.id,
 				question: q.text,
@@ -645,6 +659,21 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 			// 捨てたときは黙らない。記録し、次の内省で頭に伝える
 			if (rawSelf && !self)
 				store.log("self-rejected", { length: rawSelf.length, max: SELF_MAX });
+			// 内省で気づいた、持ち主に言ったことの訂正も台帳へ
+			if (
+				Array.isArray(output.owner_corrections) &&
+				output.owner_corrections.length
+			) {
+				const w3 = store.walk();
+				store.saveWalk({
+					...w3,
+					ownerCorrections: addOwnerCorrections(
+						w3.ownerCorrections,
+						output.owner_corrections,
+						now,
+					),
+				});
+			}
 			const patterns = acceptPatterns(output.patterns);
 			if (patterns.length)
 				store.saveWalk({ ...store.walk(), selfPatterns: patterns });

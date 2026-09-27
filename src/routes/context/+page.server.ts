@@ -16,6 +16,7 @@ export const load: PageServerLoad = () => {
 		system: system(core, store.self(), store.owner()),
 		config: JSON.stringify(store.config(), null, 2),
 		intentions: store.walk().intentions ?? [],
+		corrections: store.walk().ownerCorrections ?? [],
 		bridges: store.bridgeIdeas().slice().reverse(),
 		stranger: store.config().stranger,
 		dialogues: store.recentDialogues(5),

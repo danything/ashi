@@ -626,9 +626,9 @@ export interface ReflectTalk {
 	baseline?: {
 		at: string;
 		patterns: string[];
-		external: { hits: number; total: number; docs: number };
-		blind: { hits: number; total: number; docs: number };
-		mine: { hits: number; total: number; docs: number };
+		external: { hits: number; total: number; docs: number; carried?: number };
+		blind: { hits: number; total: number; docs: number; carried?: number };
+		mine: { hits: number; total: number; docs: number; carried?: number };
 	}[];
 	/** 直前の内省で、自己記述がどうなったか */
 	lastSelf?: {
@@ -636,6 +636,7 @@ export interface ReflectTalk {
 		result: "saved" | "unchanged" | "rejected" | "missing";
 		length?: number;
 		declared: number;
+		unapplied?: string[];
 	};
 	/** 自己記述の移り変わり。最初の版の本文と、版ごとのぼかし・言い切りの数(古い順) */
 	evolution?: {
@@ -663,7 +664,10 @@ function lastSelfText(l: ReflectTalk["lastSelf"]): string {
 		rejected: `**前回の内省(${when})で返した自己記述は${l.length ? ` ${l.length} 字で、` : ""}上限 4000 字を超えたので保存されていない**${declared}。いまの自己記述はその前の版のまま。今回は 4000 字に収めて書き直すこと。`,
 		missing: `前回の内省(${when})では自己記述が返っていなかった。`,
 	}[l.result];
-	return `\n${line}\n`;
+	const unapplied = l.unapplied?.length
+		? `\n未反映の直し(保存されなかった版で申告したもの。今回入れるか決める):\n${l.unapplied.map((u) => `- ${u}`).join("\n")}`
+		: "";
+	return `\n${line}${unapplied}\n`;
 }
 
 function trailText(t: ReflectTalk["trail"]): string {
@@ -697,9 +701,14 @@ ${
 function baselineText(bs: ReflectTalk["baseline"]): string {
 	if (!bs?.length) return "";
 	// docs が -1 は本数を記録する前の測り方(外の文章と自分のノートだけを比べていた)
-	const pct = (x: { hits: number; total: number; docs: number }) =>
+	const pct = (x: {
+		hits: number;
+		total: number;
+		docs: number;
+		carried?: number;
+	}) =>
 		x.total
-			? `${x.hits}/${x.total}(${Math.round((x.hits / x.total) * 100)}%${x.docs >= 0 ? `、${x.docs} 本` : ""})`
+			? `${x.hits}/${x.total}(${Math.round((x.hits / x.total) * 100)}%${x.docs >= 0 ? `、${x.docs} 本` : ""}${x.carried ? `、うち ${x.carried} 本は元の問いの文に型の言葉が入っていた` : ""})`
 			: x.docs > 0
 				? "(判定が返らなかった)"
 				: "(比べる文章がまだ無い)";
@@ -716,7 +725,7 @@ function baselineText(bs: ReflectTalk["baseline"]): string {
 	return `
 型の当たり率の基準線(自己記述を渡さない頭が、どれの文章か知らずに判定。型: ${now.patterns.join(" / ")}):
 ${row(now, "今回")}${prev ? `\n${row(prev, "前回")}` : ""}
-渡して書いたノートでだけ高く、対照では低いなら、型を持ち込んで書いている可能性があります。対照でも同じくらいなら、その型は歩いた先の側にあるのかもしれません。本数が少ないうちは、どちらとも言えません。
+渡して書いたノートでだけ高く、対照では低いなら、型を持ち込んで書いている可能性があります。対照でも、元の問いの文に型の言葉が入っていたものは、問いが型を運んだだけかもしれません。対照でも同じくらいなら、その型は歩いた先の側にあるのかもしれません。本数が少ないうちは、どちらとも言えません。
 `;
 }
 
@@ -886,6 +895,26 @@ ${recentNotes(notes)}
 今日の日記(ここまで):
 ${todayDiary.trim() || "(まだ無い)"}`;
 }
+
+/** 自己記述が上限を超えたとき、同じ内省の中で縮めさせる */
+export function shrinkSelfPrompt(self: string, max: number): string {
+	return `いま書き直した自己記述が ${self.length} 字で、上限の ${max} 字を超えています。このままだと保存されません。
+中身の直し(今回決めたこと)は残したまま、${max} 字以内(${max - 200} 字くらいを目安)に縮めて、全文を返してください。
+削るのは言い回しの重なりや例の多さからにし、見方そのものは消さないこと。道具は使えません。
+
+<self>
+${self}
+</self>`;
+}
+
+export const SHRINK_SELF_SCHEMA: JsonSchema = {
+	type: "object",
+	properties: {
+		self: { type: "string", description: "縮めた自己記述(Markdown、全文)" },
+	},
+	required: ["self"],
+	additionalProperties: false,
+};
 
 export interface ProfileAnswer {
 	owner: string;

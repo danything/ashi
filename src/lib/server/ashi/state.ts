@@ -238,6 +238,8 @@ export interface Walk {
 		result: "saved" | "unchanged" | "rejected" | "missing";
 		length?: number;
 		declared: number;
+		/** 保存されなかった版で申告された直し(次の内省で「未反映の直し」として見せる) */
+		unapplied?: string[];
 	};
 	/** この時刻までは起きない(ISO) */
 	sleepingUntil?: string;

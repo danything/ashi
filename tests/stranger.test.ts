@@ -540,9 +540,24 @@ describe("Ashi の改善案(2026-09-26 夕方)", () => {
 			},
 		});
 		const r = await measureBaseline({ store, head, now, rng: () => 0.3 });
-		expect(r?.baseline.external).toEqual({ hits: 0, total: 3, docs: 3 });
-		expect(r?.baseline.mine).toEqual({ hits: 3, total: 3, docs: 3 });
-		expect(r?.baseline.blind).toEqual({ hits: 0, total: 0, docs: 0 });
+		expect(r?.baseline.external).toEqual({
+			hits: 0,
+			total: 3,
+			docs: 3,
+			carried: 0,
+		});
+		expect(r?.baseline.mine).toEqual({
+			hits: 3,
+			total: 3,
+			docs: 3,
+			carried: 0,
+		});
+		expect(r?.baseline.blind).toEqual({
+			hits: 0,
+			total: 0,
+			docs: 0,
+			carried: 0,
+		});
 		expect(head.calls[0]?.system).not.toContain("<self>");
 		expect(await measureBaseline({ store, head, now })).toBeUndefined();
 		expect(latestBaseline(store.recentLog(5))?.mine.hits).toBe(3);
@@ -588,8 +603,18 @@ describe("Ashi の改善案(2026-09-27)", () => {
 			}),
 		});
 		const r = await measureBaseline({ store, head, now, rng: () => 0.3 });
-		expect(r?.baseline.mine).toEqual({ hits: 2, total: 2, docs: 2 });
-		expect(r?.baseline.blind).toEqual({ hits: 0, total: 1, docs: 1 });
+		expect(r?.baseline.mine).toEqual({
+			hits: 2,
+			total: 2,
+			docs: 2,
+			carried: 0,
+		});
+		expect(r?.baseline.blind).toEqual({
+			hits: 0,
+			total: 1,
+			docs: 1,
+			carried: 0,
+		});
 		expect(r?.baseline.external.docs).toBe(0);
 	});
 
@@ -678,5 +703,64 @@ describe("Ashi の改善案(2026-09-27 夜)", () => {
 		]);
 		expect(bs).toHaveLength(2);
 		expect(bs[1]?.mine).toEqual({ hits: 4, total: 28, docs: -1 });
+	});
+});
+
+describe("Ashi の改善案(2026-09-27 深夜)", () => {
+	test("自己記述が上限を超えたら、同じ内省の中で 1 回だけ縮めさせて保存する", async () => {
+		const store = freshStore(["a"]);
+		store.saveWalk({ ...store.walk(), steps: 4 });
+		const head = new FakeHead({
+			explore: () => explore(),
+			reflect: () => ({ ...reflect(), self: "長い自己記述。".repeat(700) }),
+			"reflect-shrink": (req) => {
+				expect(req.prompt).toContain("上限の 4000 字を超えています");
+				return { self: "縮めた自己記述。記録は誰が読むかで意味が変わる。" };
+			},
+		});
+		await step({ store, head, tools: [], now: () => now, rng: () => 0.99 });
+		expect(store.self()).toContain("縮めた自己記述");
+		expect(store.walk().lastSelf?.result).toBe("saved");
+	});
+
+	test("縮めてもだめなら、申告した直しを未反映として次の内省に並べる", async () => {
+		const store = freshStore(["a"]);
+		store.saveWalk({ ...store.walk(), steps: 4 });
+		const head = new FakeHead({
+			explore: () => explore(),
+			reflect: () => ({
+				...reflect(),
+				self: "長い自己記述。".repeat(700),
+				self_changes: [
+					{ what: "同意の主張を狭めた", trigger: "own", basis: "evidence" },
+				],
+			}),
+			"reflect-shrink": () => ({ self: "まだ長い。".repeat(900) }),
+		});
+		await step({ store, head, tools: [], now: () => now, rng: () => 0.99 });
+		expect(store.walk().lastSelf).toMatchObject({
+			result: "rejected",
+			unapplied: ["同意の主張を狭めた"],
+		});
+		store.saveWalk({
+			...store.walk(),
+			steps: 9,
+			lastReflectStep: 4,
+			sleepingUntil: undefined,
+		});
+		await step({ store, head, tools: [], now: () => now, rng: () => 0.99 });
+		const prompt =
+			head.calls.filter((c) => c.task === "reflect")[1]?.prompt ?? "";
+		expect(prompt).toContain("未反映の直し");
+		expect(prompt).toContain("同意の主張を狭めた");
+	});
+
+	test("「記憶だけで言うのはやめておく」のように主張を控えた文は拾わない", () => {
+		expect(
+			markedClaims([
+				"話としては聞いたことがあるけど、どの研究かを記憶だけで言うのはやめておくね。",
+				"大青とインディゴは色素が同じ、と記憶だけで言います。",
+			]),
+		).toEqual(["大青とインディゴは色素が同じ、と記憶だけで言います。"]);
 	});
 });

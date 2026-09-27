@@ -22,7 +22,9 @@ import {
 	reflectPrompt,
 	SEED_SCHEMA,
 	type SeedAnswer,
+	SHRINK_SELF_SCHEMA,
 	seedPrompt,
+	shrinkSelfPrompt,
 	system,
 	type WalkContext,
 } from "../prompts.ts";
@@ -613,10 +615,34 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 					today,
 					`## ${now.toTimeString().slice(0, 5)}\n\n${diary}`,
 				);
-			const self = acceptSelf(output.self);
+			let rawSelf = typeof output.self === "string" ? output.self.trim() : "";
+			let self = acceptSelf(rawSelf);
+			// 上限を超えたら、同じ内省の中で字数を示して 1 回だけ縮めさせる(黙って捨てて、直しがまるごと
+			// 消えていた。次の内省で伝えるだけだと 1 回分遅れる。Ashi の改善案、2026-09-27)
+			if (rawSelf.length > SELF_MAX) {
+				try {
+					const shrunk = await head.think<{ self: string }>({
+						task: "reflect-shrink",
+						system: sys(),
+						prompt: shrinkSelfPrompt(rawSelf, SELF_MAX),
+						schema: SHRINK_SELF_SCHEMA,
+					});
+					charge(shrunk.usage);
+					const again =
+						typeof shrunk.output.self === "string"
+							? shrunk.output.self.trim()
+							: "";
+					store.log("self-shrunk", { from: rawSelf.length, to: again.length });
+					if (again) {
+						rawSelf = again;
+						self = acceptSelf(again);
+					}
+				} catch (e) {
+					if (e instanceof HeadError) charge(e.usage);
+				}
+			}
 			if (self) store.saveSelf(self, now);
-			// 捨てたときは黙らない。記録し、次の内省で頭に伝える(上限を超えた版を黙って捨てていた)
-			const rawSelf = typeof output.self === "string" ? output.self.trim() : "";
+			// 捨てたときは黙らない。記録し、次の内省で頭に伝える
 			if (rawSelf && !self)
 				store.log("self-rejected", { length: rawSelf.length, max: SELF_MAX });
 			const patterns = acceptPatterns(output.patterns);
@@ -645,6 +671,10 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 								: "unchanged",
 					length: rawSelf.length,
 					declared: changes.length,
+					// 保存されなかった直しは中身ごと残し、次の内省で「未反映の直し」として並べる
+					...(rawSelf && !self
+						? { unapplied: changes.map((c) => c.what) }
+						: {}),
 				},
 			});
 			const { proposals, added: proposed } = acceptProposals(

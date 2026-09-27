@@ -49,7 +49,11 @@ const SYSTEM = `あなたは文章を読んで、ある見方(型)がその文�
 「当てはまる」は、その型で文章の中身を無理なく説明できるときだけ。こじつければ何にでも当てはまる、は当てはまらないに数えてください。
 答えは指定された JSON の形だけで返してください。`;
 
-type Tally = { hits: number; total: number; docs: number };
+/**
+ * docs: 判定した文章の本数。carried: そのうち、ノートの元の問いの文に型の言葉が入っていたもの。
+ * 対照(自己記述なし)で歩いても、問いの文が型を運んでいれば対照にならない(Ashi の改善案、2026-09-27)
+ */
+type Tally = { hits: number; total: number; docs: number; carried?: number };
 
 export interface Baseline {
 	patterns: string[];
@@ -91,10 +95,16 @@ export async function measureBaseline(opts: {
 			.map((q) => q.id),
 	);
 	const selfNotes = store.notes().filter((n) => selfIds.has(n.questionId));
+	const questionText = new Map(store.questions().map((q) => [q.id, q.text]));
+	const carries = (questionId: string) =>
+		patterns.some((p) => (questionText.get(questionId) ?? "").includes(p));
 	const texts = (ns: typeof selfNotes) =>
 		sample(ns, PER_SIDE, rng)
-			.map((n) => (store.noteBody(n.id) ?? "").trim().slice(0, DOC_CHARS))
-			.filter((t) => t.length > 200);
+			.map((n) => ({
+				text: (store.noteBody(n.id) ?? "").trim().slice(0, DOC_CHARS),
+				carried: carries(n.questionId),
+			}))
+			.filter((t) => t.text.length > 200);
 	const mineTexts = texts(
 		selfNotes.filter((n) => !n.blind).slice(-PER_SIDE * 3),
 	);
@@ -104,9 +114,13 @@ export async function measureBaseline(opts: {
 
 	// どれの文章か分からないように混ぜて、記号だけを付ける
 	const all = [
-		...mineTexts.map((text) => ({ text, side: "mine" as const })),
-		...blindTexts.map((text) => ({ text, side: "blind" as const })),
-		...external.map((text) => ({ text, side: "external" as const })),
+		...mineTexts.map((t) => ({ ...t, side: "mine" as const })),
+		...blindTexts.map((t) => ({ ...t, side: "blind" as const })),
+		...external.map((text) => ({
+			text,
+			carried: false,
+			side: "external" as const,
+		})),
 	];
 	const docs = sample(all, all.length, rng).map((d, i) => ({
 		...d,
@@ -128,6 +142,7 @@ ${docs.map((d) => `<doc id="${d.label}">\n${d.text}\n</doc>`).join("\n\n")}`;
 		hits: 0,
 		total: 0,
 		docs: docs.filter((d) => d.side === side).length,
+		carried: docs.filter((d) => d.side === side && d.carried).length,
 	});
 	const tally = {
 		external: zero("external"),
@@ -156,7 +171,12 @@ export function recentBaselines(
 	// にして、「まだ無い」と取り違えない(一度そう表示して、頭が数字が消えたと戸惑った)
 	const t = (v: unknown): Tally => {
 		const x = (v ?? {}) as Partial<Tally>;
-		return { hits: x.hits ?? 0, total: x.total ?? 0, docs: x.docs ?? -1 };
+		return {
+			hits: x.hits ?? 0,
+			total: x.total ?? 0,
+			docs: x.docs ?? -1,
+			...(x.carried !== undefined ? { carried: x.carried } : {}),
+		};
 	};
 	return log
 		.filter((x) => x.event === "baseline")

@@ -584,6 +584,23 @@ const UNVERIFIED_MARKS = [
 ];
 
 /**
+ * 主張を控えた・断った文の言い方。「記憶だけで言うのはやめておく」は確かめる主張を含まないので拾わない
+ * (歩いても何も返せない確かめの問いになっていた。Ashi の改善案、2026-09-27)
+ */
+const DECLINED = [
+	"やめておく",
+	"やめとく",
+	"言わない",
+	"言わずに",
+	"言えない",
+	"控える",
+	"控えて",
+	"避ける",
+	"断定しない",
+	"断言しない",
+];
+
+/**
  * 発言の中から、自分で「確かめていない」の印を付けた文を抜き出す。頭の申告(unverified)だけに頼ると、
  * 会話で 3 つ言ったのに 1 つしか積まれないことがあった(Ashi の改善案、2026-09-27)。足でも拾う
  */
@@ -592,7 +609,11 @@ export function markedClaims(texts: string[]): string[] {
 	for (const t of texts) {
 		for (const s of t.split(/(?<=[。!?!?])|\n/)) {
 			const x = s.trim();
-			if (x.length >= 8 && UNVERIFIED_MARKS.some((m) => x.includes(m)))
+			if (
+				x.length >= 8 &&
+				UNVERIFIED_MARKS.some((m) => x.includes(m)) &&
+				!DECLINED.some((d) => x.includes(d))
+			)
 				out.push(x.slice(0, 200));
 		}
 	}

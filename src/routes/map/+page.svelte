@@ -244,13 +244,17 @@ onMount(() => {
 				selected = undefined;
 			});
 		graph.d3Force("theme", themeForce());
+		// 描く前に配置の計算を先に進め、最初の表示から全体が入る大きさにする。点が増えると、既定の
+		// カメラの距離では落ち着くまでの 10〜15 秒ほど、図がはみ出していた(持ち主の指摘、2026-09-27)
+		graph.warmupTicks(150).cooldownTime(6000);
 		apply();
-		// 配置が落ち着いたところで、全体が入る大きさまで寄せる(決まった時間で寄せると、まだ広がる途中で小さく収まっていた)
+		requestAnimationFrame(() => graph?.zoomToFit(0, 30));
+		// 落ち着いたあとにもう一度、少しだけ寄せ直す(1 回だけ。再生中に何度も寄ると目が回る)
 		let fitted = false;
 		graph.onEngineStop(() => {
 			if (fitted) return;
 			fitted = true;
-			graph?.zoomToFit(600, 30);
+			graph?.zoomToFit(400, 30);
 		});
 	})();
 	if (el) resize.observe(el);

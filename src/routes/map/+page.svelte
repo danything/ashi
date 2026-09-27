@@ -157,6 +157,39 @@ function themeForce() {
 	return force;
 }
 
+/** 落ち着いた配置を覚えておく場所(ブラウザごと)。使えなくても図は出る */
+const POS_KEY = "ashi-map-positions-v1";
+
+/** 覚えた位置を点に戻す。戻せた点の数を返す */
+function restorePositions(nodes: GNode[]): number {
+	let saved: Record<string, [number, number, number]> = {};
+	try {
+		saved = JSON.parse(localStorage.getItem(POS_KEY) ?? "{}");
+	} catch {
+		return 0;
+	}
+	let n = 0;
+	for (const node of nodes) {
+		const p = saved[node.id];
+		if (!p) continue;
+		[node.x, node.y, node.z] = p;
+		n++;
+	}
+	return n;
+}
+
+function savePositions(nodes: GNode[]) {
+	const out: Record<string, [number, number, number]> = {};
+	for (const n of nodes)
+		if (n.x !== undefined)
+			out[n.id] = [Math.round(n.x), Math.round(n.y ?? 0), Math.round(n.z ?? 0)];
+	try {
+		localStorage.setItem(POS_KEY, JSON.stringify(out));
+	} catch {
+		// 保存できなくても困らない(次もいちから広げるだけ)
+	}
+}
+
 function visible(n: GNode): boolean {
 	if (n.at > cutoff) return false;
 	if (!showNotes && (n.kind === "note" || n.kind === "idea")) return false;
@@ -244,17 +277,31 @@ onMount(() => {
 				selected = undefined;
 			});
 		graph.d3Force("theme", themeForce());
-		// 描く前に配置の計算を先に進め、最初の表示から全体が入る大きさにする。点が増えると、既定の
-		// カメラの距離では落ち着くまでの 10〜15 秒ほど、図がはみ出していた(持ち主の指摘、2026-09-27)
-		graph.warmupTicks(150).cooldownTime(6000);
+		// 落ち着いた配置をブラウザに覚えておき、次からはそこから始める。点がほとんど動かないので、最初に
+		// 全体へ合わせた大きさのまま変わらない。落ち着いたところで寄せ直すと 5 秒ほどで縮み、描く前に配置を
+		// 計算し切るのは点 400 で数秒かかってブラウザが固まった(持ち主の指摘、2026-09-27)
+		const known = restorePositions(all);
 		apply();
 		requestAnimationFrame(() => graph?.zoomToFit(0, 30));
-		// 落ち着いたあとにもう一度、少しだけ寄せ直す(1 回だけ。再生中に何度も寄ると目が回る)
-		let fitted = false;
+		// 初めて開いたとき(覚えた配置が少ない)だけ、広がっていく間カメラも追いかけて全体を入れ続ける。
+		// 自分で回したり寄ったりし始めたら追いかけない
+		let follow = known < all.length * 0.8;
+		const stopFollow = () => {
+			follow = false;
+		};
+		el.addEventListener("pointerdown", stopFollow, { once: true });
+		el.addEventListener("wheel", stopFollow, { once: true, passive: true });
+		let lastFit = 0;
+		graph.onEngineTick(() => {
+			if (!follow) return;
+			const t = performance.now();
+			if (t - lastFit < 400) return;
+			lastFit = t;
+			graph?.zoomToFit(300, 30);
+		});
 		graph.onEngineStop(() => {
-			if (fitted) return;
-			fitted = true;
-			graph?.zoomToFit(400, 30);
+			follow = false;
+			savePositions(all);
 		});
 	})();
 	if (el) resize.observe(el);

@@ -189,7 +189,9 @@ describe("持ち主への訂正の台帳", () => {
 			[],
 			"こんにちは",
 		);
-		expect(head.calls[0]?.prompt).toContain("返事の最初に短く伝えてください");
+		expect(head.calls[0]?.prompt).toContain(
+			"この訂正に関係するときに伝えてください",
+		);
 		expect(head.calls[0]?.prompt).toContain(c?.id ?? "?");
 		expect(store.walk().ownerCorrections).toEqual([]);
 	});

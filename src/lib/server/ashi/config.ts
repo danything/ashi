@@ -151,7 +151,8 @@ export const DEFAULT_CONFIG: Config = {
 	},
 	stranger: { enabled: true, model: "claude-sonnet-5", turns: 3 },
 	selfBlindEvery: 5,
-	ownerCorrections: "first",
+	// 持ち主の判断で、関係する話題のときだけ(2026-09-27)
+	ownerCorrections: "relevant",
 	news: {
 		enabled: true,
 		feeds: [
@@ -277,7 +278,7 @@ export function normalizeConfig(raw: unknown): Config {
 			everyHours: clamp(r.news?.everyHours, 1, 24 * 7, d.news.everyHours),
 			keepDays: clamp(r.news?.keepDays, 1, 30, d.news.keepDays),
 		},
-		ownerCorrections: r.ownerCorrections === "relevant" ? "relevant" : "first",
+		ownerCorrections: r.ownerCorrections === "first" ? "first" : "relevant",
 		selfBlindEvery: Math.round(
 			clamp(r.selfBlindEvery, 0, 100, d.selfBlindEvery),
 		),

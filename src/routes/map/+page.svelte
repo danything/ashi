@@ -157,36 +157,40 @@ function themeForce() {
 	return force;
 }
 
-/** 落ち着いた配置を覚えておく場所(ブラウザごと)。使えなくても図は出る */
-const POS_KEY = "ashi-map-positions-v1";
+/**
+ * ズーム(カメラの位置と向き)を端末ごとに覚える。配置とズームはライブラリの標準の自動計算に任せ、
+ * こちらで動かさない(寄せ直しや配置の記憶は、かえって動きが不自然だった。持ち主の判断、2026-09-27)。
+ * 覚えたときより点が ZOOM_RESET_NODES 個以上増えていたら、覚えたズームは使わず標準の表示に戻す
+ */
+const ZOOM_KEY = "ashi-map-zoom-v1";
+const ZOOM_RESET_NODES = 50;
+type Vec = { x: number; y: number; z: number };
 
-/** 覚えた位置を点に戻す。戻せた点の数を返す */
-function restorePositions(nodes: GNode[]): number {
-	let saved: Record<string, [number, number, number]> = {};
+function loadZoom(nodes: number): { pos: Vec; target: Vec } | undefined {
 	try {
-		saved = JSON.parse(localStorage.getItem(POS_KEY) ?? "{}");
+		// 前の版が覚えていた配置は使わなくなったので消す
+		localStorage.removeItem("ashi-map-positions-v1");
+		const z = JSON.parse(localStorage.getItem(ZOOM_KEY) ?? "null") as {
+			pos: Vec;
+			target: Vec;
+			nodes: number;
+		} | null;
+		if (!z) return undefined;
+		if (nodes - z.nodes >= ZOOM_RESET_NODES) {
+			localStorage.removeItem(ZOOM_KEY);
+			return undefined;
+		}
+		return z;
 	} catch {
-		return 0;
+		return undefined;
 	}
-	let n = 0;
-	for (const node of nodes) {
-		const p = saved[node.id];
-		if (!p) continue;
-		[node.x, node.y, node.z] = p;
-		n++;
-	}
-	return n;
 }
 
-function savePositions(nodes: GNode[]) {
-	const out: Record<string, [number, number, number]> = {};
-	for (const n of nodes)
-		if (n.x !== undefined)
-			out[n.id] = [Math.round(n.x), Math.round(n.y ?? 0), Math.round(n.z ?? 0)];
+function saveZoom(pos: Vec, target: Vec, nodes: number) {
 	try {
-		localStorage.setItem(POS_KEY, JSON.stringify(out));
+		localStorage.setItem(ZOOM_KEY, JSON.stringify({ pos, target, nodes }));
 	} catch {
-		// 保存できなくても困らない(次もいちから広げるだけ)
+		// 覚えられなくても困らない(次も標準の表示で出るだけ)
 	}
 }
 
@@ -277,31 +281,27 @@ onMount(() => {
 				selected = undefined;
 			});
 		graph.d3Force("theme", themeForce());
-		// 落ち着いた配置をブラウザに覚えておき、次からはそこから始める。点がほとんど動かないので、最初に
-		// 全体へ合わせた大きさのまま変わらない。落ち着いたところで寄せ直すと 5 秒ほどで縮み、描く前に配置を
-		// 計算し切るのは点 400 で数秒かかってブラウザが固まった(持ち主の指摘、2026-09-27)
-		const known = restorePositions(all);
 		apply();
-		requestAnimationFrame(() => graph?.zoomToFit(0, 30));
-		// 初めて開いたとき(覚えた配置が少ない)だけ、広がっていく間カメラも追いかけて全体を入れ続ける。
-		// 自分で回したり寄ったりし始めたら追いかけない
-		let follow = known < all.length * 0.8;
-		const stopFollow = () => {
-			follow = false;
+		// 覚えたズームがあれば戻す(ライブラリが標準のカメラを置いた後に)
+		const saved = loadZoom(all.length);
+		if (saved)
+			requestAnimationFrame(() =>
+				graph?.cameraPosition(saved.pos, saved.target, 0),
+			);
+		// 回したり寄ったりして手を止めたら、そのズームを覚える
+		const controls = graph.controls() as {
+			target?: Vec;
+			addEventListener?: (type: string, fn: () => void) => void;
 		};
-		el.addEventListener("pointerdown", stopFollow, { once: true });
-		el.addEventListener("wheel", stopFollow, { once: true, passive: true });
-		let lastFit = 0;
-		graph.onEngineTick(() => {
-			if (!follow) return;
-			const t = performance.now();
-			if (t - lastFit < 400) return;
-			lastFit = t;
-			graph?.zoomToFit(300, 30);
-		});
-		graph.onEngineStop(() => {
-			follow = false;
-			savePositions(all);
+		controls.addEventListener?.("end", () => {
+			if (!graph) return;
+			const p = graph.cameraPosition();
+			const t = controls.target ?? { x: 0, y: 0, z: 0 };
+			saveZoom(
+				{ x: p.x, y: p.y, z: p.z },
+				{ x: t.x, y: t.y, z: t.z },
+				all.length,
+			);
 		});
 	})();
 	if (el) resize.observe(el);

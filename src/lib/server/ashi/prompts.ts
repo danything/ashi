@@ -660,7 +660,7 @@ function lastSelfText(l: ReflectTalk["lastSelf"]): string {
 	const line = {
 		saved: `前回の内省(${when})で返した自己記述は保存された。`,
 		unchanged: `前回の内省(${when})で返した自己記述は、前の版と同じだった${declared}。直すと決めたことが入っていないなら、今回入れる。`,
-		rejected: `**前回の内省(${when})で返した自己記述は${l.length ? ` ${l.length} 字で、` : }上限 4000 字を超えたので保存されていない**${declared}。いまの自己記述はその前の版のまま。今回は 4000 字に収めて書き直すこと。`,
+		rejected: `**前回の内省(${when})で返した自己記述は${l.length ? ` ${l.length} 字で、` : ""}上限 4000 字を超えたので保存されていない**${declared}。いまの自己記述はその前の版のまま。今回は 4000 字に収めて書き直すこと。`,
 		missing: `前回の内省(${when})では自己記述が返っていなかった。`,
 	}[l.result];
 	return `\n${line}\n`;

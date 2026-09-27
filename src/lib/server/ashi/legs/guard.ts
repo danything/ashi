@@ -481,6 +481,33 @@ export const questionIds = (s: string): string[] =>
 	s.match(/\b[0-9a-f]{8}\b/g) ?? [];
 
 /**
+ * 次の一歩の中の 8 桁の ID を確かめる。ノートの ID なら元の問いの ID に置き換え、どちらでもなければ
+ * その場で印を付ける(ノートの ID を書いて「一覧に無い」で照合できなかった。Ashi の改善案、2026-09-27)
+ */
+export function normalizeIntentions(
+	intentions: string[],
+	notes: { id: string; questionId: string }[],
+	qs: { id: string }[],
+): string[] {
+	const questionIds = new Set(qs.map((q) => q.id));
+	const noteQuestion = new Map(notes.map((n) => [n.id, n.questionId]));
+	return intentions.map((text) => {
+		const unknown: string[] = [];
+		const fixed = text.replace(/\b[0-9a-f]{8}\b/g, (id) => {
+			if (questionIds.has(id)) return id;
+			const qid = noteQuestion.get(id);
+			// ノートの ID は残さない(残すと照合でまた「一覧に無い」と数える)
+			if (qid) return `${qid}(ノートの ID を、その問いの ID に置き換えた)`;
+			unknown.push(id);
+			return id;
+		});
+		return unknown.length
+			? `${fixed} ※${unknown.join("・")} は問いの ID ではないので、足は照合できない`
+			: fixed;
+	});
+}
+
+/**
  * 内省の次の一歩に書かれた問いに、続けて書かれた回数を付ける。書かれなくなったら消す
  */
 export function markPromised(qs: Question[], intentions: string[]): Question[] {
@@ -737,7 +764,7 @@ export function trimOpenQuestions(
 	return qs.map((q) => (drop.has(q.id) ? { ...q, status: "dropped" } : q));
 }
 
-const SELF_MAX = 4000;
+export const SELF_MAX = 4000;
 
 /** 自己記述・持ち主の地図の書き直し。空や長すぎるものは受け取らない */
 export function acceptSelf(text: unknown, max = SELF_MAX): string | undefined {

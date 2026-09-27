@@ -229,6 +229,16 @@ export interface Walk {
 	selfPatterns?: string[];
 	/** 型の当たり率の基準線を最後に測った日(1 日 1 回。legs/baseline.ts) */
 	lastBaselineDay?: string;
+	/**
+	 * 直前の内省で、自己記述がどうなったか。上限を超えた版を黙って捨てていて、頭は「書き忘れたのか、
+	 * 保存されなかったのか」区別できなかった(Ashi の改善案、2026-09-27)。次の内省で頭に伝える
+	 */
+	lastSelf?: {
+		at: string;
+		result: "saved" | "unchanged" | "rejected" | "missing";
+		length?: number;
+		declared: number;
+	};
 	/** この時刻までは起きない(ISO) */
 	sleepingUntil?: string;
 	/** init のとき、または人が `ashi core --accept` したときの core.md のハッシュ */

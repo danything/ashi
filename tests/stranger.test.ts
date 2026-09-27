@@ -5,6 +5,7 @@ import { normalizeConfig } from "../src/lib/server/ashi/config.ts";
 import {
 	latestBaseline,
 	measureBaseline,
+	recentBaselines,
 } from "../src/lib/server/ashi/legs/baseline.ts";
 import {
 	hedgeStats,
@@ -12,6 +13,7 @@ import {
 	markPromised,
 	mergeClaims,
 	missedPromises,
+	normalizeIntentions,
 	ownerPull,
 	patternHits,
 	strangerLanding,
@@ -605,5 +607,76 @@ describe("Ashi の改善案(2026-09-27)", () => {
 		expect(merged).toHaveLength(3);
 		expect(merged.some((x) => x.includes("大青"))).toBe(true);
 		expect(merged.some((x) => x.includes("接着"))).toBe(true);
+	});
+});
+
+describe("Ashi の改善案(2026-09-27 夜)", () => {
+	test("上限を超えた自己記述は黙って捨てず、次の内省で頭に伝える", async () => {
+		const store = freshStore(["a"]);
+		store.saveWalk({ ...store.walk(), steps: 4 });
+		const long = "記録は誰が読むかで意味が変わる。".repeat(300);
+		const head = new FakeHead({
+			explore: () => explore(),
+			reflect: () => ({
+				...reflect(),
+				self: long,
+				self_changes: [
+					{ what: "同意の節を狭めた", trigger: "own", basis: "evidence" },
+				],
+			}),
+		});
+		await step({ store, head, tools: [], now: () => now, rng: () => 0.99 });
+		expect(store.recentLog(5).some((e) => e.event === "self-rejected")).toBe(
+			true,
+		);
+		expect(store.walk().lastSelf).toMatchObject({
+			result: "rejected",
+			declared: 1,
+		});
+		// 次の内省で伝える
+		store.saveWalk({
+			...store.walk(),
+			steps: 9,
+			lastReflectStep: 4,
+			sleepingUntil: undefined,
+		});
+		await step({ store, head, tools: [], now: () => now, rng: () => 0.99 });
+		const prompt =
+			head.calls.filter((c) => c.task === "reflect")[1]?.prompt ?? "";
+		expect(prompt).toContain("上限 4000 字を超えたので保存されていない");
+	});
+
+	test("次の一歩のノートの ID は問いの ID に置き換え、どちらでもない ID には印を付ける", () => {
+		const out = normalizeIntentions(
+			["c43d9b58 の続きを歩く", "ffffffff を確かめる", "[aaaaaaa1] を歩く"],
+			[{ id: "c43d9b58", questionId: "aaaaaaa2" }],
+			[{ id: "aaaaaaa1" }, { id: "aaaaaaa2" }],
+		);
+		expect(out[0]).toContain("aaaaaaa2");
+		expect(out[0]).not.toContain("c43d9b58");
+		expect(out[1]).toContain("※ffffffff は問いの ID ではない");
+		expect(out[2]).toBe("[aaaaaaa1] を歩く");
+	});
+
+	test("本数を記録する前の基準線も数字で出し、前回と並べる", () => {
+		const bs = recentBaselines([
+			{
+				event: "baseline",
+				at: "2026-09-27T01:00:00Z",
+				patterns: ["p"],
+				mine: { hits: 2, total: 8, docs: 4 },
+				blind: { hits: 0, total: 2, docs: 1 },
+				external: { hits: 0, total: 8, docs: 4 },
+			},
+			{
+				event: "baseline",
+				at: "2026-09-26T15:05:00Z",
+				patterns: ["p"],
+				mine: { hits: 4, total: 28 },
+				external: { hits: 0, total: 28 },
+			},
+		]);
+		expect(bs).toHaveLength(2);
+		expect(bs[1]?.mine).toEqual({ hits: 4, total: 28, docs: -1 });
 	});
 });

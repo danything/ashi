@@ -27,7 +27,7 @@ import {
 	type WalkContext,
 } from "../prompts.ts";
 import { hashText, localDay, newId, type Store, type Track } from "../state.ts";
-import { latestBaseline, measureBaseline } from "./baseline.ts";
+import { measureBaseline, recentBaselines } from "./baseline.ts";
 import { raiseBlocker, resolveBlockers, webhookNotify } from "./blockers.ts";
 import { crawlRequested, feedStatus } from "./feeds.ts";
 import {
@@ -46,8 +46,10 @@ import {
 	markPromised,
 	missedPromises,
 	nextMidnight,
+	normalizeIntentions,
 	ownerHandles,
 	ownerPull,
+	SELF_MAX,
 	selfEvolution,
 	similarPairs,
 	strangerLanding,
@@ -594,7 +596,8 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 						})(),
 						blind: blindComparison(store.notes(), store.questions()),
 						evolution: selfEvolution(store.selfHistory()),
-						baseline: latestBaseline(store.recentLog(500)),
+						lastSelf: w.lastSelf,
+						baseline: recentBaselines(store.recentLog(1000), 2),
 					},
 				),
 				schema: REFLECT_SCHEMA,
@@ -612,6 +615,10 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 				);
 			const self = acceptSelf(output.self);
 			if (self) store.saveSelf(self, now);
+			// 捨てたときは黙らない。記録し、次の内省で頭に伝える(上限を超えた版を黙って捨てていた)
+			const rawSelf = typeof output.self === "string" ? output.self.trim() : "";
+			if (rawSelf && !self)
+				store.log("self-rejected", { length: rawSelf.length, max: SELF_MAX });
 			const patterns = acceptPatterns(output.patterns);
 			if (patterns.length)
 				store.saveWalk({ ...store.walk(), selfPatterns: patterns });
@@ -625,6 +632,21 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 					changes,
 					undeclared: changed && changes.length === 0,
 				});
+			store.saveWalk({
+				...store.walk(),
+				lastSelf: {
+					at: now.toISOString(),
+					result: !rawSelf
+						? "missing"
+						: !self
+							? "rejected"
+							: changed
+								? "saved"
+								: "unchanged",
+					length: rawSelf.length,
+					declared: changes.length,
+				},
+			});
 			const { proposals, added: proposed } = acceptProposals(
 				output.proposals,
 				store.proposals(),
@@ -651,7 +673,11 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 				...latest,
 				recentThemes: latest.recentThemes.map((t) => renames.get(t) ?? t),
 				lastReflectStep: w.steps,
-				intentions: acceptIntentions(output.next_steps),
+				intentions: normalizeIntentions(
+					acceptIntentions(output.next_steps),
+					store.notes(),
+					store.questions(),
+				),
 			});
 			// 次の一歩に書いた問いに印を付ける(続けて書かれたら、足が先に歩く)
 			store.updateQuestions((qs) =>

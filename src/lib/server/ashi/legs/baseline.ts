@@ -147,21 +147,29 @@ ${docs.map((d) => `<doc id="${d.label}">\n${d.text}\n</doc>`).join("\n\n")}`;
 	return { baseline, usage };
 }
 
-/** log.jsonl(新しい順)から、直近に測った基準線 */
-export function latestBaseline(
+/** log.jsonl(新しい順)から、直近に測った基準線を n 回分(新しい順) */
+export function recentBaselines(
 	log: { event: string; at?: string; [k: string]: unknown }[],
-): (Baseline & { at: string }) | undefined {
-	const e = log.find((x) => x.event === "baseline");
-	if (!e) return undefined;
+	n = 2,
+): (Baseline & { at: string })[] {
+	// 本数(docs)は 2026-09-27 から記録している。それより前の記録は docs が無いので undefined のまま
+	// にして、「まだ無い」と取り違えない(一度そう表示して、頭が数字が消えたと戸惑った)
 	const t = (v: unknown): Tally => {
 		const x = (v ?? {}) as Partial<Tally>;
-		return { hits: x.hits ?? 0, total: x.total ?? 0, docs: x.docs ?? 0 };
+		return { hits: x.hits ?? 0, total: x.total ?? 0, docs: x.docs ?? -1 };
 	};
-	return {
-		at: String(e.at ?? ""),
-		patterns: (e.patterns as string[]) ?? [],
-		external: t(e.external),
-		blind: t(e.blind),
-		mine: t(e.mine),
-	};
+	return log
+		.filter((x) => x.event === "baseline")
+		.slice(0, n)
+		.map((e) => ({
+			at: String(e.at ?? ""),
+			patterns: (e.patterns as string[]) ?? [],
+			external: t(e.external),
+			blind: t(e.blind),
+			mine: t(e.mine),
+		}));
 }
+
+export const latestBaseline = (
+	log: { event: string; at?: string; [k: string]: unknown }[],
+) => recentBaselines(log, 1)[0];

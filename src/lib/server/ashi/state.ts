@@ -253,6 +253,11 @@ export interface Walk {
 	};
 	/** この時刻までは起きない(ISO) */
 	sleepingUntil?: string;
+	/**
+	 * 持ち主が止めている(費用を抑えるため)。止めている間は歩まず、X の自動返信・見に行く・ストリーム・
+	 * 前の投稿の削除も止める。話す(持ち主から話しかけたとき)とニュースの見出し(無料)は止めない
+	 */
+	paused?: { at: string; by: string };
 	/** init のとき、または人が `ashi core --accept` したときの core.md のハッシュ */
 	coreHash: string;
 }

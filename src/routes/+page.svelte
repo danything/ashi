@@ -49,7 +49,9 @@ const EVENTS: Record<string, string> = {
 		<div class="panel stat">
 			<span class="label">
 				<Icon name="moon" size={0.9} />次に起きる
-				{#if !data.walking}
+				{#if data.paused}
+					<span class="tag warn">止めている</span>
+				{:else if !data.walking}
 					<span class="tag warn">歩いていない</span>
 				{:else if sleeping}
 					<span class="tag"><span class="dot"></span>休んでいる</span>
@@ -57,14 +59,26 @@ const EVENTS: Record<string, string> = {
 					<span class="tag ok"><span class="dot live"></span>歩いている</span>
 				{/if}
 			</span>
-			<span class="value">{sleeping ? when(sleeping).slice(11) : "いま"}</span>
+			<span class="value">{data.paused ? "—" : sleeping ? when(sleeping).slice(11) : "いま"}</span>
 			<span class="sub wake">
-				{sleeping ? when(sleeping).slice(0, 10) : "起きている"}
-				{#if sleeping}
-					<form method="POST" action="?/wake" use:enhance>
-						<button type="submit" class="outline mini"><Icon name="footprints" size={0.9} />起こす</button>
-					</form>
-				{/if}
+				{data.paused ? "再開するまで歩かない" : sleeping ? when(sleeping).slice(0, 10) : "起きている"}
+				<span class="cluster tight">
+					{#if sleeping && !data.paused}
+						<form method="POST" action="?/wake" use:enhance>
+							<button type="submit" class="outline mini"><Icon name="footprints" size={0.9} />起こす</button>
+						</form>
+					{/if}
+					<!-- 費用を抑えるために止める。止めている間は歩みと X の自動返信を止める(話すは使える) -->
+					{#if data.paused}
+						<form method="POST" action="?/resume" use:enhance>
+							<button type="submit" class="mini"><Icon name="footprints" size={0.9} />再開する</button>
+						</form>
+					{:else}
+						<form method="POST" action="?/pause" use:enhance>
+							<button type="submit" class="outline mini" title="歩み・よそ者との対話・X の自動返信とストリーム・前の投稿の削除を止める(話す・ニュースの見出しは止めない)">止める</button>
+						</form>
+					{/if}
+				</span>
 			</span>
 		</div>
 		<div class="panel stat">

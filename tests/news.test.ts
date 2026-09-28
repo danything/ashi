@@ -206,3 +206,17 @@ describe("持ち主への訂正の台帳", () => {
 		]);
 	});
 });
+
+describe("止める", () => {
+	test("持ち主が止めている間は、頭を呼ばずに休む", async () => {
+		const store = freshStore(["a"]);
+		store.saveWalk({
+			...store.walk(),
+			paused: { at: now.toISOString(), by: "持ち主" },
+		});
+		const head = new FakeHead({});
+		const o = await step({ store, head, tools: [], now: () => now });
+		expect(o.kind).toBe("paused");
+		expect(head.calls).toHaveLength(0);
+	});
+});

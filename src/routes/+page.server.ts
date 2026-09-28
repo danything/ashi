@@ -1,6 +1,12 @@
 import { score } from "$lib/server/ashi/legs/select";
 import { localDay } from "$lib/server/ashi/state";
-import { isWalking, store, wakeNow } from "$lib/server/runtime";
+import {
+	isPaused,
+	isWalking,
+	setPaused,
+	store,
+	wakeNow,
+} from "$lib/server/runtime";
 import type { Actions, PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = () => {
@@ -10,6 +16,7 @@ export const load: PageServerLoad = () => {
 	return {
 		walk: store.walk(),
 		walking: isWalking(),
+		paused: isPaused(),
 		budget: store.budget(localDay(new Date())),
 		cfg: {
 			head: cfg.head,
@@ -38,5 +45,14 @@ export const actions: Actions = {
 	wake: () => {
 		wakeNow();
 		return { woke: true };
+	},
+	/** 費用を抑えるために止める / 再開する */
+	pause: ({ locals }) => {
+		setPaused(true, locals.user?.name ?? "?");
+		return { paused: true };
+	},
+	resume: ({ locals }) => {
+		setPaused(false, locals.user?.name ?? "?");
+		return { resumed: true };
 	},
 };

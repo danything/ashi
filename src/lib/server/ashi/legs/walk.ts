@@ -148,7 +148,9 @@ export type StepOutcome =
 	| { kind: "broke"; reason: "usd" | "steps"; wakeAt: Date }
 	| { kind: "failed"; error: string; wakeAt: Date }
 	/** core.md が人の承認なしに変わった。人が `ashi core --accept` するまで歩かない */
-	| { kind: "core-changed" };
+	| { kind: "core-changed" }
+	/** 持ち主が止めている。再開されるまで歩かない(再開すると起こされる) */
+	| { kind: "paused"; wakeAt: Date };
 
 /** 疲れがこれ以上なら、内省の順番を待たずに立ち止まる */
 const TIRED = 0.8;
@@ -190,6 +192,10 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 	const cfg = store.config();
 	const walk = store.walk();
 	const core = store.core();
+
+	// 持ち主が止めているあいだは何もしない(頭を呼ばない)。再開されると起こされる
+	if (walk.paused)
+		return { kind: "paused", wakeAt: new Date(now.getTime() + 30 * 60_000) };
 
 	if (hashText(core) !== walk.coreHash) {
 		store.log("core-changed");

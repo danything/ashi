@@ -66,6 +66,8 @@ function describe(o: StepOutcome): string {
 			return `つまずいた: ${o.error}`;
 		case "core-changed":
 			return "core.md が承認なしに変わっている。確かめて `ashi core --accept` するまで歩かない";
+		case "paused":
+			return "持ち主が止めている。画面の「いま」から再開するまで歩かない";
 	}
 }
 

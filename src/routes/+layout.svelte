@@ -71,6 +71,12 @@ const badge = (href: string) =>
 			</nav>
 		</header>
 
+		{#if data.paused}
+			<a class="blocked-bar paused-bar" href="/">
+				Ashi を止めています(歩み・X の自動返信を止めている。話すは使える)。再開は「いま」から
+				<Icon name="arrow-right" size={1} />
+			</a>
+		{/if}
 		{#if data.blocked > 0 && page.url.pathname !== "/proposals"}
 			<a class="blocked-bar" href="/proposals">
 				<Icon name="alert" size={1} />
@@ -173,6 +179,10 @@ const badge = (href: string) =>
 		font-size: 0.9rem;
 		font-weight: 600;
 		text-decoration: none;
+	}
+	.paused-bar {
+		background: var(--ui-base-200);
+		color: var(--pico-color);
 	}
 	.blocked-bar:hover {
 		text-decoration: underline;

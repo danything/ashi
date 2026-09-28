@@ -142,6 +142,7 @@ export function isStepping(): boolean {
  */
 function startCleanupTimer(): void {
 	const tick = () => {
+		if (isPaused()) return;
 		runCleanup(store, new Date())
 			.then(
 				(r) =>
@@ -170,9 +171,32 @@ function startNewsTimer(): void {
 	setInterval(tick, 3600_000).unref();
 }
 
+/** 持ち主が止めているか */
+export function isPaused(): boolean {
+	return Boolean(store.walk().paused);
+}
+
+/**
+ * 止める / 再開する(費用を抑えるため)。止めたら X のストリームも切る(開いたままだと、届いた
+ * メンションを読むたびに料金がかかる)。再開したら歩みをすぐ起こす
+ */
+export function setPaused(on: boolean, by: string): void {
+	const w = store.walk();
+	if (on) {
+		store.saveWalk({ ...w, paused: { at: new Date().toISOString(), by } });
+		streamConn?.abort();
+		store.log("paused", { by });
+	} else {
+		const { paused: _, ...rest } = w;
+		store.saveWalk(rest);
+		store.log("resumed", { by });
+		wakeNow();
+	}
+}
+
 /** 画面から受け取った直後に 1 回回す(待たずに始める) */
 export function kickCleanup(): void {
-	if (!walker) return;
+	if (!walker || isPaused()) return;
 	void runCleanup(store, new Date()).catch((e) =>
 		console.warn("[ashi] x-cleanup", e),
 	);
@@ -183,6 +207,8 @@ export function kickCleanup(): void {
  * 歩みとは別に回す(歩みの中だと、休んでいる間と間隔の分だけ返事が 1〜2 時間遅れた)
  */
 let streamUp = false;
+/** いまのストリームの接続。止めたときに切る */
+let streamConn: AbortController | undefined;
 let conversing = false;
 let converseTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -190,6 +216,8 @@ function converseSoon(delayMs: number): void {
 	if (converseTimer) return;
 	converseTimer = setTimeout(async () => {
 		converseTimer = undefined;
+		// 止めている間は返さない(見に行くのも、返事を考えるのも)
+		if (isPaused()) return;
 		if (conversing) return converseSoon(30_000);
 		conversing = true;
 		try {
@@ -221,6 +249,14 @@ function startMentions(signal: AbortSignal): void {
 				wait = 5 * 60_000;
 				continue;
 			}
+			// 止めている間はつながない(届いたイベントを読むだけで料金がかかる)
+			if (isPaused()) {
+				wait = 60_000;
+				continue;
+			}
+			const conn = new AbortController();
+			signal.addEventListener("abort", () => conn.abort(), { once: true });
+			streamConn = conn;
 			try {
 				await ensureSubscriptions(store, new Date());
 				const r = await readStream(
@@ -230,7 +266,7 @@ function startMentions(signal: AbortSignal): void {
 						if (acceptStreamEvent(store, line, new Date()))
 							converseSoon(15_000);
 					},
-					signal,
+					conn.signal,
 					process.env,
 					fetch,
 					() => {
@@ -260,6 +296,11 @@ function startMentions(signal: AbortSignal): void {
 				resolveBlockers(store, "x:stream", new Date());
 				wait = 5_000;
 			} catch (e) {
+				// 止めたので切れた。知らせずに待つ
+				if (isPaused()) {
+					wait = 60_000;
+					continue;
+				}
 				const status = e instanceof XError ? e.status : 0;
 				if (status === 401 || status === 403) {
 					// 断られたものを毎分叩いても変わらない。知らせて、しばらく置く(見に行く方式が 5 分おきに回る)

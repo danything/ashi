@@ -1,7 +1,7 @@
-import type { Proposal } from "$lib/server/ashi/state";
-import { md } from "$lib/server/markdown";
-import { store } from "$lib/server/runtime";
-import { blockedView } from "$lib/server/views";
+import type { Proposal } from "#lib/server/ashi/state.ts";
+import { md } from "#lib/server/markdown.ts";
+import { store } from "#lib/server/runtime.ts";
+import { blockedView } from "#lib/server/views.ts";
 import type { Actions, PageServerLoad } from "./$types";
 
 /** 改善案を issue にするリポジトリ(公開の GitHub) */

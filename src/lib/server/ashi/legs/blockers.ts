@@ -58,7 +58,9 @@ export async function raiseBlocker(
 	store.saveBlockers({ ...all, [b.key]: rec });
 	if (fresh) {
 		store.log("blocked", { key: b.key, title: b.title });
-		const origin = process.env.ORIGIN ? `\n${process.env.ORIGIN}/blocked` : "";
+		const origin = process.env.ASHI_ORIGIN
+			? `\n${process.env.ASHI_ORIGIN}/blocked`
+			: "";
 		await notify(
 			`Ashi が弾かれた: ${b.title}${b.detail ? `\n> ${b.detail.slice(0, 300)}` : ""}\n\n${b.remedy}${origin}`,
 		);

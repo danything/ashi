@@ -1,8 +1,8 @@
 <script lang="ts">
+import Icon from "#lib/components/Icon.svelte";
+import { when } from "#lib/format.ts";
+import type { blockedView } from "#lib/server/views.ts";
 import { enhance } from "$app/forms";
-import Icon from "$lib/components/Icon.svelte";
-import { when } from "$lib/format";
-import type { blockedView } from "$lib/server/views";
 
 /** 弾かれたこと。フォームは /blocked の actions に送る */
 let { data }: { data: ReturnType<typeof blockedView> } = $props();

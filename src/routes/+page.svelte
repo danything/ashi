@@ -1,7 +1,7 @@
 <script lang="ts">
+import Icon from "#lib/components/Icon.svelte";
+import { TRACK_LABEL, usd, when } from "#lib/format.ts";
 import { enhance } from "$app/forms";
-import Icon from "$lib/components/Icon.svelte";
-import { TRACK_LABEL, usd, when } from "$lib/format";
 
 let { data } = $props();
 

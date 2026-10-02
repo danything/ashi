@@ -1,7 +1,7 @@
 <script lang="ts">
+import OwnerPane from "#lib/components/panes/OwnerPane.svelte";
+import { when } from "#lib/format.ts";
 import { enhance } from "$app/forms";
-import OwnerPane from "$lib/components/panes/OwnerPane.svelte";
-import { when } from "$lib/format";
 
 let { data, form } = $props();
 /** 橋の候補は増えていくので、新しいものだけ先に見せる */

@@ -1,5 +1,5 @@
-import { openBlockers } from "$lib/server/ashi/legs/blockers";
-import { isPaused, store } from "$lib/server/runtime";
+import { openBlockers } from "#lib/server/ashi/legs/blockers.ts";
+import { isPaused, store } from "#lib/server/runtime.ts";
 import type { LayoutServerLoad } from "./$types";
 
 export const load: LayoutServerLoad = ({ locals }) => ({

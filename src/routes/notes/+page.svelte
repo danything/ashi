@@ -1,7 +1,7 @@
 <script lang="ts">
-import Icon from "$lib/components/Icon.svelte";
-import DiaryPane from "$lib/components/panes/DiaryPane.svelte";
-import { TRACK_LABEL, when } from "$lib/format";
+import Icon from "#lib/components/Icon.svelte";
+import DiaryPane from "#lib/components/panes/DiaryPane.svelte";
+import { TRACK_LABEL, when } from "#lib/format.ts";
 
 let { data } = $props();
 </script>

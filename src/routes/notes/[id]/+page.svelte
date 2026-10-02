@@ -1,6 +1,6 @@
 <script lang="ts">
-import Icon from "$lib/components/Icon.svelte";
-import { TRACK_LABEL, when } from "$lib/format";
+import Icon from "#lib/components/Icon.svelte";
+import { TRACK_LABEL, when } from "#lib/format.ts";
 
 let { data } = $props();
 </script>

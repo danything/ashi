@@ -2,9 +2,9 @@ import {
 	ownerHandles,
 	ownerPull,
 	strangerLanding,
-} from "$lib/server/ashi/legs/guard";
-import { score } from "$lib/server/ashi/legs/select";
-import { store } from "$lib/server/runtime";
+} from "#lib/server/ashi/legs/guard.ts";
+import { score } from "#lib/server/ashi/legs/select.ts";
+import { store } from "#lib/server/runtime.ts";
 import type { Actions, PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = () => {

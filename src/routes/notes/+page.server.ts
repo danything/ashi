@@ -1,5 +1,5 @@
-import { store } from "$lib/server/runtime";
-import { diaryView } from "$lib/server/views";
+import { store } from "#lib/server/runtime.ts";
+import { diaryView } from "#lib/server/views.ts";
 import type { PageServerLoad } from "./$types";
 
 /** ノートと日記を並べる(歩いて分かったことと、その日の振り返りを見比べられるように) */

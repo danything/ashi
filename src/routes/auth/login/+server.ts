@@ -5,7 +5,7 @@ import {
 	safeTo,
 	seal,
 	startLogin,
-} from "$lib/server/auth";
+} from "#lib/server/auth.ts";
 import type { RequestHandler } from "./$types";
 
 export const GET: RequestHandler = ({ url, cookies }) => {
@@ -21,5 +21,5 @@ export const GET: RequestHandler = ({ url, cookies }) => {
 		secure: url.protocol === "https:",
 		maxAge: 600,
 	});
-	redirect(303, to);
+	redirect(303, to, { external: true });
 };

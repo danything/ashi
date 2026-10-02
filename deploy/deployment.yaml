@@ -51,8 +51,9 @@ spec:
             periodSeconds: 10
             failureThreshold: 6
           env:
-            # 公開の URL。Entra のリダイレクト URI(/auth/callback)と、通知に付ける /blocked のリンクに使う
-            - name: ORIGIN
+            # 公開の URL。通知に付ける /blocked のリンクに使う。Entra・X のリダイレクト URI は要求の URL から組む
+            # (adapter-node 6 で ORIGIN は無くなった。Gateway が Host をそのまま渡し、プロトコルは既定の https)
+            - name: ASHI_ORIGIN
               value: https://as.doany.io
             - name: ASHI_HOME
               value: /data

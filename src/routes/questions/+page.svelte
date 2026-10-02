@@ -1,6 +1,6 @@
 <script lang="ts">
+import { TRACK_LABEL, when } from "#lib/format.ts";
 import { enhance } from "$app/forms";
-import { TRACK_LABEL, when } from "$lib/format";
 
 let { data } = $props();
 

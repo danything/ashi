@@ -1,7 +1,7 @@
 import { error, redirect } from "@sveltejs/kit";
-import { type XPending, xFinishLogin } from "$lib/server/ashi/legs/x";
-import { unseal } from "$lib/server/auth";
-import { store } from "$lib/server/runtime";
+import { type XPending, xFinishLogin } from "#lib/server/ashi/legs/x.ts";
+import { unseal } from "#lib/server/auth.ts";
+import { store } from "#lib/server/runtime.ts";
 import type { RequestHandler } from "./$types";
 
 export const GET: RequestHandler = async ({ url, cookies }) => {

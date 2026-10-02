@@ -1,9 +1,9 @@
 <script lang="ts">
 import type { ForceGraph3DInstance } from "3d-force-graph";
 import { onMount, untrack } from "svelte";
-import Icon from "$lib/components/Icon.svelte";
-import { TRACK_LABEL, when } from "$lib/format";
-import type { MapLink, MapNode } from "$lib/server/ashi/map";
+import Icon from "#lib/components/Icon.svelte";
+import { TRACK_LABEL, when } from "#lib/format.ts";
+import type { MapLink, MapNode } from "#lib/server/ashi/map.ts";
 
 let { data } = $props();
 

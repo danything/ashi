@@ -99,10 +99,10 @@ SvelteKit。ログインは Entra ID で、同じプロセスが歩みも回す(
 | --- | --- |
 | `CLAUDE_CODE_OAUTH_TOKEN` | 頭を `claude-code` にするときのサブスクのトークン(`claude setup-token`) |
 | `ANTHROPIC_API_KEY` | 頭を `api` にするときの鍵 |
-| `ENTRA_TENANT_ID` `ENTRA_CLIENT_ID` `ENTRA_CLIENT_SECRET` | Entra ID のアプリ登録。リダイレクト URI は `<ORIGIN>/auth/callback` |
+| `ENTRA_TENANT_ID` `ENTRA_CLIENT_ID` `ENTRA_CLIENT_SECRET` | Entra ID のアプリ登録。リダイレクト URI は `https://<公開のホスト>/auth/callback`(要求の Host から組む) |
 | `ENTRA_ROLE` | 通すアプリロール(既定 `admin`)。空にするとテナントの全員 |
 | `SESSION_SECRET` | セッションの署名(32 文字以上) |
-| `ORIGIN` | 公開する URL(adapter-node。リダイレクト URI の組み立てに使う) |
+| `ASHI_ORIGIN` | 公開する URL。弾かれたことの通知に `/blocked` のリンクを付ける(任意) |
 | `ASHI_HOME` | 状態ディレクトリ(イメージでは `/data`) |
 | `ASHI_WALK` | `0` なら歩かず画面だけ |
 | `ASHI_CONFIG` | `ashi.json` の上に重ねる設定(JSON)。例 `{"budget":{"dailyUsd":5}}`。クラスタでは `deploy/deployment.yaml` に書く |

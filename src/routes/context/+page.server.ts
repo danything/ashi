@@ -1,9 +1,9 @@
 import { fail } from "@sveltejs/kit";
-import { system } from "$lib/server/ashi/prompts";
-import { hashText } from "$lib/server/ashi/state";
-import { md } from "$lib/server/markdown";
-import { isStepping, resetLearning, store } from "$lib/server/runtime";
-import { ownerView } from "$lib/server/views";
+import { system } from "#lib/server/ashi/prompts.ts";
+import { hashText } from "#lib/server/ashi/state.ts";
+import { md } from "#lib/server/markdown.ts";
+import { isStepping, resetLearning, store } from "#lib/server/runtime.ts";
+import { ownerView } from "#lib/server/views.ts";
 import type { Actions, PageServerLoad } from "./$types";
 
 /** 頭が毎回受け取っているもの。コア原則・自己記述・持ち主の地図と、それを束ねた system */

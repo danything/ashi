@@ -1,5 +1,5 @@
 <script lang="ts">
-import type { diaryView } from "$lib/server/views";
+import type { diaryView } from "#lib/server/views.ts";
 
 /** 日記。日付は ?day= で選ぶ(いまの画面のまま切り替える) */
 let { data }: { data: ReturnType<typeof diaryView> } = $props();

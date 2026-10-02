@@ -1,8 +1,8 @@
 <script lang="ts">
+import Icon from "#lib/components/Icon.svelte";
+import BlockedPane from "#lib/components/panes/BlockedPane.svelte";
+import { when } from "#lib/format.ts";
 import { enhance } from "$app/forms";
-import Icon from "$lib/components/Icon.svelte";
-import BlockedPane from "$lib/components/panes/BlockedPane.svelte";
-import { when } from "$lib/format";
 
 let { data } = $props();
 </script>

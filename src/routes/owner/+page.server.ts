@@ -1,7 +1,7 @@
 import { fail, redirect } from "@sveltejs/kit";
-import { fetchUrlTool } from "$lib/server/ashi/legs/tools";
-import { newId } from "$lib/server/ashi/state";
-import { store, wakeNow } from "$lib/server/runtime";
+import { fetchUrlTool } from "#lib/server/ashi/legs/tools.ts";
+import { newId } from "#lib/server/ashi/state.ts";
+import { store, wakeNow } from "#lib/server/runtime.ts";
 import type { Actions, PageServerLoad } from "./$types";
 
 /** 持ち主の地図は「頭の中」の画面に、自分と並べた。ここに残すのはフォームの送り先(actions)だけ */

@@ -17,7 +17,7 @@ Ashi が自分で学ぶために要る権限と、弾かれたときの直し方
 | `x-client-secret` | `X_CLIENT_SECRET` | 任意。`${prod.xool.xool-secrets.client-secret}` |
 | `notify-webhook-url` | `NOTIFY_WEBHOOK_URL` | 任意 |
 
-必須のものが無いと Pod は起動しない(CreateContainerConfigError)。任意のものは無くても動き、使う場面で `/blocked` に出る。`ENTRA_TENANT_ID`・`ENTRA_CLIENT_ID`・`ORIGIN`(https://as.doany.io)・`FORGEJO_URL` は秘密ではないので `deploy/deployment.yaml` に直接書いてある。
+必須のものが無いと Pod は起動しない(CreateContainerConfigError)。任意のものは無くても動き、使う場面で `/blocked` に出る。`ENTRA_TENANT_ID`・`ENTRA_CLIENT_ID`・`ASHI_ORIGIN`(https://as.doany.io)・`FORGEJO_URL` は秘密ではないので `deploy/deployment.yaml` に直接書いてある。
 
 ## 最初に要るもの
 

@@ -1,10 +1,11 @@
-import { type Handle, redirect, type ServerInit } from "@sveltejs/kit";
+import { redirect } from "@sveltejs/kit";
+import type { Handle, ServerInit } from "@sveltejs/kit/hooks";
 import {
 	authConfigured,
 	resolveSession,
 	SESSION_COOKIE,
-} from "$lib/server/auth";
-import { startWalking } from "$lib/server/runtime";
+} from "#lib/server/auth.ts";
+import { startWalking } from "#lib/server/runtime.ts";
 
 /** 起動時に一度だけ。設定漏れはログの先頭で分かるように */
 export const init: ServerInit = () => {

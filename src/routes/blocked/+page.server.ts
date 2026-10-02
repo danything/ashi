@@ -1,6 +1,6 @@
 import { redirect } from "@sveltejs/kit";
-import { isOpen } from "$lib/server/ashi/legs/blockers";
-import { store } from "$lib/server/runtime";
+import { isOpen } from "#lib/server/ashi/legs/blockers.ts";
+import { store } from "#lib/server/runtime.ts";
 import type { Actions, PageServerLoad } from "./$types";
 
 /** 弾かれたことは「直すこと」の画面に、改善案と並べた。ここに残すのはフォームの送り先(actions)だけ */

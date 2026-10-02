@@ -1,6 +1,6 @@
-import { chatInFlight } from "$lib/server/ashi/legs/chat";
-import { md } from "$lib/server/markdown";
-import { store } from "$lib/server/runtime";
+import { chatInFlight } from "#lib/server/ashi/legs/chat.ts";
+import { md } from "#lib/server/markdown.ts";
+import { store } from "#lib/server/runtime.ts";
 import type { PageServerLoad } from "./$types";
 
 /** 画面に出す前回までの対話の数 */

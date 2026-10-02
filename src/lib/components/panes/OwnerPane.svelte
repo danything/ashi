@@ -1,8 +1,8 @@
 <script lang="ts">
+import Icon from "#lib/components/Icon.svelte";
+import { when } from "#lib/format.ts";
+import type { ownerView } from "#lib/server/views.ts";
 import { enhance } from "$app/forms";
-import Icon from "$lib/components/Icon.svelte";
-import { when } from "$lib/format";
-import type { ownerView } from "$lib/server/views";
 
 /** 持ち主の興味の地図と、その材料。フォームは /owner の actions に送る */
 let {

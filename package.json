@@ -18,8 +18,8 @@
 		"@anthropic-ai/sdk": "^0.128.0",
 		"@biomejs/biome": "^2.5.14",
 		"@picocss/pico": "^2.1.1",
-		"@sveltejs/adapter-node": "^5.5.7",
-		"@sveltejs/kit": "^2.70.3",
+		"@sveltejs/adapter-node": "^6.0.0",
+		"@sveltejs/kit": "^3.0.0",
 		"@sveltejs/vite-plugin-svelte": "^7.3.1",
 		"@types/bun": "^1.4.2",
 		"@types/node": "^26.6.2",
@@ -31,5 +31,8 @@
 		"typescript": "~6",
 		"unpdf": "^1.8.1",
 		"vite": "^8.3.1"
+	},
+	"imports": {
+		"#lib/*": "./src/lib/*"
 	}
 }

@@ -1,12 +1,12 @@
-import { score } from "$lib/server/ashi/legs/select";
-import { localDay } from "$lib/server/ashi/state";
+import { score } from "#lib/server/ashi/legs/select.ts";
+import { localDay } from "#lib/server/ashi/state.ts";
 import {
 	isPaused,
 	isWalking,
 	setPaused,
 	store,
 	wakeNow,
-} from "$lib/server/runtime";
+} from "#lib/server/runtime.ts";
 import type { Actions, PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = () => {

@@ -1,17 +1,13 @@
 {
-	"extends": "./.svelte-kit/tsconfig.json",
+	"extends": "$app/tsconfig",
 	"compilerOptions": {
-		"rewriteRelativeImportExtensions": true,
-		"allowJs": true,
-		"checkJs": true,
-		"esModuleInterop": true,
-		"forceConsistentCasingInFileNames": true,
-		"resolveJsonModule": true,
-		"skipLibCheck": true,
 		"sourceMap": true,
 		"strict": true,
 		"noUncheckedIndexedAccess": true,
-		"moduleResolution": "bundler",
-		"types": ["bun"]
-	}
+		"types": ["bun", "$app/types"],
+		// #lib は package.json の imports で解決される。同じものを paths にも書くのは svelte-check --tsgo のため:
+		// imports 経由だと .svelte の型(svelte2tsx の出力)に届かず、props も型も検査されなくなる
+		"paths": { "#lib/*": ["./src/lib/*"] }
+	},
+	"include": ["src", "tests", "vite.config.ts"]
 }

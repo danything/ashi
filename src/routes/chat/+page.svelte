@@ -1,9 +1,9 @@
 <script lang="ts">
 import { tick, untrack } from "svelte";
-import { afterNavigate, invalidateAll } from "$app/navigation";
-import Icon from "$lib/components/Icon.svelte";
-import Logo from "$lib/components/Logo.svelte";
-import { when } from "$lib/format";
+import Icon from "#lib/components/Icon.svelte";
+import Logo from "#lib/components/Logo.svelte";
+import { when } from "#lib/format.ts";
+import { afterNavigate, refreshAll } from "$app/navigation";
 
 let { data } = $props();
 
@@ -27,7 +27,7 @@ let waiting = $state(untrack(() => data.pending));
 $effect(() => {
 	if (!waiting) return;
 	const timer = setInterval(async () => {
-		await invalidateAll();
+		await refreshAll();
 		if (!data.pending) {
 			msgs = fromPast(data.past);
 			waiting = null;

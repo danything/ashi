@@ -7,7 +7,7 @@ import {
 	SESSION_COOKIE,
 	sessionToken,
 	unseal,
-} from "$lib/server/auth";
+} from "#lib/server/auth.ts";
 import type { RequestHandler } from "./$types";
 
 export const GET: RequestHandler = async ({ url, cookies }) => {

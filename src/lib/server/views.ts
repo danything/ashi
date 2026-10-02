@@ -1,6 +1,6 @@
-import { isOpen } from "$lib/server/ashi/legs/blockers";
-import { md } from "$lib/server/markdown";
-import { store } from "$lib/server/runtime";
+import { isOpen } from "#lib/server/ashi/legs/blockers.ts";
+import { md } from "#lib/server/markdown.ts";
+import { store } from "#lib/server/runtime.ts";
 
 /**
  * 画面の材料。束ねた画面(ノート | 日記、自分 | 持ち主の地図、改善案 | 弾かれたこと)は

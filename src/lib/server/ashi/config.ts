@@ -149,7 +149,7 @@ export const DEFAULT_CONFIG: Config = {
 		maxRepliesPerDay: 10,
 		mentionsEveryMinutes: 60,
 	},
-	stranger: { enabled: true, model: "claude-sonnet-5", turns: 3 },
+	stranger: { enabled: true, model: "claude-sonnet-5-5", turns: 3 },
 	selfBlindEvery: 5,
 	// 持ち主の判断で、関係する話題のときだけ(2026-09-27)
 	ownerCorrections: "relevant",

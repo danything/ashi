@@ -173,12 +173,12 @@ describe("よそ者との対話", () => {
 	test("設定: 往復は 1〜6、モデル名は claude- で始まるものだけ", () => {
 		expect(normalizeConfig({}).stranger).toEqual({
 			enabled: true,
-			model: "claude-sonnet-5",
+			model: "claude-sonnet-5-5",
 			turns: 3,
 		});
 		expect(
 			normalizeConfig({ stranger: { turns: 99, model: "gpt-5; rm" } }).stranger,
-		).toMatchObject({ turns: 6, model: "claude-sonnet-5" });
+		).toMatchObject({ turns: 6, model: "claude-sonnet-5-5" });
 		expect(q({}).source).toBeUndefined();
 	});
 });

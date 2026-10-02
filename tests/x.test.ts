@@ -684,6 +684,98 @@ describe("Ashi の改善案(X)への対応", () => {
 		expect(
 			store.recentLog(3).find((e) => e.event === "walked")?.corrected,
 		).toBe("さっきの GE の話、確かめたら別の会社だった。ごめんね");
+		expect(store.questions()[0]?.repliedAt).toBe(now.toISOString());
+	});
+
+	test("長すぎて返せなかった訂正は、黙って捨てずにログに残す", async () => {
+		const store = freshStore();
+		connect(store);
+		store.saveQuestions([
+			{
+				...q({ track: "self", text: "「GE の研究」は本当か" }),
+				origin: {
+					conversationId: "m9",
+					replyId: "r9",
+					username: "taro",
+					claim: "GE の研究",
+				},
+			},
+		]);
+		const { calls, f } = fakeX(() => Response.json({ data: { id: "c1" } }));
+		const long = "あ".repeat(141);
+		await step({
+			store,
+			head: new FakeHead({ explore: () => explore({ correction: long }) }),
+			tools: [],
+			now: () => now,
+			rng: () => 0.99,
+			env,
+			net: { fetch: f },
+		});
+		expect(calls.filter((c) => c.init.method === "POST")).toHaveLength(0);
+		const walked = store.recentLog(3).find((e) => e.event === "walked");
+		expect(walked?.uncorrected).toBe("長すぎる(282 / 280)");
+		expect(walked?.correction).toBe(long);
+		expect(store.questions()[0]?.repliedAt).toBeUndefined();
+	});
+
+	test("内省で、X で返していない約束を見せ、reply_to なら元の会話へ返信する", async () => {
+		const store = freshStore(["a"]);
+		connect(store);
+		store.saveWalk({ ...store.walk(), steps: 4 });
+		store.saveQuestions([
+			...store.questions(),
+			{
+				...q({ track: "self", text: "「GE の研究」は本当か" }),
+				id: "p1",
+				status: "answered",
+				origin: {
+					conversationId: "m9",
+					replyId: "r9",
+					username: "taro",
+					claim: "GE の研究、調べて返す",
+				},
+			},
+		]);
+		const { calls, f } = fakeX((url) =>
+			url.includes("/mentions")
+				? Response.json({ meta: {} })
+				: Response.json({ data: { id: "p9" } }),
+		);
+		await step({
+			store,
+			head: new FakeHead({
+				explore: () => explore(),
+				reflect: (req) => {
+					expect(req.prompt).toContain("X で返していない約束");
+					expect(req.prompt).toContain("- p1 @taro さんに");
+					return {
+						diary: "d",
+						self: "私は寄り道が好きな歩き手で、問いの連鎖を追うのが楽しい。",
+						next_steps: [],
+						bridge_ideas: [],
+						proposals: [],
+						posts: [{ text: "GE ではなかった", why: "w", reply_to: "p1" }],
+					};
+				},
+			}),
+			tools: [],
+			now: () => now,
+			rng: () => 0.99,
+			env,
+			net: { fetch: f },
+		});
+		const post = calls.find((c) => c.url.endsWith("/tweets"));
+		expect(JSON.parse(String(post?.init.body))).toEqual({
+			text: "GE ではなかった",
+			reply: { in_reply_to_tweet_id: "r9" },
+		});
+		const reflected = store.recentLog(5).find((e) => e.event === "reflected");
+		expect(reflected?.replied).toBe("GE ではなかった");
+		expect(reflected?.posted).toBeUndefined();
+		expect(store.questions().find((x) => x.id === "p1")?.repliedAt).toBe(
+			now.toISOString(),
+		);
 	});
 
 	test("頭が歩いていて知らせた弾かれは、画面には出すが通知はしない", async () => {

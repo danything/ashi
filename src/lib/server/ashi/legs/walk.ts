@@ -28,7 +28,14 @@ import {
 	system,
 	type WalkContext,
 } from "../prompts.ts";
-import { hashText, localDay, newId, type Store, type Track } from "../state.ts";
+import {
+	hashText,
+	localDay,
+	newId,
+	type Question,
+	type Store,
+	type Track,
+} from "../state.ts";
 import { measureBaseline, recentBaselines } from "./baseline.ts";
 import { raiseBlocker, resolveBlockers, webhookNotify } from "./blockers.ts";
 import { crawlRequested, feedStatus } from "./feeds.ts";
@@ -94,6 +101,21 @@ export interface Legs {
 	notify?: (text: string) => Promise<void>;
 	/** よそ者の話し相手(頭と別のモデル)。無ければ話さない */
 	stranger?: Head;
+}
+
+/** X で確かめずに言ったことの問いのうち、まだ元の会話に返していないもの(古い順、10 件まで) */
+export function unreturnedPromises(qs: Question[]): Question[] {
+	return qs
+		.filter((q) => q.origin && !q.repliedAt && q.status !== "dropped")
+		.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+		.slice(0, 10);
+}
+
+/** 元の会話に返したと印を付ける(内省にもう見せない) */
+function markReplied(store: Store, id: string, now: Date): void {
+	store.updateQuestions((qs) =>
+		qs.map((q) => (q.id === id ? { ...q, repliedAt: now.toISOString() } : q)),
+	);
 }
 
 /** 頭が知らせてきた「弾かれた」を、形を確かめて 1 歩 3 件まで */
@@ -464,14 +486,15 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 			}
 			// X で確かめずに言ったことが違っていたら、その返信に続けて訂正する
 			let corrected: string | undefined;
+			let uncorrected: string | undefined;
 			const correction =
 				typeof output.correction === "string" ? output.correction.trim() : "";
-			if (
-				q.origin &&
-				correction &&
-				xLength(correction) <= 280 &&
-				canReply(store, cfg, now)
-			) {
+			// 出せなかったときは黙らない(9/28、長すぎた訂正が消えて約束の返事が届かなかった)
+			if (q.origin && correction && xLength(correction) > 280)
+				uncorrected = `長すぎる(${xLength(correction)} / 280)`;
+			else if (q.origin && correction && !canReply(store, cfg, now))
+				uncorrected = "今日はもう返信できない";
+			else if (q.origin && correction) {
 				try {
 					await postToX(
 						store,
@@ -485,6 +508,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 						legs.net?.fetch ?? fetch,
 					);
 					corrected = correction;
+					markReplied(store, q.id, now);
 				} catch (e) {
 					await raiseBlocker(store, "x", xBlockage(e), now, notify);
 				}
@@ -509,6 +533,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 				theme: q.theme,
 				track: q.track,
 				corrected,
+				...(uncorrected ? { uncorrected, correction } : {}),
 				reason: choice.reason,
 				score: choice.score,
 				noteId,
@@ -593,6 +618,8 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 									})),
 								),
 								canPost: canPost(store, cfg, now),
+								canReply: canReply(store, cfg, now),
+								promises: unreturnedPromises(store.questions()),
 							}
 						: undefined,
 					{
@@ -748,30 +775,56 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 			store.updateQuestions((qs) =>
 				markPromised(qs, store.walk().intentions ?? []),
 			);
-			// 外に出したいこと(1 件まで)。上限と長さは足が見る
-			const post = Array.isArray(output.posts) ? output.posts[0] : undefined;
+			// 外に出したいこと(新しい投稿 1 件と、約束への返信 1 件まで)。上限と長さは足が見る
+			const posts = (Array.isArray(output.posts) ? output.posts : []).filter(
+				(p) => typeof p?.text === "string" && p.text.trim(),
+			);
+			const promise = (id: unknown) =>
+				typeof id === "string" && id.trim()
+					? unreturnedPromises(store.questions()).find(
+							(q) => q.id === id.trim(),
+						)
+					: undefined;
+			const post = posts.find((p) => !promise(p.reply_to));
+			const answer = posts.find((p) => promise(p.reply_to));
 			let posted: string | undefined;
-			if (
-				post &&
-				typeof post.text === "string" &&
-				post.text.trim() &&
-				canPost(store, cfg, now)
-			) {
+			let replied: string | undefined;
+			const unposted: string[] = [];
+			const send = async (text: string, to?: Question): Promise<boolean> => {
+				if (xLength(text) > 280) {
+					unposted.push(`長すぎる(${xLength(text)} / 280): ${text}`);
+					return false;
+				}
+				try {
+					await postToX(
+						store,
+						text,
+						now,
+						to?.origin
+							? {
+									tweetId: to.origin.replyId,
+									conversationId: to.origin.conversationId,
+								}
+							: undefined,
+						legs.env ?? process.env,
+						legs.net?.fetch ?? fetch,
+					);
+					return true;
+				} catch (e) {
+					await raiseBlocker(store, "x", xBlockage(e), now, notify);
+					return false;
+				}
+			};
+			if (post && canPost(store, cfg, now)) {
 				const text = post.text.trim();
-				if (xLength(text) <= 280) {
-					try {
-						await postToX(
-							store,
-							text,
-							now,
-							undefined,
-							legs.env ?? process.env,
-							legs.net?.fetch ?? fetch,
-						);
-						posted = text;
-					} catch (e) {
-						await raiseBlocker(store, "x", xBlockage(e), now, notify);
-					}
+				if (await send(text)) posted = text;
+			}
+			const to = answer ? promise(answer.reply_to) : undefined;
+			if (answer && to && canReply(store, cfg, now)) {
+				const text = answer.text.trim();
+				if (await send(text, to)) {
+					replied = text;
+					markReplied(store, to.id, now);
 				}
 			}
 			store.log("reflected", {
@@ -780,6 +833,8 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 				merged,
 				renamed,
 				posted,
+				replied,
+				...(unposted.length > 0 ? { unposted } : {}),
 				usd: usage.costUsd,
 			});
 			if (outcome.kind === "walked" || outcome.kind === "seeded")

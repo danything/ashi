@@ -105,6 +105,8 @@ export interface Question {
 		username: string;
 		claim: string;
 	};
+	/** origin の会話に返した日時(歩みの訂正か、内省の posts の reply_to)。あれば約束は返し済み */
+	repliedAt?: string;
 }
 
 export interface Note {

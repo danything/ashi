@@ -205,7 +205,7 @@ export const EXPLORE_SCHEMA: JsonSchema = {
 		correction: {
 			type: "string",
 			description:
-				"外で確かめずに言ったことを確かめる問いのときだけ使う。言ったことが違っていた・弱かったら、訂正の文を書く。X で言ったことなら、その返信に付ける文(日本語 140 字以内、X の話し方)。持ち主に言ったことなら、次に話すときに持ち主に伝える文(何を言って、何が違ったか)。合っていた・この問いがそれでないなら空",
+				"外で確かめずに言ったことを確かめる問いのときだけ使う。言ったことが違っていた・弱かったら、訂正の文を書く。X で言ったことなら、その返信に付ける文(日本語 140 字以内、X の話し方。超えると出せない)。X で「調べて返す」と約束していたなら、合っていても分かったことを書く。持ち主に言ったことなら、次に話すときに持ち主に伝える文(何を言って、何が違ったか)。合っていた・この問いがそれでないなら空",
 		},
 		...SLEEP_FIELDS,
 	},
@@ -367,7 +367,7 @@ ${TRACK_HINT[q.track]}
 ${
 	q.origin
 		? `\nこれは、X で @${q.origin.username} さんに返信したとき、確かめずに言ったことを確かめる問いです。言ったこと: 「${q.origin.claim}」
-確かめて、違っていたら correction に訂正の返信を書いてください(足がその返信に続けて投稿します)。合っていたら correction は空。\n`
+確かめて、違っていたら correction に訂正の返信を書いてください(足がその返信に続けて投稿します)。「調べて返す」と約束していたなら、合っていても分かったことを correction に書いて返してください。合っていて約束もしていなければ correction は空。\n`
 		: ""
 }
 道具で調べ(web 検索・fetch_url・これまでのノートの search_notes / read_note)、分かったことをノートにしてください。
@@ -454,7 +454,7 @@ export interface ReflectAnswer {
 	next_steps: string[];
 	bridge_ideas: BridgeIdeaDraft[];
 	proposals: ProposalDraft[];
-	posts: { text: string; why: string }[];
+	posts: { text: string; why: string; reply_to: string }[];
 	merges: { keep: string; drop: string[]; theme: string }[];
 	themes: { from: string[]; to: string }[];
 }
@@ -559,8 +559,13 @@ export const REFLECT_SCHEMA: JsonSchema = {
 						description: "投稿する文(日本語なら 140 字以内)",
 					},
 					why: { type: "string", description: "なぜ外に出したいか(足が残す)" },
+					reply_to: {
+						type: "string",
+						description:
+							"X で返していない約束に返すときだけ、その問いの ID。足が元の会話への返信として出す。新しい投稿なら空",
+					},
 				},
-				required: ["text", "why"],
+				required: ["text", "why", "reply_to"],
 				additionalProperties: false,
 			},
 		},
@@ -814,13 +819,37 @@ ${stances}
 上の立場を変えたときも self_changes に書いてください。根拠なしに押し返されて引いたのなら、それは pushback です。`;
 }
 
+/**
+ * X で確かめずに言ったこと・調べて返すと言ったことのうち、まだ元の会話に返していないもの。
+ * 内省の posts は新しい投稿しか出せず、約束の返事が単独の投稿になっていた(Ashi の改善案、2026-09-28)
+ */
+function promisesText(promises: Question[], canReply: boolean): string {
+	if (promises.length === 0) return "";
+	const list = promises
+		.map(
+			(q) =>
+				`- ${q.id} @${q.origin?.username} さんに: 「${cut(q.origin?.claim ?? "", 200)}」(${q.status === "open" ? "まだ確かめていない" : "確かめた"})`,
+		)
+		.join("\n");
+	return `\n\nX で返していない約束(確かめずに言ったこと・調べて返すと言ったこと):\n${list}\n${
+		canReply
+			? "確かめたことを返すなら、posts の reply_to にその問いの ID を書いてください。足が元の会話への返信として出します(返信の数に数える)。新しい投稿なら reply_to は空。"
+			: "今日はもう返信できないので、reply_to は使わないでください。"
+	}`;
+}
+
 export function reflectPrompt(
 	notes: Note[],
 	todayDiary: string,
 	recentThemes: string[],
 	intentions: string[],
 	proposals: { title: string; status: string }[],
-	x?: { conversations: string; canPost: boolean },
+	x?: {
+		conversations: string;
+		canPost: boolean;
+		canReply: boolean;
+		promises: Question[];
+	},
 	shelf?: {
 		questions: Question[];
 		similar: [Question, Question, number][];
@@ -850,8 +879,8 @@ ${
 	x.canPost
 		? `外に出したいことがあれば posts に 1 件まで書いてください(自動で投稿されます)。ほかの人と話すきっかけになる投稿がよい。
 ${X_VOICE}`
-		: "今日はもう投稿できないので、posts は空にしてください。"
-}`
+		: "今日はもう投稿できないので、新しい投稿はしないでください。"
+}${promisesText(x.promises, x.canReply)}`
 		: "posts は空にしてください(X はつながっていません)。"
 }
 

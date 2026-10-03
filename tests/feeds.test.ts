@@ -155,6 +155,27 @@ describe("crawlRequested", () => {
 		expect(store.feedStates().x?.lastError).toContain("X_BEARER_TOKEN");
 		expect(feedStatus(store, now)).toContain("失敗");
 	});
+
+	test("GitHub のイベントは fetch.maxBytes を超えても切らずに読む", async () => {
+		const store = withFeeds();
+		const big = "x".repeat(300_000);
+		const { deps } = net({
+			"https://api.github.com/users/5ym/events/public?per_page=100": () =>
+				Response.json([
+					{
+						id: "1",
+						type: "WatchEvent",
+						created_at: "",
+						repo: { name: "a/b" },
+						payload: { note: big },
+					},
+				]),
+		});
+		expect(await crawlRequested(store, ["gh"], now, deps, {})).toEqual([
+			{ id: "gh", added: 1 },
+		]);
+		expect(store.blockers()["feed:github"]).toBeUndefined();
+	});
 });
 
 describe("step と crawl", () => {

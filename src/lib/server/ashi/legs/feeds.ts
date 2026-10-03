@@ -162,6 +162,9 @@ export function describeForgejoActivity(
 
 type Env = Record<string, string | undefined>;
 
+/** GitHub のイベント API を読む上限 */
+const GITHUB_MAX_BYTES = 5_000_000;
+
 export async function crawlFeed(
 	feed: Feed,
 	cfg: Pick<Config, "fetch">,
@@ -180,13 +183,20 @@ export async function crawlFeed(
 			};
 			if (env.GITHUB_TOKEN)
 				headers.authorization = `Bearer ${env.GITHUB_TOKEN}`;
+			// イベント 100 件は、push や PR の本文で 20 万バイト(fetch.maxBytes)を超えることがあり、
+			// 途中で切れて JSON が読めなかった(2026-10-02)。API の応答なので、上限を広げて読む
+			const maxBytes = Math.max(cfg.fetch.maxBytes, GITHUB_MAX_BYTES);
 			const r = await safeGet(
 				`https://api.github.com/users/${encodeURIComponent(feed.target)}/events/public?per_page=100`,
-				cfg,
+				{ fetch: { ...cfg.fetch, maxBytes } },
 				deps,
 				headers,
 			);
 			if (r.status !== 200) throw new Error(`GitHub ${r.status}`);
+			if (new TextEncoder().encode(r.body).byteLength >= maxBytes)
+				throw new Error(
+					`GitHub の応答が ${maxBytes} バイトを超えて途中で切れた`,
+				);
 			return (JSON.parse(r.body) as GhEvent[]).flatMap((e) => {
 				const text = describeGithubEvent(e);
 				return text

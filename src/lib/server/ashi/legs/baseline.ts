@@ -17,9 +17,15 @@ import { localDay, type Store } from "../state.ts";
  *   持ち込みのせいか種類のせいか区別できなかった(Ashi の改善案、2026-09-27)。mine と blind を比べる
  * - 対照のノートはまだ少ないので、本数もあわせて見せる
  * - 型は内省で頭が挙げた言葉(walk.json の selfPatterns)。記録は log.jsonl の baseline
+ * - 同じ判定に、開いた個性の問いの文(questions)と、対照のノートの元の問いの文(blindQuestions)も
+ *   混ぜる。問いを作るのは自己記述を読んだ頭なので、対照のノートでも問いが型を運んでいれば対照に
+ *   ならない。元の問いが型に当たらなかった対照だけの当たり率(blindClean)も出す(Ashi の改善案、
+ *   2026-10-03。言葉の一致だけの carried では、言い換えた型を拾えなかった)
  */
 
 const PER_SIDE = 4;
+/** 混ぜる開いた問いの本数 */
+const QUESTIONS = 6;
 const DOC_CHARS = 1200;
 
 const SCHEMA: JsonSchema = {
@@ -60,7 +66,15 @@ export interface Baseline {
 	external: Tally;
 	blind: Tally;
 	mine: Tally;
+	/** 開いた個性の問いの文 */
+	questions?: Tally;
+	/** 対照のノートの元の問いの文 */
+	blindQuestions?: Tally;
+	/** 対照のノートのうち、元の問いが型に当たらなかったものだけ */
+	blindClean?: Tally;
 }
+
+type Side = "mine" | "blind" | "external" | "questions" | "blindQuestions";
 
 function sample<T>(xs: T[], n: number, rng: () => number): T[] {
 	const a = [...xs];
@@ -103,6 +117,7 @@ export async function measureBaseline(opts: {
 			.map((n) => ({
 				text: (store.noteBody(n.id) ?? "").trim().slice(0, DOC_CHARS),
 				carried: carries(n.questionId),
+				questionId: n.questionId,
 			}))
 			.filter((t) => t.text.length > 200);
 	const mineTexts = texts(
@@ -112,8 +127,39 @@ export async function measureBaseline(opts: {
 	if (mineTexts.length < 2 || (blindTexts.length < 1 && external.length < 2))
 		return undefined;
 
+	// 確かめの問いは外で言ったことの写しなので混ぜない
+	const openQuestions = sample(
+		store
+			.questions()
+			.filter((q) => q.track === "self" && q.status === "open" && !q.verify),
+		QUESTIONS,
+		rng,
+	).map((q) => ({
+		text: q.text,
+		carried: carries(q.id),
+		side: "questions" as const,
+	}));
+	const blindQuestions = blindTexts.flatMap((t) => {
+		const text = questionText.get(t.questionId);
+		return text
+			? [
+					{
+						text,
+						carried: t.carried,
+						side: "blindQuestions" as const,
+						questionId: t.questionId,
+					},
+				]
+			: [];
+	});
+
 	// どれの文章か分からないように混ぜて、記号だけを付ける
-	const all = [
+	const all: {
+		text: string;
+		carried: boolean;
+		side: Side;
+		questionId?: string;
+	}[] = [
 		...mineTexts.map((t) => ({ ...t, side: "mine" as const })),
 		...blindTexts.map((t) => ({ ...t, side: "blind" as const })),
 		...external.map((text) => ({
@@ -121,6 +167,8 @@ export async function measureBaseline(opts: {
 			carried: false,
 			side: "external" as const,
 		})),
+		...openQuestions,
+		...blindQuestions,
 	];
 	const docs = sample(all, all.length, rng).map((d, i) => ({
 		...d,
@@ -144,19 +192,42 @@ ${docs.map((d) => `<doc id="${d.label}">\n${d.text}\n</doc>`).join("\n\n")}`;
 		docs: docs.filter((d) => d.side === side).length,
 		carried: docs.filter((d) => d.side === side && d.carried).length,
 	});
-	const tally = {
+	const tally: Record<Side, Tally> = {
 		external: zero("external"),
 		blind: zero("blind"),
 		mine: zero("mine"),
+		questions: zero("questions"),
+		blindQuestions: zero("blindQuestions"),
 	};
+	const judged = new Map<string, boolean[]>();
 	for (const r of Array.isArray(output.results) ? output.results : []) {
 		const d = docs.find((x) => x.label === r.doc);
 		if (!d || !Array.isArray(r.applies)) continue;
 		const answers = r.applies.slice(0, patterns.length);
+		judged.set(d.label, answers);
 		tally[d.side].total += answers.length;
 		tally[d.side].hits += answers.filter((x) => x === true).length;
 	}
-	const baseline: Baseline = { patterns, ...tally };
+	// 元の問いの文が型に 1 つも当たらなかった対照のノートだけで数え直す
+	const questionHit = new Set(
+		docs
+			.filter(
+				(d) =>
+					d.side === "blindQuestions" &&
+					(judged.get(d.label) ?? []).some((x) => x === true),
+			)
+			.map((d) => d.questionId),
+	);
+	const blindClean: Tally = { hits: 0, total: 0, docs: 0 };
+	for (const d of docs) {
+		if (d.side !== "blind" || questionHit.has(d.questionId)) continue;
+		const answers = judged.get(d.label);
+		blindClean.docs++;
+		if (!answers) continue;
+		blindClean.total += answers.length;
+		blindClean.hits += answers.filter((x) => x === true).length;
+	}
+	const baseline: Baseline = { patterns, ...tally, blindClean };
 	store.saveWalk({ ...store.walk(), lastBaselineDay: today });
 	store.log("baseline", { ...baseline });
 	return { baseline, usage };
@@ -187,6 +258,9 @@ export function recentBaselines(
 			external: t(e.external),
 			blind: t(e.blind),
 			mine: t(e.mine),
+			...(e.questions ? { questions: t(e.questions) } : {}),
+			...(e.blindQuestions ? { blindQuestions: t(e.blindQuestions) } : {}),
+			...(e.blindClean ? { blindClean: t(e.blindClean) } : {}),
 		}));
 }
 

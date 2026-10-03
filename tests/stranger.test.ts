@@ -599,6 +599,62 @@ describe("Ashi の改善案(2026-09-26 夕方)", () => {
 		expect(await measureBaseline({ store, head, now })).toBeUndefined();
 		expect(latestBaseline(store.recentLog(5))?.mine.hits).toBe(3);
 	});
+
+	test("基準線に問いの文も混ぜ、元の問いが型に当たらなかった対照だけでも数える", async () => {
+		const store = freshStore();
+		const long = (s: string) => s.repeat(40);
+		const add = (id: string, text: string, body: string, blind: boolean) => {
+			store.saveQuestions([
+				...store.questions(),
+				q({ id, track: "self", text, status: "answered" }),
+			]);
+			store.addNote(
+				{
+					id: `${id}aaaaaa`,
+					title: "n",
+					theme: "t",
+					questionId: id,
+					summary: "",
+					createdAt: "",
+					blind,
+				},
+				long(body),
+			);
+		};
+		add("a1", "ふつうの問い", "自分のノート、選択。", false);
+		add("a2", "ふつうの問い", "自分のノート、選択。", false);
+		add("b1", "誰がいつ選択したか", "対照のノート、選択。", true);
+		add("b2", "ふつうの問い", "対照のノート。", true);
+		store.saveQuestions([
+			...store.questions(),
+			q({ id: "o1", track: "self", text: "いつ選択になったか" }),
+			q({ id: "o2", track: "self", text: "ふつうの開いた問い" }),
+			q({ id: "v1", track: "self", text: "選択の確かめ", verify: true }),
+		]);
+		store.saveWalk({ ...store.walk(), selfPatterns: ["誰かの選択"] });
+		const head = new FakeHead({
+			baseline: (req) => ({
+				results: [...req.prompt.matchAll(/<doc id="(\w)">\n([^\n]*)/g)].map(
+					(m) => ({
+						doc: m[1],
+						applies: [(m[2] ?? "").includes("選択")],
+					}),
+				),
+			}),
+		});
+		const r = await measureBaseline({ store, head, now, rng: () => 0.3 });
+		// 確かめの問いは混ぜない
+		expect(r?.baseline.questions).toMatchObject({ hits: 1, total: 2, docs: 2 });
+		expect(r?.baseline.blindQuestions).toMatchObject({
+			hits: 1,
+			total: 2,
+			docs: 2,
+		});
+		expect(r?.baseline.blind).toMatchObject({ hits: 1, total: 2 });
+		// 問いが型に当たった b1 を除くと、対照は当たらない
+		expect(r?.baseline.blindClean).toEqual({ hits: 0, total: 1, docs: 1 });
+		expect(latestBaseline(store.recentLog(5))?.blindClean?.docs).toBe(1);
+	});
 });
 
 describe("Ashi の改善案(2026-09-27)", () => {

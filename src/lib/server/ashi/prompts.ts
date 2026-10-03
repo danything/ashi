@@ -649,6 +649,14 @@ export interface ReflectTalk {
 		external: { hits: number; total: number; docs: number; carried?: number };
 		blind: { hits: number; total: number; docs: number; carried?: number };
 		mine: { hits: number; total: number; docs: number; carried?: number };
+		questions?: { hits: number; total: number; docs: number; carried?: number };
+		blindQuestions?: {
+			hits: number;
+			total: number;
+			docs: number;
+			carried?: number;
+		};
+		blindClean?: { hits: number; total: number; docs: number };
 	}[];
 	/** 同じ著者の論文を、ノートごとに違う年や査読の状態で書いているもの(legs/citations.ts) */
 	citations?: CitationConflict[];
@@ -752,13 +760,23 @@ function baselineText(bs: ReflectTalk["baseline"]): string {
 		`${label}(${localStamp(b.at).slice(5)}${b.mine.docs < 0 ? "、対照のノートを入れる前の測り方" : ""}):
 - 自己記述を渡して書いたあなたの個性のノート: ${pct(b.mine)}
 - 自己記述を渡さずに書いた個性のノート(対照。同じ種類の文章): ${pct(b.blind)}
-- 外の文章(持ち主が渡した材料。文章の種類が違うので参考): ${pct(b.external)}`;
+- 外の文章(持ち主が渡した材料。文章の種類が違うので参考): ${pct(b.external)}${
+			b.questions ? `\n- 開いている個性の問いの文: ${pct(b.questions)}` : ""
+		}${
+			b.blindQuestions
+				? `\n- 対照のノートの元の問いの文: ${pct(b.blindQuestions)}`
+				: ""
+		}${
+			b.blindClean
+				? `\n- 対照のノートのうち、元の問いの文が型に当たらなかったものだけ: ${pct(b.blindClean)}`
+				: ""
+		}`;
 	const [now, prev] = bs;
 	if (!now) return "";
 	return `
 型の当たり率の基準線(自己記述を渡さない頭が、どれの文章か知らずに判定。型: ${now.patterns.join(" / ")}):
 ${row(now, "今回")}${prev ? `\n${row(prev, "前回")}` : ""}
-渡して書いたノートでだけ高く、対照では低いなら、型を持ち込んで書いている可能性があります。対照でも、元の問いの文に型の言葉が入っていたものは、問いが型を運んだだけかもしれません。対照でも同じくらいなら、その型は歩いた先の側にあるのかもしれません。本数が少ないうちは、どちらとも言えません。
+渡して書いたノートでだけ高く、対照では低いなら、型を持ち込んで書いている可能性があります。対照でも、元の問いの文に型の言葉が入っていたものは、問いが型を運んだだけかもしれません。問いの文そのものが型に当たっているなら、型は問いを作る段で入っています。元の問いが当たらなかった対照でも当たるなら、その型は歩いた先の側にあるのかもしれません。本数が少ないうちは、どちらとも言えません。
 `;
 }
 

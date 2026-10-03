@@ -71,17 +71,6 @@ spec:
             # 人が決めた宛先なので、プライベートアドレスでも読む(頭の fetch_url は読まない)
             - name: FORGEJO_URL
               value: http://forgejo-web.forgejo.svc:3000
-            # 前の版の設定。新しい版の初回の起動で一度だけ PVC の ashi.json に取り込み、以後は読まない。
-            # 取り込んだのを確かめたら ASHI_CONFIG・ASHI_FEEDS ごと消す。設定は画面の「設定」で変える
-            - name: ASHI_CONFIG
-              value: >-
-                {"head":"claude-code","model":"claude-opus-5-5","maxStepsPerDay":15,"maxToolRounds":8,"effort":"medium","budget":{"dailyUsd":5,"stepUsd":1},"x":{"enabled":false,"dailyUsd":1,"maxPostsPerDay":3,"maxRepliesPerDay":20,"mentionsEveryMinutes":60}}
-            - name: ASHI_FEEDS
-              value: >-
-                [{"id":"blog","kind":"rss","target":"https://doany.io/rss.xml","title":"ブログ"},
-                {"id":"github","kind":"github","target":"5ym","title":"GitHub"},
-                {"id":"forgejo","kind":"forgejo","target":"yui","title":"Forgejo"},
-                {"id":"x","kind":"x","target":"5yuim","title":"X"}]
             # 頭(head: claude-code)。`claude setup-token` で出すサブスクのトークン
             - name: CLAUDE_CODE_OAUTH_TOKEN
               valueFrom:

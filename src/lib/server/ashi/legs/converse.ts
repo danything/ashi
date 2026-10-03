@@ -9,6 +9,7 @@ import { localDay, type Store } from "../state.ts";
 import { raiseBlocker, resolveBlockers, webhookNotify } from "./blockers.ts";
 import { acceptNewQuestions, allowance, trimOpenQuestions } from "./guard.ts";
 import { newsBlock } from "./news.ts";
+import { VERIFY_THEME } from "./select.ts";
 import {
 	canReply,
 	fetchMentions,
@@ -158,7 +159,7 @@ export async function checkMentions(ctx: {
 						const got = acceptNewQuestions(
 							claims.map((claim) => ({
 								text: `「${claim.trim().slice(0, 200)}」は本当か(X で @${username} さんに言ったこと)`,
-								theme: "確かめること",
+								theme: VERIFY_THEME,
 								track: "self",
 								interest: 0.7,
 								importance: 0.9,

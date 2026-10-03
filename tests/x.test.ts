@@ -749,6 +749,7 @@ describe("Ashi の改善案(X)への対応", () => {
 				reflect: (req) => {
 					expect(req.prompt).toContain("X で返していない約束");
 					expect(req.prompt).toContain("- p1 @taro さんに");
+					expect(req.prompt).toContain("足の記録で返したものだけ");
 					return {
 						diary: "d",
 						self: "私は寄り道が好きな歩き手で、問いの連鎖を追うのが楽しい。",

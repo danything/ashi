@@ -38,6 +38,7 @@ import {
 } from "../state.ts";
 import { measureBaseline, recentBaselines } from "./baseline.ts";
 import { raiseBlocker, resolveBlockers, webhookNotify } from "./blockers.ts";
+import { noteCitationConflicts } from "./citations.ts";
 import { crawlRequested, feedStatus } from "./feeds.ts";
 import {
 	acceptIntentions,
@@ -620,6 +621,13 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 								canPost: canPost(store, cfg, now),
 								canReply: canReply(store, cfg, now),
 								promises: unreturnedPromises(store.questions()),
+								returned: store
+									.questions()
+									.filter((q) => q.origin && q.repliedAt)
+									.sort((a, b) =>
+										(b.repliedAt ?? "").localeCompare(a.repliedAt ?? ""),
+									)
+									.slice(0, 5),
 							}
 						: undefined,
 					{
@@ -647,6 +655,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 						evolution: selfEvolution(store.selfHistory()),
 						lastSelf: w.lastSelf,
 						baseline: recentBaselines(store.recentLog(1000), 2),
+						citations: noteCitationConflicts(store),
 					},
 				),
 				schema: REFLECT_SCHEMA,

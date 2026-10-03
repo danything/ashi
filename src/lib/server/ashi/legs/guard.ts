@@ -7,7 +7,7 @@ import {
 	type Question,
 	type Store,
 } from "../state.ts";
-import { score } from "./select.ts";
+import { score, VERIFY_THEME } from "./select.ts";
 
 /**
  * ガードレール。頭が何を言っても、ここを通したものだけが状態に残る。
@@ -702,7 +702,7 @@ export function mergeClaims(declared: string[], marked: string[]): string[] {
 export function claimQuestions(claims: string[], where: string): RawQuestion[] {
 	return claims.map((claim) => ({
 		text: `「${claim}」は本当か(${where}言ったこと)`,
-		theme: "確かめること",
+		theme: VERIFY_THEME,
 		track: "self",
 		interest: 0.7,
 		importance: 0.9,

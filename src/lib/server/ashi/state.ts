@@ -311,6 +311,17 @@ export const newId = (): string => randomUUID().slice(0, 8);
 export const localDay = (d: Date): string =>
 	`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
+/**
+ * ISO の時刻を、日記の見出しと同じローカル時刻(クラスタは TZ=Asia/Tokyo)の YYYY-MM-DD HH:mm にする。
+ * UTC のまま切り出すと、日記の「## 02:59」と内省の「17:59」が同じ時を指していて取り違えた
+ * (Ashi の改善案、2026-10-03)
+ */
+export const localStamp = (iso: string): string => {
+	const d = new Date(iso);
+	if (Number.isNaN(d.getTime())) return iso.slice(0, 16).replace("T", " ");
+	return `${localDay(d)} ${d.toTimeString().slice(0, 5)}`;
+};
+
 const EMPTY_WALK: Walk = {
 	steps: 0,
 	recentThemes: [],

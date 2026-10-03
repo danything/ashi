@@ -55,6 +55,16 @@ export const ECHO_LIMIT = 3;
 /** 外で確かめずに言ったことを確かめる問いは、この日数歩かれなければ先に歩く */
 export const VERIFY_AFTER_DAYS = 2;
 
+/** 確かめの問いのテーマ(X・よそ者・持ち主に確かめずに言ったこと) */
+export const VERIFY_THEME = "確かめること";
+
+/**
+ * 直近 themeWindow 歩のうち、確かめの問いをこの数まで先に回す。超えたら点数とテーマの休みに任せる。
+ * 先に回すのは休ませているテーマでも効くので、よそ者との会話 1 回で 6 本積まれると、個性の枠が
+ * 確かめで埋まり、次の一歩に書いた問いが沈み続けた(10 歩中 5 歩。Ashi の改善案、2026-10-03)
+ */
+export const VERIFY_WINDOW_MAX = 3;
+
 /** 問いを探しただけの歩みの印。テーマとしては数えない */
 export const SEEDING = "(問いを探す)";
 
@@ -110,7 +120,11 @@ export function selectQuestion(
 	// 外(X・よそ者・持ち主)で確かめずに言ったことは、VERIFY_AFTER_DAYS 日歩かれなければ先に確かめる。
 	// 点数のままだと、次の一歩に 2 回書いても選ばれず、言いっぱなしのまま日が経っていった
 	// (Ashi の改善案、2026-09-26)。休ませているテーマでも回す(確かめるのは別の仕事なので)
-	const overdue = questions
+	const verifiedLately = recentThemes
+		.filter((t) => t !== SEEDING)
+		.slice(0, cfg.themeWindow)
+		.filter((t) => t === VERIFY_THEME).length;
+	const overdue = (verifiedLately < VERIFY_WINDOW_MAX ? questions : [])
 		.filter(
 			(q) =>
 				q.status === "open" &&
@@ -119,7 +133,12 @@ export function selectQuestion(
 				q.visits === 0 &&
 				now.getTime() - Date.parse(q.createdAt) >= VERIFY_AFTER_DAYS * 86400e3,
 		)
-		.sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0];
+		// 枠が限られるので、相手が返事を待っている X の約束を先に
+		.sort(
+			(a, b) =>
+				Number(!a.origin) - Number(!b.origin) ||
+				a.createdAt.localeCompare(b.createdAt),
+		)[0];
 	if (overdue)
 		return {
 			question: overdue,

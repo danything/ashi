@@ -2,7 +2,7 @@ import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import type { Config } from "../config.ts";
 import type { Tool } from "../head/head.ts";
-import type { Note, Store } from "../state.ts";
+import { localStamp, type Note, type Store } from "../state.ts";
 import { bigrams, jaccard } from "./guard.ts";
 
 /**
@@ -295,7 +295,7 @@ export function noteTools(store: Store): Tool[] {
 					? hits
 							.map(
 								(n) =>
-									`[${n.id}] ${n.createdAt.slice(0, 10)} (${n.theme}) ${n.title}\n  ${n.summary.slice(0, 160)}`,
+									`[${n.id}] ${localStamp(n.createdAt).slice(0, 10)} (${n.theme}) ${n.title}\n  ${n.summary.slice(0, 160)}`,
 							)
 							.join("\n")
 					: "見つからない";

@@ -357,6 +357,43 @@ describe("Ashi の改善案(2026-09-26)", () => {
 		expect(pick("2026-09-26T01:00:00Z")).toBe("chk:verify");
 	});
 
+	test("確かめの先回しは直近 10 歩で 3 歩まで。X の約束を先に", () => {
+		const cfg = {
+			themeStreakLimit: 3,
+			themeWindow: 10,
+			themeWindowMax: 3,
+			detourRate: 0,
+			ownerShare: 0,
+		};
+		const hi = q({ id: "hi", interest: 1, importance: 1 });
+		const memo = q({
+			id: "memo",
+			theme: "確かめること",
+			verify: true,
+			createdAt: "2026-09-20T00:00:00Z",
+		});
+		const x = q({
+			id: "x",
+			theme: "確かめること",
+			createdAt: "2026-09-22T00:00:00Z",
+			origin: { conversationId: "c", replyId: "r", username: "u", claim: "c" },
+		});
+		const pick = (recent: string[]) => {
+			const c = selectQuestion(
+				[hi, memo, x],
+				recent,
+				cfg,
+				() => 0.9,
+				new Date("2026-10-01T00:00:00Z"),
+			);
+			return "question" in c ? `${c.question.id}:${c.reason}` : "seed";
+		};
+		const v = "確かめること";
+		expect(pick(["a", v, "b", v])).toBe("x:verify");
+		// 3 歩に達したら先に回さず、テーマも休ませる
+		expect(pick([v, "a", v, "b", v])).toBe("hi:score");
+	});
+
 	test("足どりを、次の一歩に書いた問い ID と照らす", () => {
 		const log = [
 			{

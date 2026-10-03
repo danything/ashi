@@ -12,7 +12,12 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import { type Config, DEFAULT_CONFIG, normalizeConfig } from "./config.ts";
+import {
+	type Config,
+	DEFAULT_CONFIG,
+	normalizeConfig,
+	type Settings,
+} from "./config.ts";
 import { addUsage, type Usage } from "./head/head.ts";
 import type { BlockerRecord } from "./legs/blockers.ts";
 import type { FeedState } from "./legs/feeds.ts";
@@ -453,7 +458,29 @@ export class Store {
 		}
 		const feeds = envJson("ASHI_FEEDS");
 		if (feeds !== undefined) raw.feeds = feeds;
+		// 画面で変えた値(settings.json)をいちばん上に
+		for (const [k, v] of Object.entries(this.settings())) {
+			const prev = raw[k];
+			raw[k] =
+				v && typeof v === "object" && prev && typeof prev === "object"
+					? { ...prev, ...v }
+					: v;
+		}
 		return normalizeConfig(raw);
+	}
+
+	/** 画面(設定)で変えた値。無ければ空 */
+	settings(): Settings {
+		return this.readJson<Settings>("settings.json", {});
+	}
+
+	/** undefined で消す(ASHI_CONFIG と ashi.json の値に戻る) */
+	saveSettings(s: Settings | undefined): void {
+		if (s === undefined) {
+			rmSync(this.path("settings.json"), { force: true });
+			return;
+		}
+		this.writeJson("settings.json", s);
 	}
 
 	core(): string {

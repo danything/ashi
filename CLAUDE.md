@@ -97,7 +97,8 @@ main に入ると `docker-publish.yml` がイメージを焼き、`deploy/deploy
 
 - 設定は `deployment.yaml` の `ASHI_CONFIG`(ashi.json に重ねる)と `ASHI_FEEDS`(足跡)。PVC の ashi.json は触らなくてよい
 - 秘密は Infisical の `/ashi/ashi-secrets`(鍵の一覧は `deploy/secret.yaml` の先頭)
-- 頭はクラスタでは `claude-code`(サブスク)。1 日の歩数(`maxStepsPerDay`)で止める
+- 頭はクラスタでは `claude-code`(サブスク)。1 日の歩数(`maxStepsPerDay`)で止める。手元の Claude Code と週の上限を分け合うので、15 歩・道具の往復 8 回・effort medium に絞っている
+- 画面の「設定」(/settings)で、歩数・道具の往復・effort・モデル・よそ者との対話・X を変えられる。状態ディレクトリの settings.json に置き、ASHI_CONFIG より優先する(「デプロイの設定に戻す」で消える)。歩みには呼ぶたびに今の設定の頭へ取り次ぐ頭を渡すので、再起動なしで効く
 
 ## 改善案
 

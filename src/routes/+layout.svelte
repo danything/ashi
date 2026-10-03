@@ -20,6 +20,7 @@ const NAV: [string, string, IconName, string[]][] = [
 	["/context", "頭の中", "brain", ["/owner"]],
 	["/x", "X", "message-circle", []],
 	["/proposals", "直すこと", "wrench", ["/blocked"]],
+	["/settings", "設定", "sliders", []],
 ];
 const under = (path: string, href: string) =>
 	href === "/" ? path === "/" : path === href || path.startsWith(`${href}/`);

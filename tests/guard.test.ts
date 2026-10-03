@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { normalizeConfig } from "../src/lib/server/ashi/config.ts";
+import {
+	acceptSettings,
+	normalizeConfig,
+} from "../src/lib/server/ashi/config.ts";
 import { taskUsage } from "../src/lib/server/ashi/head/head.ts";
 import {
 	acceptNewQuestions,
@@ -287,4 +290,32 @@ test("使用量はキャッシュと仕事ごとに積み、日が変わった�
 		inputTokens: 160,
 	});
 	expect(store.budget("2026-10-03").inputTokens).toBe(5);
+});
+
+test("画面の設定は ashi.json と ASHI_CONFIG の上に重なり、消せば元に戻る", () => {
+	const store = freshStore();
+	store.writeText(
+		"ashi.json",
+		JSON.stringify({ maxStepsPerDay: 30, x: { enabled: true, dailyUsd: 2 } }),
+	);
+	const f = new FormData();
+	f.set("maxStepsPerDay", "12");
+	f.set("maxToolRounds", "8");
+	f.set("effort", "medium");
+	f.set("model", "gpt-5");
+	f.set("stranger", "on");
+	store.saveSettings(acceptSettings(f));
+	const cfg = store.config();
+	expect(cfg).toMatchObject({
+		maxStepsPerDay: 12,
+		maxToolRounds: 8,
+		effort: "medium",
+		model: "claude-opus-5-5",
+	});
+	// チェックの無い X は止まり、ほかの X の値は残る
+	expect(cfg.x).toMatchObject({ enabled: false, dailyUsd: 2 });
+	expect(cfg.stranger.enabled).toBe(true);
+	store.saveSettings(undefined);
+	expect(store.config()).toMatchObject({ maxStepsPerDay: 30 });
+	expect(store.config().x.enabled).toBe(true);
 });

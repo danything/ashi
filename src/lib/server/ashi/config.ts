@@ -325,3 +325,47 @@ function normalizeFeeds(raw: unknown): Feed[] {
 	}
 	return out;
 }
+
+/**
+ * 画面(設定)から変えられる項目。費用に効くものだけに絞る。状態ディレクトリの settings.json に置き、
+ * ASHI_CONFIG の上に重ねる(画面で変えた値が勝つ)。どの値も normalizeConfig で範囲に丸める
+ */
+export interface Settings {
+	maxStepsPerDay?: number;
+	maxToolRounds?: number;
+	effort?: Config["effort"];
+	model?: string;
+	stranger?: { enabled?: boolean };
+	x?: { enabled?: boolean };
+}
+
+/** 画面で選べる頭のモデル */
+export const MODELS = [
+	"claude-opus-5-5",
+	"claude-sonnet-5-5",
+	"claude-fable-5-1",
+] as const;
+
+/** 画面のフォームから、変えてよい項目だけを取り出す */
+export function acceptSettings(f: { get(name: string): unknown }): Settings {
+	const s: Settings = {};
+	const num = (k: string) => {
+		const v = Number(f.get(k));
+		return f.get(k) !== null && f.get(k) !== "" && Number.isFinite(v)
+			? v
+			: undefined;
+	};
+	const steps = num("maxStepsPerDay");
+	if (steps !== undefined) s.maxStepsPerDay = Math.round(steps);
+	const rounds = num("maxToolRounds");
+	if (rounds !== undefined) s.maxToolRounds = Math.round(rounds);
+	const effort = f.get("effort");
+	if (EFFORTS.includes(effort as Config["effort"]))
+		s.effort = effort as Config["effort"];
+	const model = f.get("model");
+	if (MODELS.includes(model as (typeof MODELS)[number]))
+		s.model = model as string;
+	s.stranger = { enabled: f.get("stranger") === "on" };
+	s.x = { enabled: f.get("x") === "on" };
+	return s;
+}

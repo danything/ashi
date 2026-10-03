@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
+import type { Settings } from "./ashi/config.ts";
 import { stopAllClaudeCode } from "./ashi/head/claude-code.ts";
-import type { Head, Tool } from "./ashi/head/head.ts";
+import type { Head, ThinkRequest, Tool } from "./ashi/head/head.ts";
 import { makeHead } from "./ashi/head/make.ts";
 import { archiveTool } from "./ashi/legs/archive.ts";
 import {
@@ -30,24 +31,54 @@ import { Store } from "./ashi/state.ts";
 export const store = new Store(resolve(process.env.ASHI_HOME || "data"));
 if (!store.exists()) store.init();
 
-let head: Head | undefined;
-/** 頭。繋ぎ方・モデル・effort は設定から(変えたら再起動) */
+let head: { key: string; head: Head } | undefined;
+/** 頭。繋ぎ方・モデル・effort は設定から。画面で変えたら、次に呼ぶときに作り直す */
 export function getHead(): Head {
-	if (!head) {
-		const cfg = store.config();
-		head = makeHead(cfg, store.home);
-	}
-	return head;
+	const cfg = store.config();
+	const key = `${cfg.head}:${cfg.model}:${cfg.effort}`;
+	if (head?.key !== key) head = { key, head: makeHead(cfg, store.home) };
+	return head.head;
 }
 
-let stranger: Head | undefined;
+let stranger: { key: string; head: Head } | undefined;
 /** よそ者の話し相手。頭と同じ繋ぎ方で、モデルだけ設定の stranger.model にする */
 export function getStranger(): Head | undefined {
 	const cfg = store.config();
 	if (!cfg.stranger.enabled) return undefined;
-	if (!stranger)
-		stranger = makeHead({ ...cfg, model: cfg.stranger.model }, store.home);
-	return stranger;
+	const key = `${cfg.head}:${cfg.stranger.model}:${cfg.effort}`;
+	if (stranger?.key !== key)
+		stranger = {
+			key,
+			head: makeHead({ ...cfg, model: cfg.stranger.model }, store.home),
+		};
+	return stranger.head;
+}
+
+/**
+ * 呼ぶたびに今の設定の頭へ取り次ぐ頭。歩みは起動時に受け取った頭を持ち続けるので、画面で
+ * モデルや effort を変えても効くように、これを渡す
+ */
+function live(get: () => Head | undefined): Head {
+	return {
+		get name() {
+			return get()?.name ?? "(無し)";
+		},
+		think<T>(req: ThinkRequest) {
+			const h = get();
+			if (!h) throw new Error("頭が無い(よそ者との対話を止めている)");
+			return h.think<T>(req);
+		},
+	};
+}
+
+/**
+ * 画面で設定を変えた。X を止めたらストリームも切る(開いたままだと、届いたイベントを読むたびに
+ * 料金がかかる)。頭は次に呼ぶときに作り直される
+ */
+export function saveSettings(s: Settings | undefined, by: string): void {
+	store.saveSettings(s);
+	store.log("settings", { by, settings: s ?? null });
+	if (!store.config().x.enabled) streamConn?.abort();
 }
 
 export function getTools(): Tool[] {
@@ -95,7 +126,12 @@ export function startWalking(): void {
 		process.exit(0);
 	});
 	walker = new Walker(
-		{ store, head: getHead(), tools: getTools(), stranger: getStranger() },
+		{
+			store,
+			head: live(getHead),
+			tools: getTools(),
+			stranger: live(getStranger),
+		},
 		(o) => {
 			console.log(
 				`[ashi] ${o.kind}${"wakeAt" in o ? ` → ${o.wakeAt.toISOString()}` : ""}`,

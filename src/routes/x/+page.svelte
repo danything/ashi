@@ -93,6 +93,9 @@ let posting = $state(false);
 				<span class="nums">{data.cleanup.deleted} / {data.cleanup.total} 件消した</span>
 				<span class="muted small">残り {data.cleanup.left} 件{data.cleanup.failed ? `、消せなかった ${data.cleanup.failed} 件` : ""}</span>
 				<span class="grow"></span>
+				{#if data.cleanup.left === 0 && data.cleanup.failed > 0}
+					<form method="POST" action="?/cleanupRetry" use:enhance><button type="submit" class="outline small">消せなかった分をやり直す</button></form>
+				{/if}
 				{#if data.cleanup.left > 0}
 					<form method="POST" action="?/cleanupStop" use:enhance><button type="submit" class="ghost small">止める</button></form>
 				{/if}

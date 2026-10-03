@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
 	parseArchive,
+	retryFailed,
 	runCleanup,
 	startCleanup,
 } from "../src/lib/server/ashi/legs/x-cleanup.ts";
@@ -86,6 +87,34 @@ describe("runCleanup", () => {
 		const r2 = await runCleanup(store, now, env, limited);
 		expect(r2).toEqual({ deleted: 0, left: 10 });
 		expect(store.xCleanup()?.lastError).toContain("429");
+	});
+
+	test("残高不足(402)は消せなかったにせず次に回し、403 だけ消せなかったに入れる。やり直しで残りに戻す", async () => {
+		const store = freshStore();
+		connect(store);
+		startCleanup(store, ["1", "2", "3"], now);
+		const broke = (async () =>
+			new Response("credits", { status: 402 })) as unknown as typeof fetch;
+		expect(await runCleanup(store, now, env, broke)).toEqual({
+			deleted: 0,
+			left: 3,
+		});
+		expect(store.xCleanup()?.failed).toEqual([]);
+
+		const forbidden = (async (u: string) =>
+			u.endsWith("/1")
+				? new Response("no", { status: 403 })
+				: Response.json({
+						data: { deleted: true },
+					})) as unknown as typeof fetch;
+		expect(await runCleanup(store, now, env, forbidden)).toEqual({
+			deleted: 2,
+			left: 0,
+		});
+		expect(store.xCleanup()?.failed).toEqual(["1"]);
+
+		retryFailed(store);
+		expect(store.xCleanup()).toMatchObject({ remaining: ["1"], failed: [] });
 	});
 
 	test("Ashi の投稿は消さない", async () => {

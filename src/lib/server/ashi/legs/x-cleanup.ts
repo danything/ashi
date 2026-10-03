@@ -64,7 +64,27 @@ export function startCleanup(store: Store, ids: string[], now: Date): XCleanup {
 	return c;
 }
 
-/** 50 件まで消す。429 なら今回はそこで止め、次の回に回す */
+/** その投稿を消せない理由のエラー(400・403)。ほかはやり直せば消せる見込みがある */
+function isPermanent(status: number): boolean {
+	return status === 400 || status === 403;
+}
+
+/** 消せなかった投稿を、残りに戻してもう一度回す */
+export function retryFailed(store: Store): XCleanup | undefined {
+	const c = store.xCleanup();
+	if (!c || c.failed.length === 0) return c;
+	const next: XCleanup = {
+		...c,
+		remaining: [...c.remaining, ...c.failed],
+		failed: [],
+		lastError: undefined,
+	};
+	store.saveXCleanup(next);
+	store.log("x-cleanup-retried", { count: c.failed.length });
+	return next;
+}
+
+/** 50 件まで消す。一時的なエラー(429・402・5xx など)なら今回はそこで止め、次の回に回す */
 export async function runCleanup(
 	store: Store,
 	now: Date,
@@ -95,8 +115,9 @@ export async function runCleanup(
 				continue;
 			}
 			lastError = e instanceof Error ? e.message.slice(0, 300) : String(e);
-			if (status === 429) break;
-			if (status === 401) break;
+			// 上限・認証・残高・X の側の不調・通信の失敗は、その投稿のせいではないので次の回に回す。
+			// 残高不足(402)の間の 304 件を「消せなかった」にして、二度と回らなくなっていた(2026-10-03)
+			if (!isPermanent(status)) break;
 			failed.push(id);
 			done.push(id);
 		}

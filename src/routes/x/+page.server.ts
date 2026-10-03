@@ -10,6 +10,7 @@ import {
 	CLEANUP_BATCH,
 	CLEANUP_EVERY_MS,
 	parseArchive,
+	retryFailed,
 	startCleanup,
 } from "#lib/server/ashi/legs/x-cleanup.ts";
 import { localDay } from "#lib/server/ashi/state.ts";
@@ -95,6 +96,12 @@ export const actions: Actions = {
 				cleanupMessage: e instanceof Error ? e.message : String(e),
 			});
 		}
+	},
+	/** 消せなかった投稿を、もう一度消しにいく */
+	cleanupRetry: () => {
+		retryFailed(store);
+		kickCleanup();
+		return {};
 	},
 	cleanupStop: () => {
 		store.saveXCleanup(undefined);

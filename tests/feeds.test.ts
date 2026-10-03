@@ -73,6 +73,7 @@ const withFeeds = () => {
 	store.writeText(
 		"ashi.json",
 		JSON.stringify({
+			x: { enabled: true },
 			feeds: [
 				{ id: "blog", kind: "rss", target: "https://doany.io/rss.xml" },
 				{ id: "gh", kind: "github", target: "5ym" },
@@ -175,6 +176,20 @@ describe("crawlRequested", () => {
 			{ id: "gh", added: 1 },
 		]);
 		expect(store.blockers()["feed:github"]).toBeUndefined();
+	});
+
+	test("X を止めている(x.enabled が false)ときは X の足跡を読まず、頭にも見せない", async () => {
+		const store = freshStore(["a"]);
+		store.writeText(
+			"ashi.json",
+			JSON.stringify({ feeds: [{ id: "x", kind: "x", target: "someone" }] }),
+		);
+		const { hits, deps } = net({});
+		expect(
+			await crawlRequested(store, ["x"], now, deps, { X_BEARER_TOKEN: "t" }),
+		).toEqual([]);
+		expect(hits).toEqual([]);
+		expect(feedStatus(store, now)).toBe("(登録されていない)");
 	});
 });
 

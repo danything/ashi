@@ -90,6 +90,7 @@ export async function talkWithStranger(opts: {
 		new_questions?: RawQuestion[];
 		takeaway?: unknown;
 		unverified?: unknown;
+		accepted?: unknown;
 	} = {};
 	const n = Math.max(1, opts.turns);
 	for (let i = 0; i < n; i++) {
@@ -110,6 +111,7 @@ export async function talkWithStranger(opts: {
 			new_questions?: RawQuestion[];
 			takeaway?: unknown;
 			unverified?: unknown;
+			accepted?: unknown;
 		}>({
 			task: last ? "dialogue-final" : "dialogue",
 			system: dialogueSystem(store.core(), store.self()),
@@ -152,6 +154,7 @@ export async function talkWithStranger(opts: {
 			return trimOpenQuestions([...qs, ...got, ...checks], cfg);
 		});
 	}
+	const accepted = acceptClaims(final.accepted);
 	const dialogue: Dialogue = {
 		at: now.toISOString(),
 		model: stranger.name,
@@ -159,6 +162,7 @@ export async function talkWithStranger(opts: {
 		turns,
 		added,
 		takeaway: text(final.takeaway).slice(0, 300),
+		...(accepted.length ? { accepted } : {}),
 		patterns: patternHits(turns, store.walk().selfPatterns ?? []),
 	};
 	store.appendDialogue(dialogue);

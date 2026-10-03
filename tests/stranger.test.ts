@@ -328,6 +328,36 @@ describe("Ashi の改善案(2026-09-26)", () => {
 		});
 	});
 
+	test("相手の話を受け入れただけのものは、確かめの問いにせず会話に残して内省で見せる", async () => {
+		const store = freshStore();
+		const stranger = new FakeHead({
+			stranger: () => ({ reply: "肉は 30 分置いても中心は数度しか上がらない" }),
+		});
+		const head = new FakeHead({
+			dialogue: () => ({ reply: "聞いたことがあります" }),
+			"dialogue-final": () => ({
+				reply: "またね",
+				new_questions: [],
+				takeaway: "t",
+				unverified: [],
+				accepted: ["30 分置いても中心は数度しか上がらない"],
+			}),
+		});
+		const r = await talkWithStranger({
+			store,
+			head,
+			stranger,
+			turns: 2,
+			now,
+			rng: () => 0,
+		});
+		expect(store.questions().filter((x) => x.verify)).toEqual([]);
+		expect(r.dialogue.accepted).toEqual([
+			"30 分置いても中心は数度しか上がらない",
+		]);
+		expect(store.recentDialogues(1)[0]?.accepted).toHaveLength(1);
+	});
+
 	test("確かめる問いは、2 日歩かれなければ点数に関係なく先に歩く", () => {
 		const cfg = {
 			themeStreakLimit: 3,

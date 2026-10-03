@@ -74,9 +74,10 @@ spec:
             # ashi.json の上に重ねる設定(config.ts)。頭は Claude Code の CLI をサブスクで(Opus 5.5)、
             # 1 日 30 歩まで。サブスクはドルで測れないので budget は効かない(API キーに戻すと効く)。
             # model も書くのは、PVC の ashi.json が作ったときの既定を持っているため
+            # X は費用がかさむので止めている(2026-10-03)。x.enabled を true に戻すと投稿・返信・足跡の X を再開する
             - name: ASHI_CONFIG
               value: >-
-                {"head":"claude-code","model":"claude-opus-5-5","maxStepsPerDay":30,"maxToolRounds":12,"budget":{"dailyUsd":5,"stepUsd":1},"x":{"enabled":true,"dailyUsd":1,"maxPostsPerDay":3,"maxRepliesPerDay":20,"mentionsEveryMinutes":60}}
+                {"head":"claude-code","model":"claude-opus-5-5","maxStepsPerDay":30,"maxToolRounds":12,"budget":{"dailyUsd":5,"stepUsd":1},"x":{"enabled":false,"dailyUsd":1,"maxPostsPerDay":3,"maxRepliesPerDay":20,"mentionsEveryMinutes":60}}
             # 持ち主の足跡。いつ読むかは頭が決める。鍵の要るもの(X・Forgejo)は鍵が無ければ /blocked に出る
             - name: ASHI_FEEDS
               value: >-

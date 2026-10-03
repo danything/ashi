@@ -822,6 +822,10 @@ function talkBlock(t: ReflectTalk): string {
 									: `あなた: ${cut(x.text, 400)}`,
 							)
 							.join("\n")}\n持ち帰り: ${d.takeaway || "(無し)"}${
+							d.accepted?.length
+								? `\n相手の話を確かめずに受け入れたこと: ${d.accepted.join(" / ")}`
+								: ""
+						}${
 							d.patterns?.length
 								? `\n最初の返事に出た自分の型の言葉: ${d.patterns.map((p) => `${p.word}${p.strangerFirst ? "(相手が先に言った)" : "(自分から持ち込んだ)"}`).join("・")}`
 								: ""
@@ -1379,10 +1383,16 @@ export const DIALOGUE_FINAL_SCHEMA: JsonSchema = {
 			type: "array",
 			items: { type: "string" },
 			description:
-				"この会話であなたが、ノートで確かめていない事実を記憶だけで言ったもの(「たしか〜」「記憶で言うと〜」と断ったものも含む)を 1 文ずつ。足が確かめる問いにして控える。断り書きは確かめずに済ませる許可ではない。無ければ空",
+				"この会話であなたが、ノートで確かめていない事実を記憶だけで言ったもの(「たしか〜」「記憶で言うと〜」と断ったものも含む)を 1 文ずつ。足が確かめる問いにして控える。断り書きは確かめずに済ませる許可ではない。相手が言ったことに頷いただけのものは入れず、accepted に。無ければ空",
+		},
+		accepted: {
+			type: "array",
+			items: { type: "string" },
+			description:
+				"相手が言った事実を、あなたが確かめずに受け入れたもの(「聞いたことがある」と頷いた、など)を 1 文ずつ。確かめの問いにはせず、内省で見せる。気になるなら new_questions に入れる。無ければ空",
 		},
 	},
-	required: ["reply", "new_questions", "takeaway", "unverified"],
+	required: ["reply", "new_questions", "takeaway", "unverified", "accepted"],
 	additionalProperties: false,
 };
 

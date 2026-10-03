@@ -169,7 +169,10 @@ describe("巡回と弾かれたこと", () => {
 		const store = freshStore();
 		store.writeText(
 			"ashi.json",
-			JSON.stringify({ feeds: [{ id: "x", kind: "x", target: "me" }] }),
+			JSON.stringify({
+				x: { enabled: true },
+				feeds: [{ id: "x", kind: "x", target: "me" }],
+			}),
 		);
 		const { sent, notify } = collector();
 		await crawlRequested(store, ["x"], now, {}, {}, notify);

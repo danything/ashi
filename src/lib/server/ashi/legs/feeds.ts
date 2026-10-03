@@ -307,7 +307,7 @@ export async function crawlRequested(
 	const cfg = store.config();
 	const states = store.feedStates();
 	const feeds = [...new Set(requested)]
-		.map((id) => cfg.feeds.find((f) => f.id === id))
+		.map((id) => activeFeeds(cfg).find((f) => f.id === id))
 		.filter(
 			(f): f is Feed => Boolean(f) && crawlable(states[f?.id ?? ""], cfg, now),
 		)
@@ -375,11 +375,20 @@ function ingest(store: Store, feed: Feed, items: FeedItem[], now: Date): void {
 }
 
 /** 頭に見せるフィードの様子 */
+/**
+ * いま読める足跡。X を止めている(x.enabled が false)ときは X の足跡も読まない。読むのは別の鍵
+ * (X_BEARER_TOKEN)なので、アカウントの接続を外しても 1 回最大 50 件の読みが課金され続けた(2026-10-03)
+ */
+function activeFeeds(cfg: Pick<Config, "feeds" | "x">): Feed[] {
+	return cfg.feeds.filter((f) => f.kind !== "x" || cfg.x.enabled);
+}
+
 export function feedStatus(store: Store, now: Date): string {
 	const cfg = store.config();
-	if (cfg.feeds.length === 0) return "(登録されていない)";
+	const feeds = activeFeeds(cfg);
+	if (feeds.length === 0) return "(登録されていない)";
 	const states = store.feedStates();
-	return cfg.feeds
+	return feeds
 		.map((f) => {
 			const s = states[f.id];
 			const last = s?.lastCrawledAt

@@ -849,6 +849,11 @@ export interface Dialogue {
 	 * テーマ名が新しくても、中身が自分の型のままのことがあった(Ashi の改善案、2026-09-26)
 	 */
 	patterns?: { word: string; firstReply: boolean; strangerFirst: boolean }[];
+	/**
+	 * 相手の話を、確かめずに受け入れたもの。自分が外に言ったこと(確かめの問いにする)とは分け、
+	 * 内省で見せるだけにする(Ashi の改善案、2026-10-03)
+	 */
+	accepted?: string[];
 }
 
 export interface ChatEntry {

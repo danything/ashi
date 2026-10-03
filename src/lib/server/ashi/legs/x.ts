@@ -458,7 +458,7 @@ export function xBlockage(e: unknown): Blockage {
 			title: "X の回数の上限に当たった",
 			detail,
 			remedy:
-				"しばらく待てば戻る。続くなら ASHI_CONFIG の x.mentionsEveryMinutes を長くする。",
+				"しばらく待てば戻る。続くなら設定の画面でメンションを見に行く間隔を長くする。",
 		};
 	}
 	if (status === 402) {
@@ -467,7 +467,7 @@ export function xBlockage(e: unknown): Blockage {
 			title: "X の API の残高が足りない",
 			detail,
 			remedy:
-				"X の開発者ポータルでクレジットを足す。Ashi の 1 日の上限は ASHI_CONFIG の x.dailyUsd。",
+				"X の開発者ポータルでクレジットを足す。Ashi の 1 日の上限は設定の画面の X で変えられる。",
 		};
 	}
 	return {

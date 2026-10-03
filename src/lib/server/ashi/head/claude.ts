@@ -247,7 +247,7 @@ export function claudeBlockage(e: unknown): Blockage | undefined {
 			key: "head:billing",
 			title: "Claude API の残高が足りない",
 			detail: msg,
-			remedy: `${CONSOLE}/settings/billing でクレジットを足す(自動チャージも設定できる)。Ashi の 1 日の上限は ashi.json の budget.dailyUsd。`,
+			remedy: `${CONSOLE}/settings/billing でクレジットを足す(自動チャージも設定できる)。Ashi の 1 日の上限は設定の画面で変えられる。`,
 		};
 	}
 	if (
@@ -259,7 +259,7 @@ export function claudeBlockage(e: unknown): Blockage | undefined {
 			key: "head:web-search",
 			title: "Claude の web 検索が組織で許可されていない",
 			detail: msg,
-			remedy: `${CONSOLE}/settings/privacy(組織の設定)で web search を有効にする。使わせないなら ashi.json の allowWeb を false にする。`,
+			remedy: `${CONSOLE}/settings/privacy(組織の設定)で web search を有効にする。使わせないなら設定の画面の JSON で allowWeb を false にする。`,
 		};
 	}
 	if (e instanceof Anthropic.PermissionDeniedError) {
@@ -267,7 +267,7 @@ export function claudeBlockage(e: unknown): Blockage | undefined {
 			key: "head:permission",
 			title: "Claude API で権限が足りない",
 			detail: msg,
-			remedy: `API キーの属するワークスペースで、ashi.json の model(既定 claude-opus-5-5)が使えるか ${CONSOLE}/settings/workspaces で確かめる。`,
+			remedy: `API キーの属するワークスペースで、設定のモデル(既定 claude-opus-5-5)が使えるか ${CONSOLE}/settings/workspaces で確かめる。`,
 		};
 	}
 	return undefined;

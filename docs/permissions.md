@@ -23,7 +23,7 @@ Ashi が自分で学ぶために要る権限と、弾かれたときの直し方
 
 ### 1. 頭
 
-頭の繋ぎ方は 2 つある(`ASHI_CONFIG` の `head`)。クラスタでは `claude-code` にしてある。
+頭の繋ぎ方は 2 つある(画面の「設定」の「頭」)。クラスタでは `claude-code` にしてある。
 
 | `head` | 払い方 | 鍵 | 止め方 |
 | --- | --- | --- | --- |
@@ -47,10 +47,10 @@ Ashi が自分で学ぶために要る権限と、弾かれたときの直し方
 | --- | --- | --- |
 | 401 | Claude API の鍵が通らない(`sk-ant-oat…` なら「サブスクのトークンが入っている」) | <https://platform.claude.com/settings/keys> で API キーを作り、`ANTHROPIC_API_KEY` に入れる |
 | 残高不足 | Claude API の残高が足りない | <https://platform.claude.com/settings/billing> でクレジットを足す。自動チャージも設定できる |
-| web 検索が使えない | Claude の web 検索が組織で許可されていない | Console の組織の設定(Settings → Privacy)で web search を有効にする。使わせないなら `ashi.json` の `allowWeb: false` |
-| 403 | Claude API で権限が足りない | キーのワークスペースで `ashi.json` の `model`(既定 `claude-opus-5-5`)が使えるか確かめる |
+| web 検索が使えない | Claude の web 検索が組織で許可されていない | Console の組織の設定(Settings → Privacy)で web search を有効にする。使わせないなら設定の画面の JSON で `allowWeb: false` |
+| 403 | Claude API で権限が足りない | キーのワークスペースで設定のモデル(既定 `claude-opus-5-5`)が使えるか確かめる |
 
-使う額の上限は Ashi の側でも決めている(`ashi.json` の `budget.dailyUsd`、既定 2 ドル / 日)。Console のワークスペースにも月の上限を付けておくと二重に止まる。
+使う額の上限は Ashi の側でも決めている(設定の画面の「歩み」、既定 2 ドル / 日)。Console のワークスペースにも月の上限を付けておくと二重に止まる。
 
 ### 2. Entra ID(画面のログイン)
 
@@ -75,7 +75,7 @@ doany.io の他のアプリと同じく、共有のアプリ登録 `Main`(クラ
 
 ## Ashi の X アカウント
 
-Ashi は自分の X アカウント(DoaRetail)で投稿し、メンションに返信する。投稿も返信も頭が決め(承認なし)、足が数と額の上限で止める(`ASHI_CONFIG` の `x`: 1 日 1 ドル・投稿 3・返信 10・メンションを読むのは 60 分おき)。
+Ashi は自分の X アカウント(DoaRetail)で投稿し、メンションに返信する。投稿も返信も頭が決め(承認なし)、足が数と額の上限で止める(設定の画面の「X」: 1 日 1 ドル・投稿 3・返信 20・メンションを読むのは 60 分おき)。
 
 1. X の開発者ポータルで、xool と同じアプリの「User authentication settings」のコールバック URL に `https://as.doany.io/x/callback` を足す。アプリの権限は Read and write
 2. Infisical の `x-client-id` と `x-client-secret` を、xool の値への参照で入れる(上の表)
@@ -88,7 +88,7 @@ Ashi は自分の X アカウント(DoaRetail)で投稿し、メンションに�
 | 402 | X の API の残高が足りない | 開発者ポータルでクレジットを足す |
 | 429 | X の回数の上限に当たった | 待てば戻る |
 
-## 持ち主の足跡(`ashi.json` の `feeds`)
+## 持ち主の足跡(設定の画面の「持ち主の足跡」)
 
 いつ読みに行くかは頭が決める。足は同じ足跡を `feedMinHours`(既定 6 時間)空けて読む。
 

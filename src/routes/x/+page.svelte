@@ -83,7 +83,7 @@ let posting = $state(false);
 				<div class="stat"><span class="label">返信</span><span class="value">{data.today.replies}<span class="unit"> / {data.limits.maxRepliesPerDay}</span></span></div>
 				<div class="stat"><span class="label">X の額</span><span class="value">{usd(data.today.usd)}<span class="unit"> / {usd(data.limits.dailyUsd)}</span></span></div>
 			</div>
-			<p class="tiny muted">X の API は従量課金(読み 1 件 $0.005、投稿 1 件 ${data.writeUsd})。上限は ASHI_CONFIG の x で変えられる。</p>
+			<p class="tiny muted">X の API は従量課金(読み 1 件 $0.005、投稿 1 件 ${data.writeUsd})。上限は<a href="/settings">設定</a>で変えられる。</p>
 		</section>
 	</div>
 	<section class="panel">

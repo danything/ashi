@@ -140,7 +140,7 @@ const BRIDGES_SHOWN = 6;
 			<pre class="small">{data.system}</pre>
 		</details>
 		<details class="fold">
-			<summary>足の設定(ashi.json と ASHI_CONFIG を重ね、範囲に丸めた後)</summary>
+			<summary>足の設定(範囲に丸めた後。変えるのは<a href="/settings">設定</a>で)</summary>
 			<pre class="small">{data.config}</pre>
 		</details>
 

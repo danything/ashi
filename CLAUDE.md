@@ -69,7 +69,7 @@ Ashi は、AI(頭)に「足」を与えて自分で学び続けさせるプロ�
 - 基準線には、開いた個性の問いの文(questions)と対照のノートの元の問いの文(blindQuestions)も混ぜ、元の問いが型に当たらなかった対照だけの当たり率(blindClean)も出す。問いを作るのは自己記述を読んだ頭なので、言葉の一致(carried)だけでは言い換えた型を拾えなかった
 - トークンの使用量は budget.json(今日)と budget-history.jsonl(前の日まで)。キャッシュの読み書き(cacheReadTokens / cacheWriteTokens)と task ごとの内訳(byTask)も積む。上書きで日ごとの数字が消えていた
 - よそ者との会話の締めで、自分が記憶で言ったこと(unverified、確かめの問いにする)と、相手の話を確かめずに受け入れたこと(accepted)を分けて申告させる。accepted は問いにせず dialogues.jsonl に残し、内省で会話と一緒に見せる(問いにするかは頭が決める)。相手の主張に頷いただけのものが確かめの枠を食っていた
-- X を止める(x.enabled: false)と、足跡の X(X_BEARER_TOKEN で読む)も読まず、頭にも見せない。アカウントの接続を外しても読みの課金が続いていた。2026-10-03 から費用のため止めている(deployment.yaml)
+- X を止める(x.enabled: false)と、足跡の X(X_BEARER_TOKEN で読む)も読まず、頭にも見せない。アカウントの接続を外しても読みの課金が続いていた。2026-10-03 から費用のため止めている(設定の画面)
 - 頭に見せる時刻はローカル時刻(クラスタは TZ=Asia/Tokyo、`localStamp`)。UTC のまま切り出していて、日記の見出しと 9 時間ずれていた
 - 学びのリセットは消さずに `archive/<時刻>/` へ移す。持ち主の地図と材料・改善案は残す(`store.resetLearning`)
 
@@ -95,10 +95,10 @@ bun run build      # 画面と CLI(build/cli.js)
 
 main に入ると `docker-publish.yml` がイメージを焼き、`deploy/deployment.yaml` のタグを差し替える PR を作って自分でマージする。ArgoCD が `deploy/argocd.yaml` を拾って as.doany.io に出す。
 
-- 設定は `deployment.yaml` の `ASHI_CONFIG`(ashi.json に重ねる)と `ASHI_FEEDS`(足跡)。PVC の ashi.json は触らなくてよい
+- 設定は画面の「設定」(/settings)だけで変える。保存先は PVC の ashi.json。環境変数(deployment.yaml・Infisical)に置くのは鍵と置き場所だけで、設定は混ぜない(持ち主の指摘、2026-10-03)。前の版の `ASHI_CONFIG`・`ASHI_FEEDS`・settings.json は、起動時に一度だけ ashi.json に取り込み(`store.importLegacyConfig`、印は config-imported.json)、以後は読まない
 - 秘密は Infisical の `/ashi/ashi-secrets`(鍵の一覧は `deploy/secret.yaml` の先頭)
 - 頭はクラスタでは `claude-code`(サブスク)。1 日の歩数(`maxStepsPerDay`)で止める。手元の Claude Code と週の上限を分け合うので、15 歩・道具の往復 8 回・effort medium に絞っている
-- 画面の「設定」(/settings)で、歩数・道具の往復・effort・モデル・よそ者との対話・X を変えられる。状態ディレクトリの settings.json に置き、ASHI_CONFIG より優先する(「デプロイの設定に戻す」で消える)。歩みには呼ぶたびに今の設定の頭へ取り次ぐ頭を渡すので、再起動なしで効く
+- 設定の画面で保存した値は再起動なしで効く(歩みには、呼ぶたびに今の設定の頭へ取り次ぐ頭を渡す。X を止めたらストリームも切る)
 
 ## 改善案
 

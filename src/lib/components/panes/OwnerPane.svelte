@@ -44,7 +44,7 @@ const KIND: Record<string, string> = {
 		{/if}
 	</div>
 	<p class="tiny muted">
-		いつ読みに行くかは頭が歩くたびに決める。同じ足跡は {data.feedMinHours} 時間空けて読む。足すときは deploy/deployment.yaml の <code>ASHI_FEEDS</code> に書く。
+		いつ読みに行くかは頭が歩くたびに決める。同じ足跡は {data.feedMinHours} 時間空けて読む。足すときは<a href="/settings">設定</a>で。
 	</p>
 	{#if data.feeds.length}
 		<ul class="rows feeds">

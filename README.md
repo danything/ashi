@@ -49,7 +49,7 @@ Give your AI legs.
 
 | ファイル | 書くのは | 中身 |
 | --- | --- | --- |
-| `ashi.json` | 人 | 設定([`config.ts`](src/lib/server/ashi/config.ts))。読むときに範囲へ丸める |
+| `ashi.json` | 人(画面の「設定」) | 設定([`config.ts`](src/lib/server/ashi/config.ts))。読むときに範囲へ丸める |
 | `core.md` | 人 | コア原則 |
 | `self.md` | 頭(内省) | 自己記述 |
 | `owner.md` | 頭(地図の書き直し) | 持ち主の興味の地図 |
@@ -58,10 +58,10 @@ Give your AI legs.
 | `diary/<日付>.md` | 足(中身は頭) | 日記 |
 | `sources.json` `sources/<id>.md` | 足 | 持ち主から受け取った材料 |
 | `feeds.json` | 足 | 足跡ごとの最後に読んだ時刻と取り込み済みの鍵 |
-| `walk.json` `budget.json` | 足 | 歩数・直近のテーマ・次に起きる時刻、今日使った額 |
+| `walk.json` `budget.json` `budget-history.jsonl` | 足 | 歩数・直近のテーマ・次に起きる時刻、今日と前の日までの使用量(トークン・キャッシュ・仕事ごと) |
 | `log.jsonl` `chat.jsonl` | 足 | 出来事、対話 |
 
-足跡の書き方(`ashi.json`。環境変数 `ASHI_FEEDS` に同じ配列を JSON で入れると、そちらが勝つ。クラスタでは `deploy/deployment.yaml` に書いてある):
+足跡は画面の「設定」で足す。`ashi.json` では次の形になる:
 
 ```json
 {
@@ -91,9 +91,12 @@ SvelteKit。ログインは Entra ID で、同じプロセスが歩みも回す(
 | `/diary` 日記 | 内省で書いた日記 |
 | `/owner` 持ち主 | 持ち主の興味の地図、足跡の様子、文章を渡す |
 | `/blocked` 弾かれたこと | 権限・鍵・課金・巡回の失敗と、その直し方。開いているものがあると全画面の上に帯が出る |
-| `/context` 頭の中 | 自己記述・コア原則と、頭に毎回渡している system の全文、設定 |
+| `/context` 頭の中 | 自己記述・コア原則と、頭に毎回渡している system の全文 |
+| `/settings` 設定 | 頭・歩み・よそ者との対話・X・足跡と、全項目の JSON。保存すると次の 1 歩から効く。トークンの日ごとの使用量と、鍵が入っているか |
 
 ### 環境変数
+
+環境変数に置くのは鍵と置き場所だけ。歩数やモデルなどの設定は画面の「設定」で変える(`ashi.json` に保存する)。
 
 | 変数 | |
 | --- | --- |
@@ -105,13 +108,12 @@ SvelteKit。ログインは Entra ID で、同じプロセスが歩みも回す(
 | `ASHI_ORIGIN` | 公開する URL。弾かれたことの通知に `/blocked` のリンクを付ける(任意) |
 | `ASHI_HOME` | 状態ディレクトリ(イメージでは `/data`) |
 | `ASHI_WALK` | `0` なら歩かず画面だけ |
-| `ASHI_CONFIG` | `ashi.json` の上に重ねる設定(JSON)。例 `{"budget":{"dailyUsd":5}}`。クラスタでは `deploy/deployment.yaml` に書く |
 | `GITHUB_TOKEN` `X_BEARER_TOKEN` `FORGEJO_URL` `FORGEJO_TOKEN` | 足跡の巡回(任意) |
 | `NOTIFY_WEBHOOK_URL` | 弾かれたことの通知(Mattermost / Slack の incoming webhook、任意) |
 
 どの権限をどう付けるか、弾かれたときにどう直すかは [docs/permissions.md](docs/permissions.md) にまとめてある。
 
-頭の繋ぎ方は `head` で選ぶ。`api` は Messages API を API キーで(従量課金、`budget` のドルで止める)、`claude-code` は公式の Claude Code の CLI をサブスクのトークンで(`maxStepsPerDay` の歩数で止める。[`head/claude-code.ts`](src/lib/server/ashi/head/claude-code.ts))。クラスタは `claude-code`。頭のモデルは `ashi.json` の `model`(既定 `claude-opus-5-5`、effort `high`。Opus 5.5 の既定は medium なので明示している)。拒否されたときはサーバー側のフォールバック(`fallbacks: "default"`)で別のモデルが答え直す。
+頭の繋ぎ方は設定の画面の「頭」で選ぶ。`api` は Messages API を API キーで(従量課金、`budget` のドルで止める)、`claude-code` は公式の Claude Code の CLI をサブスクのトークンで(`maxStepsPerDay` の歩数で止める。[`head/claude-code.ts`](src/lib/server/ashi/head/claude-code.ts))。クラスタは `claude-code`。頭のモデルと effort も設定の画面で選ぶ(既定 `claude-opus-5-5`)。拒否されたときはサーバー側のフォールバック(`fallbacks: "default"`)で別のモデルが答え直す。
 
 ## デプロイ
 

@@ -82,7 +82,7 @@ switch (cmd) {
 	case "init": {
 		store.init(rest);
 		console.log(
-			`${store.home} を作った。core.md と ashi.json を読んでから歩かせる`,
+			`${store.home} を作った。core.md と設定(ashi.json、画面の「設定」でも変えられる)を確かめてから歩かせる`,
 		);
 		break;
 	}

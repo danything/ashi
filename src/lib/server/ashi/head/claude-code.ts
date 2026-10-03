@@ -320,7 +320,7 @@ export function subscriptionBlockage(
 			title: "サブスクの使用量の上限に当たった",
 			detail: message,
 			remedy:
-				"5 時間ごと・週ごとの上限で、手元の Claude Code と共有している。戻るまで Ashi は長く休む。減らすなら ASHI_CONFIG の maxStepsPerDay を下げる。",
+				"5 時間ごと・週ごとの上限で、手元の Claude Code と共有している。戻るまで Ashi は長く休む。減らすなら設定の画面で 1 日の歩数を下げる。",
 		};
 	}
 	return undefined;

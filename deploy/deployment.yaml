@@ -71,16 +71,11 @@ spec:
             # 人が決めた宛先なので、プライベートアドレスでも読む(頭の fetch_url は読まない)
             - name: FORGEJO_URL
               value: http://forgejo-web.forgejo.svc:3000
-            # ashi.json の上に重ねる設定(config.ts)。頭は Claude Code の CLI をサブスクで(Opus 5.5)、
-            # 1 日 15 歩・道具の往復 8 回・effort medium まで(手元の Claude Code と週の上限を分け合うので節約、
-            # 2026-10-03。30 歩・12 回・high で週の上限を 2 日半で使い切った)。画面の「設定」で変えた値はこれより優先される。
-            # サブスクはドルで測れないので budget は効かない(API キーに戻すと効く)。
-            # model も書くのは、PVC の ashi.json が作ったときの既定を持っているため
-            # X は費用がかさむので止めている(2026-10-03)。x.enabled を true に戻すと投稿・返信・足跡の X を再開する
+            # 前の版の設定。新しい版の初回の起動で一度だけ PVC の ashi.json に取り込み、以後は読まない。
+            # 取り込んだのを確かめたら ASHI_CONFIG・ASHI_FEEDS ごと消す。設定は画面の「設定」で変える
             - name: ASHI_CONFIG
               value: >-
                 {"head":"claude-code","model":"claude-opus-5-5","maxStepsPerDay":15,"maxToolRounds":8,"effort":"medium","budget":{"dailyUsd":5,"stepUsd":1},"x":{"enabled":false,"dailyUsd":1,"maxPostsPerDay":3,"maxRepliesPerDay":20,"mentionsEveryMinutes":60}}
-            # 持ち主の足跡。いつ読むかは頭が決める。鍵の要るもの(X・Forgejo)は鍵が無ければ /blocked に出る
             - name: ASHI_FEEDS
               value: >-
                 [{"id":"blog","kind":"rss","target":"https://doany.io/rss.xml","title":"ブログ"},

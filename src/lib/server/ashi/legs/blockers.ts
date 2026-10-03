@@ -112,7 +112,7 @@ export function feedBlockage(
 				title: "X を読む鍵が無い",
 				detail: error,
 				remedy:
-					"https://developer.x.com/en/portal/dashboard で Project と App を作り、ユーザーのポストを読めるプラン(有料)にして Bearer Token を発行する。サーバーの環境変数 `X_BEARER_TOKEN` に入れて再起動する。X を読まないなら ashi.json の feeds から外す。",
+					"https://developer.x.com/en/portal/dashboard で Project と App を作り、ユーザーのポストを読めるプラン(有料)にして Bearer Token を発行する。サーバーの環境変数 `X_BEARER_TOKEN` に入れて再起動する。X を読まないなら設定の画面の足跡から外す。",
 			};
 		}
 		return {
@@ -138,7 +138,7 @@ export function feedBlockage(
 			title: `Forgejo の ${feed.target} を読めない`,
 			detail: error,
 			remedy:
-				"ユーザー名が合っているか ashi.json の feeds を、Forgejo が動いているかを確かめる。",
+				"ユーザー名が合っているか設定の画面の足跡を、Forgejo が動いているかを確かめる。",
 		};
 	}
 	if (feed.kind === "github") {
@@ -154,7 +154,7 @@ export function feedBlockage(
 			key,
 			title: `GitHub の ${feed.target} を読めない`,
 			detail: error,
-			remedy: "ユーザー名が合っているか ashi.json の feeds を確かめる。",
+			remedy: "ユーザー名が合っているか設定の画面の足跡を確かめる。",
 		};
 	}
 	return {
@@ -163,7 +163,7 @@ export function feedBlockage(
 		detail: error,
 		remedy: /40[13]/.test(error)
 			? "フィードがログインを求めている。公開のフィード URL に替えるか、読ませたい記事を「持ち主」の画面で貼り付ける。"
-			: "ashi.json の feeds の URL が今も有効か確かめる(記事一覧のページではなく RSS / Atom の URL)。",
+			: "設定の画面の足跡の URL が今も有効か確かめる(記事一覧のページではなく RSS / Atom の URL)。",
 	};
 }
 

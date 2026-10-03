@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
-	acceptSettings,
+	applySettingsForm,
 	normalizeConfig,
 } from "../src/lib/server/ashi/config.ts";
 import { taskUsage } from "../src/lib/server/ashi/head/head.ts";
@@ -147,51 +147,47 @@ describe("normalizeConfig", () => {
 	});
 });
 
-describe("ASHI_FEEDS", () => {
-	test("環境変数の足跡が ashi.json より勝つ", async () => {
-		const { freshStore } = await import("./helpers.ts");
+describe("前の版の設定の取り込み", () => {
+	test("ASHI_CONFIG・ASHI_FEEDS・settings.json を一度だけ ashi.json に取り込み、以後は環境変数を読まない", () => {
 		const store = freshStore();
 		store.writeText(
 			"ashi.json",
 			JSON.stringify({
-				feeds: [{ kind: "rss", target: "https://a.example/rss" }],
-			}),
-		);
-		process.env.ASHI_FEEDS = '[{"id":"gh","kind":"github","target":"5ym"}]';
-		try {
-			expect(store.config().feeds).toEqual([
-				{ id: "gh", kind: "github", target: "5ym", title: undefined },
-			]);
-			process.env.ASHI_FEEDS = "{壊れた";
-			expect(store.config().feeds[0]?.target).toBe("https://a.example/rss");
-		} finally {
-			delete process.env.ASHI_FEEDS;
-		}
-	});
-});
-
-describe("ASHI_CONFIG", () => {
-	test("ashi.json の上に重ね、入れ子は一部だけ書けばよい", async () => {
-		const { freshStore } = await import("./helpers.ts");
-		const store = freshStore();
-		store.writeText(
-			"ashi.json",
-			JSON.stringify({
+				model: "claude-opus-5",
 				budget: { dailyUsd: 2, stepUsd: 0.5 },
 				reflectEvery: 7,
 			}),
 		);
-		process.env.ASHI_CONFIG = '{"budget":{"dailyUsd":5}}';
-		try {
-			const c = store.config();
-			expect(c.budget).toEqual({ dailyUsd: 5, stepUsd: 0.5 });
-			expect(c.reflectEvery).toBe(7);
-			// 範囲の外は丸める
-			process.env.ASHI_CONFIG = '{"budget":{"dailyUsd":99999}}';
-			expect(store.config().budget.dailyUsd).toBe(1000);
-		} finally {
-			delete process.env.ASHI_CONFIG;
-		}
+		store.writeText("settings.json", JSON.stringify({ maxStepsPerDay: 12 }));
+		const env = {
+			ASHI_CONFIG:
+				'{"model":"claude-opus-5-5","budget":{"dailyUsd":5},"x":{"enabled":false}}',
+			ASHI_FEEDS: '[{"id":"gh","kind":"github","target":"5ym"}]',
+		};
+		expect(store.importLegacyConfig(env)).toEqual({
+			result: "imported",
+			from: ["ASHI_CONFIG", "ASHI_FEEDS", "settings.json"],
+		});
+		const c = store.config();
+		expect(c).toMatchObject({
+			model: "claude-opus-5-5",
+			budget: { dailyUsd: 5, stepUsd: 0.5 },
+			reflectEvery: 7,
+			maxStepsPerDay: 12,
+			x: { enabled: false },
+		});
+		expect(c.feeds.map((f) => f.id)).toEqual(["gh"]);
+		// 2 回目は取り込まない(画面で変えた値を環境変数で上書きしない)
+		store.saveConfig({ ...c, maxStepsPerDay: 20 });
+		expect(store.importLegacyConfig(env)?.result).toBe("ignored");
+		expect(store.config().maxStepsPerDay).toBe(20);
+		expect(store.importLegacyConfig({})).toBeUndefined();
+	});
+
+	test("取り込むものが無ければ何もしない", () => {
+		const store = freshStore();
+		expect(store.importLegacyConfig({})).toBeUndefined();
+		expect(store.importLegacyConfig({})).toBeUndefined();
 	});
 });
 
@@ -292,30 +288,43 @@ test("使用量はキャッシュと仕事ごとに積み、日が変わった�
 	expect(store.budget("2026-10-03").inputTokens).toBe(5);
 });
 
-test("画面の設定は ashi.json と ASHI_CONFIG の上に重なり、消せば元に戻る", () => {
-	const store = freshStore();
-	store.writeText(
-		"ashi.json",
-		JSON.stringify({ maxStepsPerDay: 30, x: { enabled: true, dailyUsd: 2 } }),
-	);
+test("設定の画面のフォームを当てる。載っていない項目はそのまま、範囲の外は丸める", () => {
+	const cfg = normalizeConfig({
+		maxStepsPerDay: 30,
+		x: { enabled: true, dailyUsd: 2 },
+		feeds: [{ id: "blog", kind: "rss", target: "https://a.example/rss" }],
+		reflectEvery: 7,
+	});
 	const f = new FormData();
 	f.set("maxStepsPerDay", "12");
-	f.set("maxToolRounds", "8");
+	f.set("maxToolRounds", "999");
 	f.set("effort", "medium");
-	f.set("model", "gpt-5");
-	f.set("stranger", "on");
-	store.saveSettings(acceptSettings(f));
-	const cfg = store.config();
-	expect(cfg).toMatchObject({
+	f.set("stranger.enabled:shown", "1");
+	f.set("stranger.enabled", "on");
+	f.set("x.enabled:shown", "1");
+	f.set("feeds:shown", "1");
+	for (const [id, kind, target] of [
+		["blog", "rss", "https://a.example/rss"],
+		["gh", "github", "5ym"],
+		["", "rss", ""],
+	]) {
+		f.append("feed.id", id ?? "");
+		f.append("feed.kind", kind ?? "");
+		f.append("feed.target", target ?? "");
+		f.append("feed.title", "");
+	}
+	f.append("feed.remove", "0");
+	const next = applySettingsForm(cfg, f);
+	expect(next).toMatchObject({
 		maxStepsPerDay: 12,
-		maxToolRounds: 8,
+		maxToolRounds: 50,
 		effort: "medium",
-		model: "claude-opus-5-5",
+		reflectEvery: 7,
 	});
+	expect(next.stranger.enabled).toBe(true);
 	// チェックの無い X は止まり、ほかの X の値は残る
-	expect(cfg.x).toMatchObject({ enabled: false, dailyUsd: 2 });
-	expect(cfg.stranger.enabled).toBe(true);
-	store.saveSettings(undefined);
-	expect(store.config()).toMatchObject({ maxStepsPerDay: 30 });
-	expect(store.config().x.enabled).toBe(true);
+	expect(next.x).toMatchObject({ enabled: false, dailyUsd: 2 });
+	expect(next.feeds.map((x) => x.id)).toEqual(["gh"]);
+	// 印の無いチェックボックスは触らない
+	expect(applySettingsForm(next, new FormData()).stranger.enabled).toBe(true);
 });

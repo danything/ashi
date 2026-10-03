@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import type { Settings } from "./ashi/config.ts";
+import type { Config } from "./ashi/config.ts";
 import { stopAllClaudeCode } from "./ashi/head/claude-code.ts";
 import type { Head, ThinkRequest, Tool } from "./ashi/head/head.ts";
 import { makeHead } from "./ashi/head/make.ts";
@@ -30,6 +30,16 @@ import { Store } from "./ashi/state.ts";
 
 export const store = new Store(resolve(process.env.ASHI_HOME || "data"));
 if (!store.exists()) store.init();
+// 前の版の設定(環境変数・settings.json)を一度だけ ashi.json に取り込む。以後は画面の「設定」だけ
+{
+	const r = store.importLegacyConfig();
+	if (r?.result === "imported")
+		console.log(`[ashi] 設定を ashi.json に取り込んだ: ${r.from.join("・")}`);
+	if (r?.result === "ignored")
+		console.warn(
+			`[ashi] ${r.from.join("・")} は取り込み済みで、もう読んでいない。設定は画面の「設定」で変える。環境変数は消してよい`,
+		);
+}
 
 let head: { key: string; head: Head } | undefined;
 /** 頭。繋ぎ方・モデル・effort は設定から。画面で変えたら、次に呼ぶときに作り直す */
@@ -75,10 +85,18 @@ function live(get: () => Head | undefined): Head {
  * 画面で設定を変えた。X を止めたらストリームも切る(開いたままだと、届いたイベントを読むたびに
  * 料金がかかる)。頭は次に呼ぶときに作り直される
  */
-export function saveSettings(s: Settings | undefined, by: string): void {
-	store.saveSettings(s);
-	store.log("settings", { by, settings: s ?? null });
-	if (!store.config().x.enabled) streamConn?.abort();
+export function saveConfig(cfg: Config, by: string): void {
+	const before = store.config();
+	store.saveConfig(cfg);
+	const after = store.config();
+	// 何を変えたかだけを残す
+	const changed = Object.keys(after).filter(
+		(k) =>
+			JSON.stringify(before[k as keyof Config]) !==
+			JSON.stringify(after[k as keyof Config]),
+	);
+	store.log("settings", { by, changed });
+	if (!after.x.enabled) streamConn?.abort();
 }
 
 export function getTools(): Tool[] {

@@ -301,7 +301,7 @@ export function normalizeConfig(raw: unknown): Config {
 	};
 }
 
-const FEED_KINDS = ["rss", "github", "x", "forgejo"] as const;
+export const FEED_KINDS: Feed["kind"][] = ["rss", "github", "forgejo", "x"];
 
 function normalizeFeeds(raw: unknown): Feed[] {
 	if (!Array.isArray(raw)) return [];
@@ -326,46 +326,110 @@ function normalizeFeeds(raw: unknown): Feed[] {
 	return out;
 }
 
-/**
- * 画面(設定)から変えられる項目。費用に効くものだけに絞る。状態ディレクトリの settings.json に置き、
- * ASHI_CONFIG の上に重ねる(画面で変えた値が勝つ)。どの値も normalizeConfig で範囲に丸める
- */
-export interface Settings {
-	maxStepsPerDay?: number;
-	maxToolRounds?: number;
-	effort?: Config["effort"];
-	model?: string;
-	stranger?: { enabled?: boolean };
-	x?: { enabled?: boolean };
-}
-
-/** 画面で選べる頭のモデル */
+/** 画面で選べるモデル(頭・よそ者)。いまの設定がこれ以外でも、そのまま残す */
 export const MODELS = [
 	"claude-opus-5-5",
 	"claude-sonnet-5-5",
 	"claude-fable-5-1",
+	"claude-haiku-4-5",
 ] as const;
 
-/** 画面のフォームから、変えてよい項目だけを取り出す */
-export function acceptSettings(f: { get(name: string): unknown }): Settings {
-	const s: Settings = {};
-	const num = (k: string) => {
-		const v = Number(f.get(k));
-		return f.get(k) !== null && f.get(k) !== "" && Number.isFinite(v)
-			? v
-			: undefined;
+interface Form {
+	get(name: string): unknown;
+	getAll(name: string): unknown[];
+	has(name: string): boolean;
+}
+
+/**
+ * 設定の画面のフォームを、いまの設定に当てる。フォームに無い項目はそのまま。
+ * チェックボックスは、フォームに載っている印(…:shown)があるときだけ、無ければオフとして読む。
+ * 範囲は normalizeConfig で丸める
+ */
+export function applySettingsForm(cfg: Config, f: Form): Config {
+	const next = structuredClone(cfg) as Config & Record<string, unknown>;
+	const num = (k: string): number | undefined => {
+		const v = f.get(k);
+		if (v === null || v === "") return undefined;
+		const n = Number(v);
+		return Number.isFinite(n) ? n : undefined;
 	};
-	const steps = num("maxStepsPerDay");
-	if (steps !== undefined) s.maxStepsPerDay = Math.round(steps);
-	const rounds = num("maxToolRounds");
-	if (rounds !== undefined) s.maxToolRounds = Math.round(rounds);
-	const effort = f.get("effort");
-	if (EFFORTS.includes(effort as Config["effort"]))
-		s.effort = effort as Config["effort"];
-	const model = f.get("model");
-	if (MODELS.includes(model as (typeof MODELS)[number]))
-		s.model = model as string;
-	s.stranger = { enabled: f.get("stranger") === "on" };
-	s.x = { enabled: f.get("x") === "on" };
-	return s;
+	const str = (k: string): string | undefined => {
+		const v = f.get(k);
+		return typeof v === "string" && v.trim() ? v.trim() : undefined;
+	};
+	const bool = (k: string): boolean | undefined =>
+		f.has(`${k}:shown`) ? f.get(k) === "on" : undefined;
+	const set = <T>(v: T | undefined, put: (v: T) => void) => {
+		if (v !== undefined) put(v);
+	};
+
+	set(str("head"), (v) => {
+		next.head = v === "claude-code" ? "claude-code" : "api";
+	});
+	set(str("model"), (v) => {
+		next.model = v;
+	});
+	set(str("effort"), (v) => {
+		next.effort = v as Config["effort"];
+	});
+	set(num("maxStepsPerDay"), (v) => {
+		next.maxStepsPerDay = v;
+	});
+	set(num("maxToolRounds"), (v) => {
+		next.maxToolRounds = v;
+	});
+	set(num("budget.dailyUsd"), (v) => {
+		next.budget.dailyUsd = v;
+	});
+	set(num("budget.stepUsd"), (v) => {
+		next.budget.stepUsd = v;
+	});
+	set(bool("stranger.enabled"), (v) => {
+		next.stranger.enabled = v;
+	});
+	set(str("stranger.model"), (v) => {
+		next.stranger.model = v;
+	});
+	set(num("stranger.turns"), (v) => {
+		next.stranger.turns = v;
+	});
+	set(bool("x.enabled"), (v) => {
+		next.x.enabled = v;
+	});
+	set(num("x.dailyUsd"), (v) => {
+		next.x.dailyUsd = v;
+	});
+	set(num("x.maxPostsPerDay"), (v) => {
+		next.x.maxPostsPerDay = v;
+	});
+	set(num("x.maxRepliesPerDay"), (v) => {
+		next.x.maxRepliesPerDay = v;
+	});
+	set(num("x.mentionsEveryMinutes"), (v) => {
+		next.x.mentionsEveryMinutes = v;
+	});
+	// 足跡は行ごと。消す印の付いた行と、行き先が空の行は落とす
+	if (f.has("feeds:shown")) {
+		const all = (k: string) => f.getAll(k).map((v) => String(v ?? "").trim());
+		const ids = all("feed.id");
+		const kinds = all("feed.kind");
+		const targets = all("feed.target");
+		const titles = all("feed.title");
+		const removed = new Set(all("feed.remove"));
+		next.feeds = ids.flatMap((id, i) => {
+			const target = targets[i] ?? "";
+			const kind = kinds[i] as Feed["kind"];
+			if (!target || removed.has(String(i)) || !FEED_KINDS.includes(kind))
+				return [];
+			return [
+				{
+					id: id || `${kind}-${i + 1}`,
+					kind,
+					target,
+					...(titles[i] ? { title: titles[i] } : {}),
+				},
+			];
+		});
+	}
+	return normalizeConfig(next);
 }

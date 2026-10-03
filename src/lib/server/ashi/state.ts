@@ -12,12 +12,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import {
-	type Config,
-	DEFAULT_CONFIG,
-	normalizeConfig,
-	type Settings,
-} from "./config.ts";
+import { type Config, DEFAULT_CONFIG, normalizeConfig } from "./config.ts";
 import { addUsage, type Usage } from "./head/head.ts";
 import type { BlockerRecord } from "./legs/blockers.ts";
 import type { FeedState } from "./legs/feeds.ts";
@@ -435,16 +430,38 @@ export class Store {
 	// ---- 中身
 
 	/**
-	 * 設定。ashi.json の上に、環境変数 ASHI_CONFIG(JSON のオブジェクト)と ASHI_FEEDS(足跡の配列)を重ねる。
-	 * クラスタでは状態ディレクトリの ashi.json を書き換えにくいので、deploy/deployment.yaml に書いて git で持つ。
-	 * どこから来た値も normalizeConfig で範囲に丸める
+	 * 設定。状態ディレクトリの ashi.json だけ(画面の「設定」で読み書きする)。環境変数は秘密と置き場所だけに
+	 * して、設定とは混ぜない(持ち主の指摘、2026-10-03)。範囲は normalizeConfig で丸める
 	 */
 	config(): Config {
+		return normalizeConfig(
+			this.readJson<Record<string, unknown>>("ashi.json", {}),
+		);
+	}
+
+	/** 設定を書く(画面から)。丸めた全項目を書くので、ファイルを見れば今の値が全部分かる */
+	saveConfig(cfg: Config): void {
+		this.writeJson("ashi.json", normalizeConfig(cfg));
+	}
+
+	/**
+	 * 前の版の設定の置き場所(環境変数 ASHI_CONFIG・ASHI_FEEDS と、画面の settings.json)を、一度だけ
+	 * ashi.json に取り込む。取り込んだ印(config-imported.json)があれば何もしない。
+	 * 戻り値: imported(取り込んだ)/ ignored(取り込み済みなのに環境変数が残っている)/ undefined
+	 */
+	importLegacyConfig(
+		env: Record<string, string | undefined> = process.env,
+	): { result: "imported" | "ignored"; from: string[] } | undefined {
+		const from = ["ASHI_CONFIG", "ASHI_FEEDS"].filter((k) => env[k]?.trim());
+		const settings = existsSync(this.path("settings.json"));
+		if (existsSync(this.path("config-imported.json")))
+			return from.length ? { result: "ignored", from } : undefined;
+		if (!from.length && !settings) return undefined;
 		const raw = this.readJson<Record<string, unknown>>("ashi.json", {});
-		const over = envJson("ASHI_CONFIG");
-		if (over && typeof over === "object" && !Array.isArray(over)) {
+		const merge = (over: unknown) => {
+			if (!over || typeof over !== "object" || Array.isArray(over)) return;
 			for (const [k, v] of Object.entries(over)) {
-				// budget・sleep・fetch は中の一部だけ書けばよい
+				// budget・x などは中の一部だけ書かれている
 				const prev = raw[k];
 				raw[k] =
 					v &&
@@ -455,32 +472,22 @@ export class Store {
 						? { ...prev, ...v }
 						: v;
 			}
+		};
+		merge(jsonOf(env.ASHI_CONFIG));
+		const feeds = jsonOf(env.ASHI_FEEDS);
+		if (Array.isArray(feeds)) raw.feeds = feeds;
+		if (settings) {
+			merge(this.readJson<unknown>("settings.json", {}));
+			from.push("settings.json");
 		}
-		const feeds = envJson("ASHI_FEEDS");
-		if (feeds !== undefined) raw.feeds = feeds;
-		// 画面で変えた値(settings.json)をいちばん上に
-		for (const [k, v] of Object.entries(this.settings())) {
-			const prev = raw[k];
-			raw[k] =
-				v && typeof v === "object" && prev && typeof prev === "object"
-					? { ...prev, ...v }
-					: v;
-		}
-		return normalizeConfig(raw);
-	}
-
-	/** 画面(設定)で変えた値。無ければ空 */
-	settings(): Settings {
-		return this.readJson<Settings>("settings.json", {});
-	}
-
-	/** undefined で消す(ASHI_CONFIG と ashi.json の値に戻る) */
-	saveSettings(s: Settings | undefined): void {
-		if (s === undefined) {
-			rmSync(this.path("settings.json"), { force: true });
-			return;
-		}
-		this.writeJson("settings.json", s);
+		this.saveConfig(normalizeConfig(raw));
+		rmSync(this.path("settings.json"), { force: true });
+		this.writeJson("config-imported.json", {
+			at: new Date().toISOString(),
+			from,
+		});
+		this.log("config-imported", { from });
+		return { result: "imported", from };
 	}
 
 	core(): string {
@@ -920,13 +927,14 @@ function alive(pid: number): boolean {
 	}
 }
 
-function envJson(name: string): unknown {
-	const v = process.env[name]?.trim();
-	if (!v) return undefined;
+function jsonOf(v: string | undefined): unknown {
+	if (!v?.trim()) return undefined;
 	try {
 		return JSON.parse(v);
 	} catch {
-		console.warn(`[ashi] ${name} が JSON として読めない。使わない`);
+		console.warn(
+			"[ashi] 前の版の設定(環境変数)が JSON として読めない。取り込まない",
+		);
 		return undefined;
 	}
 }

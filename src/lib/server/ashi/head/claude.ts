@@ -8,6 +8,7 @@ import {
 	noUsage,
 	type ThinkRequest,
 	type ThinkResult,
+	taskUsage,
 	type Usage,
 } from "./head.ts";
 
@@ -104,7 +105,7 @@ export class ClaudeHead implements Head {
 						}
 					: {}),
 			});
-			usage = addUsage(usage, this.price(res));
+			usage = addUsage(usage, this.price(res, req.task));
 
 			switch (res.stop_reason) {
 				case "refusal":
@@ -194,7 +195,7 @@ export class ClaudeHead implements Head {
 		}
 	}
 
-	private price(res: Anthropic.Beta.BetaMessage): Usage {
+	private price(res: Anthropic.Beta.BetaMessage, task: string): Usage {
 		const [inUsd, outUsd, readUsd = inUsd * 0.1] = PRICES[res.model] ??
 			PRICES[this.name] ?? [5, 25];
 		const u = res.usage;
@@ -208,11 +209,13 @@ export class ClaudeHead implements Head {
 				u.output_tokens * outUsd) /
 				1_000_000 +
 			searches * WEB_SEARCH_USD;
-		return {
+		return taskUsage(task, {
 			inputTokens: u.input_tokens + cacheRead + cacheWrite,
 			outputTokens: u.output_tokens,
 			costUsd,
-		};
+			cacheReadTokens: cacheRead,
+			cacheWriteTokens: cacheWrite,
+		});
 	}
 }
 

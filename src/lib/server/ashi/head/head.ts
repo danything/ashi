@@ -21,10 +21,56 @@ export interface Turn {
 }
 
 export interface Usage {
+	/** 入力の全部(キャッシュの読み書きを含む) */
 	inputTokens: number;
 	outputTokens: number;
 	/** 頭の側が知っている料金で見積もった額(ドル) */
 	costUsd: number;
+	/** inputTokens のうち、キャッシュから読んだ分と書いた分 */
+	cacheReadTokens?: number;
+	cacheWriteTokens?: number;
+	/** 仕事(ThinkRequest の task)ごとの内訳。どこでトークンを使っているかを見るため */
+	byTask?: Record<string, TaskUsage>;
+}
+
+export interface TaskUsage {
+	calls: number;
+	inputTokens: number;
+	outputTokens: number;
+	cacheReadTokens: number;
+}
+
+/** 1 回の呼び出しの使用量に、仕事の内訳を付ける */
+export function taskUsage(task: string, u: Usage): Usage {
+	return {
+		...u,
+		byTask: {
+			[task]: {
+				calls: 1,
+				inputTokens: u.inputTokens,
+				outputTokens: u.outputTokens,
+				cacheReadTokens: u.cacheReadTokens ?? 0,
+			},
+		},
+	};
+}
+
+function addByTask(a: Usage["byTask"], b: Usage["byTask"]): Usage["byTask"] {
+	if (!a) return b;
+	if (!b) return a;
+	const out = { ...a };
+	for (const [k, v] of Object.entries(b)) {
+		const w = out[k];
+		out[k] = w
+			? {
+					calls: w.calls + v.calls,
+					inputTokens: w.inputTokens + v.inputTokens,
+					outputTokens: w.outputTokens + v.outputTokens,
+					cacheReadTokens: w.cacheReadTokens + v.cacheReadTokens,
+				}
+			: v;
+	}
+	return out;
 }
 
 export interface ThinkRequest {
@@ -98,8 +144,19 @@ export const noUsage = (): Usage => ({
 	costUsd: 0,
 });
 
-export const addUsage = (a: Usage, b: Usage): Usage => ({
-	inputTokens: a.inputTokens + b.inputTokens,
-	outputTokens: a.outputTokens + b.outputTokens,
-	costUsd: a.costUsd + b.costUsd,
-});
+export const addUsage = (a: Usage, b: Usage): Usage => {
+	const out: Usage = {
+		inputTokens: a.inputTokens + b.inputTokens,
+		outputTokens: a.outputTokens + b.outputTokens,
+		costUsd: a.costUsd + b.costUsd,
+	};
+	const read = (a.cacheReadTokens ?? 0) + (b.cacheReadTokens ?? 0);
+	const write = (a.cacheWriteTokens ?? 0) + (b.cacheWriteTokens ?? 0);
+	if (a.cacheReadTokens !== undefined || b.cacheReadTokens !== undefined)
+		out.cacheReadTokens = read;
+	if (a.cacheWriteTokens !== undefined || b.cacheWriteTokens !== undefined)
+		out.cacheWriteTokens = write;
+	const byTask = addByTask(a.byTask, b.byTask);
+	if (byTask) out.byTask = byTask;
+	return out;
+};

@@ -1,4 +1,4 @@
-import type { Head, Usage } from "../head/head.ts";
+import { addUsage, type Head, noUsage, type Usage } from "../head/head.ts";
 import {
 	DIALOGUE_FINAL_SCHEMA,
 	DIALOGUE_REPLY_SCHEMA,
@@ -79,11 +79,9 @@ export async function talkWithStranger(opts: {
 		STRANGER_FIELDS[Math.floor(rng() * STRANGER_FIELDS.length)] ??
 		STRANGER_FIELDS[0];
 	const turns: Dialogue["turns"] = [];
-	const usage: Usage = { inputTokens: 0, outputTokens: 0, costUsd: 0 };
+	let usage: Usage = noUsage();
 	const add = (u: Usage) => {
-		usage.inputTokens += u.inputTokens;
-		usage.outputTokens += u.outputTokens;
-		usage.costUsd += u.costUsd;
+		usage = addUsage(usage, u);
 	};
 	const text = (v: unknown) =>
 		typeof v === "string" ? v.trim().slice(0, MAX_TURN_CHARS) : "";

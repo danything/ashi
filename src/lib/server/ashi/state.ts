@@ -13,7 +13,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { type Config, DEFAULT_CONFIG, normalizeConfig } from "./config.ts";
-import type { Usage } from "./head/head.ts";
+import { addUsage, type Usage } from "./head/head.ts";
 import type { BlockerRecord } from "./legs/blockers.ts";
 import type { FeedState } from "./legs/feeds.ts";
 
@@ -276,6 +276,10 @@ export interface Budget {
 	xUsd?: number;
 	xPosts?: number;
 	xReplies?: number;
+	/** inputTokens のうちキャッシュから読んだ分・書いた分と、仕事ごとの内訳 */
+	cacheReadTokens?: number;
+	cacheWriteTokens?: number;
+	byTask?: Usage["byTask"];
 }
 
 export const DEFAULT_CORE = `# コア原則
@@ -661,18 +665,60 @@ export class Store {
 	}
 
 	saveBudget(b: Budget): void {
+		// 日が変わったら、前の日の分を budget-history.jsonl に残す(上書きで消え、日ごとの使用量が
+		// 分からなかった。2026-10-03)
+		const prev = this.readJson<Budget | null>("budget.json", null);
+		if (prev && prev.day !== b.day)
+			appendFileSync(
+				this.path("budget-history.jsonl"),
+				`${JSON.stringify(prev)}\n`,
+			);
 		this.writeJson("budget.json", b);
+	}
+
+	/** 日ごとの使用量(古い順)。今日の分は budget() */
+	budgetHistory(): Budget[] {
+		const name = "budget-history.jsonl";
+		if (!existsSync(this.path(name))) return [];
+		return this.readText(name)
+			.split("\n")
+			.filter(Boolean)
+			.flatMap((l) => {
+				try {
+					return [JSON.parse(l) as Budget];
+				} catch {
+					return [];
+				}
+			});
 	}
 
 	/** 使った分を今日の予算に付ける */
 	charge(today: string, u: Usage, step = false): void {
 		const b = this.budget(today);
+		const sum = addUsage(
+			{
+				inputTokens: b.inputTokens,
+				outputTokens: b.outputTokens,
+				costUsd: b.spentUsd,
+				cacheReadTokens: b.cacheReadTokens,
+				cacheWriteTokens: b.cacheWriteTokens,
+				byTask: b.byTask,
+			},
+			u,
+		);
 		this.saveBudget({
 			...b,
 			steps: (b.steps ?? 0) + (step ? 1 : 0),
-			spentUsd: b.spentUsd + u.costUsd,
-			inputTokens: b.inputTokens + u.inputTokens,
-			outputTokens: b.outputTokens + u.outputTokens,
+			spentUsd: sum.costUsd,
+			inputTokens: sum.inputTokens,
+			outputTokens: sum.outputTokens,
+			...(sum.cacheReadTokens !== undefined
+				? { cacheReadTokens: sum.cacheReadTokens }
+				: {}),
+			...(sum.cacheWriteTokens !== undefined
+				? { cacheWriteTokens: sum.cacheWriteTokens }
+				: {}),
+			...(sum.byTask ? { byTask: sum.byTask } : {}),
 		});
 	}
 

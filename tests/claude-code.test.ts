@@ -103,7 +103,21 @@ describe("ClaudeCodeHead", () => {
 			a.slice(a.indexOf("--allowedTools") + 1, a.indexOf("--allowedTools") + 4),
 		).toEqual(["Read(./notes/**)", "WebFetch", "WebSearch"]);
 		expect(a).toContain("--strict-mcp-config");
-		expect(usage).toEqual({ inputTokens: 110, outputTokens: 5, costUsd: 0 });
+		expect(usage).toEqual({
+			inputTokens: 110,
+			outputTokens: 5,
+			costUsd: 0,
+			cacheReadTokens: 100,
+			cacheWriteTokens: 0,
+			byTask: {
+				explore: {
+					calls: 1,
+					inputTokens: 110,
+					outputTokens: 5,
+					cacheReadTokens: 100,
+				},
+			},
+		});
 	});
 
 	test("道具の要らない頼みには道具を渡さない", async () => {

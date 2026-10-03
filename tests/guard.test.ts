@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { normalizeConfig } from "../src/lib/server/ashi/config.ts";
+import { taskUsage } from "../src/lib/server/ashi/head/head.ts";
 import {
 	acceptNewQuestions,
 	acceptSelf,
@@ -8,7 +9,7 @@ import {
 	normalizeTheme,
 	trimOpenQuestions,
 } from "../src/lib/server/ashi/legs/guard.ts";
-import { q } from "./helpers.ts";
+import { freshStore, q } from "./helpers.ts";
 
 const now = new Date("2026-09-24T12:00:00Z");
 
@@ -245,4 +246,45 @@ describe("acceptProposals", () => {
 		);
 		expect(many.added).toHaveLength(3);
 	});
+});
+
+test("使用量はキャッシュと仕事ごとに積み、日が変わったら前の日を budget-history に残す", () => {
+	const store = freshStore();
+	const u = (task: string, input: number, read: number) =>
+		taskUsage(task, {
+			inputTokens: input,
+			outputTokens: 1,
+			costUsd: 0,
+			cacheReadTokens: read,
+			cacheWriteTokens: 0,
+		});
+	store.charge("2026-10-02", u("explore", 100, 90), true);
+	store.charge("2026-10-02", u("explore", 50, 40));
+	store.charge("2026-10-02", u("reflect", 10, 0));
+	expect(store.budget("2026-10-02")).toMatchObject({
+		inputTokens: 160,
+		cacheReadTokens: 130,
+		steps: 1,
+		byTask: {
+			explore: {
+				calls: 2,
+				inputTokens: 150,
+				outputTokens: 2,
+				cacheReadTokens: 130,
+			},
+			reflect: {
+				calls: 1,
+				inputTokens: 10,
+				outputTokens: 1,
+				cacheReadTokens: 0,
+			},
+		},
+	});
+	store.charge("2026-10-03", u("explore", 5, 0));
+	expect(store.budgetHistory()).toHaveLength(1);
+	expect(store.budgetHistory()[0]).toMatchObject({
+		day: "2026-10-02",
+		inputTokens: 160,
+	});
+	expect(store.budget("2026-10-03").inputTokens).toBe(5);
 });

@@ -12,6 +12,13 @@ const sleeping = $derived(
 );
 const subscription = $derived(data.cfg.head === "claude-code");
 const stepsToday = $derived(data.budget.steps ?? 0);
+/** トークン数を 36.6M・370K のように縮めて出す */
+const tokens = (n: number) =>
+	n >= 1e6
+		? `${(n / 1e6).toFixed(1)}M`
+		: n >= 1e3
+			? `${Math.round(n / 1e3)}K`
+			: String(n);
 const pct = (a: number, b: number) =>
 	`${Math.min(100, Math.round((a / Math.max(b, 1e-9)) * 100))}%`;
 
@@ -86,6 +93,11 @@ const EVENTS: Record<string, string> = {
 			{#if subscription}
 				<span class="value small-value">サブスク</span>
 				<span class="sub">{data.cfg.model}(Claude Code)</span>
+				<span class="sub" title="入力はキャッシュの読み書きを含む。日ごとの記録は budget-history.jsonl">
+					今日 入力 {tokens(data.budget.inputTokens)}{data.budget.cacheReadTokens !== undefined
+						? `(キャッシュ ${pct(data.budget.cacheReadTokens, data.budget.inputTokens)})`
+						: ""} ・ 出力 {tokens(data.budget.outputTokens)}
+				</span>
 			{:else}
 				<span class="value">{usd(data.budget.spentUsd)}<span class="unit"> / {usd(data.cfg.dailyUsd)}</span></span>
 				<div class="meter"><span style:width={pct(data.budget.spentUsd, data.cfg.dailyUsd)}></span></div>

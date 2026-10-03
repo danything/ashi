@@ -10,6 +10,7 @@ import {
 	noUsage,
 	type ThinkRequest,
 	type ThinkResult,
+	taskUsage,
 	type Usage,
 } from "./head.ts";
 
@@ -163,7 +164,7 @@ export class ClaudeCodeHead implements Head {
 			];
 			// プロンプトは長い(持ち主の材料で 60,000 字になる)ので標準入力から渡す
 			const out = await this.run(args, promptWithHistory(req));
-			return this.parse<T>(out);
+			return this.parse<T>(out, req.task);
 		} finally {
 			rmSync(dir, { recursive: true, force: true });
 		}
@@ -233,11 +234,14 @@ export class ClaudeCodeHead implements Head {
 		});
 	}
 
-	private parse<T>(out: {
-		stdout: string;
-		stderr: string;
-		code: number | null;
-	}): ThinkResult<T> {
+	private parse<T>(
+		out: {
+			stdout: string;
+			stderr: string;
+			code: number | null;
+		},
+		task: string,
+	): ThinkResult<T> {
 		let r: CliResult;
 		try {
 			r = JSON.parse(out.stdout) as CliResult;
@@ -247,7 +251,7 @@ export class ClaudeCodeHead implements Head {
 				noUsage(),
 			);
 		}
-		const usage: Usage = {
+		const usage: Usage = taskUsage(task, {
 			inputTokens:
 				(r.usage?.input_tokens ?? 0) +
 				(r.usage?.cache_read_input_tokens ?? 0) +
@@ -255,7 +259,9 @@ export class ClaudeCodeHead implements Head {
 			outputTokens: r.usage?.output_tokens ?? 0,
 			// サブスクなのでドルでは数えない
 			costUsd: 0,
-		};
+			cacheReadTokens: r.usage?.cache_read_input_tokens ?? 0,
+			cacheWriteTokens: r.usage?.cache_creation_input_tokens ?? 0,
+		});
 		if (r.is_error) {
 			const b = subscriptionBlockage(
 				r.api_error_status ?? null,

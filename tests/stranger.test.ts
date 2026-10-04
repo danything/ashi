@@ -328,6 +328,50 @@ describe("Ashi の改善案(2026-09-26)", () => {
 		});
 	});
 
+	test("足が印で拾った文は締めで頭に分けさせ、自分についての発言・前提にしただけの話は確かめの問いにしない", async () => {
+		const store = freshStore();
+		const stranger = new FakeHead({
+			stranger: () => ({
+				reply: "ゼンメルワイスの病棟では死亡率が 10% から 1% に下がった",
+			}),
+		});
+		let finalPrompt = "";
+		const head = new FakeHead({
+			dialogue: () => ({
+				reply:
+					"確かめていないことを書き出した一覧が、わたしにはあります。数字は記憶だけで言うと、もっと低かったはずです。",
+			}),
+			"dialogue-final": (req) => {
+				finalPrompt = req.prompt;
+				return {
+					reply:
+						"その数字は確かめていないので、あなたの話を前提に考えます。またね",
+					new_questions: [],
+					takeaway: "t",
+					unverified: [],
+					accepted: ["死亡率は 10% から 1% に下がった"],
+					about_self: ["確かめていないことを書き出した一覧がある"],
+				};
+			},
+		});
+		const r = await talkWithStranger({
+			store,
+			head,
+			stranger,
+			turns: 2,
+			now,
+			rng: () => 0,
+		});
+		expect(finalPrompt).toContain("足が、あなたのこれまでの発言から");
+		expect(finalPrompt).toContain("確かめていないことを書き出した一覧");
+		// 頭が分けた結果に従い、締めの断りも積まない
+		expect(store.questions().filter((x) => x.verify)).toEqual([]);
+		expect(r.dialogue.aboutSelf).toEqual([
+			"確かめていないことを書き出した一覧がある",
+		]);
+		expect(r.dialogue.accepted).toHaveLength(1);
+	});
+
 	test("相手の話を受け入れただけのものは、確かめの問いにせず会話に残して内省で見せる", async () => {
 		const store = freshStore();
 		const stranger = new FakeHead({

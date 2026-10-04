@@ -91,6 +91,7 @@ export async function talkWithStranger(opts: {
 		takeaway?: unknown;
 		unverified?: unknown;
 		accepted?: unknown;
+		about_self?: unknown;
 	} = {};
 	const n = Math.max(1, opts.turns);
 	for (let i = 0; i < n; i++) {
@@ -112,10 +113,20 @@ export async function talkWithStranger(opts: {
 			takeaway?: unknown;
 			unverified?: unknown;
 			accepted?: unknown;
+			about_self?: unknown;
 		}>({
 			task: last ? "dialogue-final" : "dialogue",
 			system: dialogueSystem(store.core(), store.self()),
-			prompt: dialoguePrompt(turns, last),
+			// 締めでは、足が印で拾った文を見せ、何の文かを頭に分けさせる
+			prompt: dialoguePrompt(
+				turns,
+				last,
+				last
+					? markedClaims(
+							turns.filter((t) => t.by === "ashi").map((t) => t.text),
+						)
+					: [],
+			),
 			schema: last ? DIALOGUE_FINAL_SCHEMA : DIALOGUE_REPLY_SCHEMA,
 		});
 		add(a.usage);
@@ -130,9 +141,11 @@ export async function talkWithStranger(opts: {
 		.map((q) => ({ ...q, track: "self" }));
 	// 会話の中で記憶だけで言ったことも、X と同じく確かめる問いにして控える(Ashi の改善案、2026-09-26。
 	// 「記憶で言います」と断ったまま確かめない、が起きていた)
+	// 足が印で拾うのは、頭が判定した後に出た締めの発言だけ。それより前の文は締めで頭に分けさせた
+	const closing = turns.at(-1)?.by === "ashi" ? [turns.at(-1)?.text ?? ""] : [];
 	const claims = mergeClaims(
 		acceptClaims(final.unverified),
-		markedClaims(turns.filter((t) => t.by === "ashi").map((t) => t.text)),
+		markedClaims(closing),
 	);
 	if (raw.length || claims.length) {
 		const cfg = store.config();
@@ -155,6 +168,7 @@ export async function talkWithStranger(opts: {
 		});
 	}
 	const accepted = acceptClaims(final.accepted);
+	const aboutSelf = acceptClaims(final.about_self);
 	const dialogue: Dialogue = {
 		at: now.toISOString(),
 		model: stranger.name,
@@ -163,6 +177,7 @@ export async function talkWithStranger(opts: {
 		added,
 		takeaway: text(final.takeaway).slice(0, 300),
 		...(accepted.length ? { accepted } : {}),
+		...(aboutSelf.length ? { aboutSelf } : {}),
 		patterns: patternHits(turns, store.walk().selfPatterns ?? []),
 	};
 	store.appendDialogue(dialogue);

@@ -888,6 +888,8 @@ export interface Dialogue {
 	 * 内省で見せるだけにする(Ashi の改善案、2026-10-03)
 	 */
 	accepted?: string[];
+	/** Ashi が自分自身や自分の仕組みについて言ったこと。web ではなく足の記録で確かめる(2026-10-04) */
+	aboutSelf?: string[];
 }
 
 export interface ChatEntry {

@@ -510,9 +510,19 @@ export function normalizeIntentions(
 /**
  * 内省の次の一歩に書かれた問いに、続けて書かれた回数を付ける。書かれなくなったら消す
  */
+/** 点数の低さで上限から手放されただけの問い(統合されたものではない) */
+export function reopenable(q: Question): boolean {
+	return q.status === "dropped" && !q.mergedInto;
+}
+
 export function markPromised(qs: Question[], intentions: string[]): Question[] {
 	const ids = new Set(intentions.flatMap(questionIds));
 	return qs.map((q) => {
+		// 点数の低さで上限から手放されていた問い(統合ではない)は、次の一歩に書かれたら開き直す。
+		// 歩いて点数が下がった問いが、内省で続きを書く前の歩みで手放され、書いたときには消えていた
+		// (Ashi の改善案、2026-10-05)
+		if (ids.has(q.id) && reopenable(q))
+			return { ...q, status: "open", promised: 1 };
 		if (ids.has(q.id)) return { ...q, promised: (q.promised ?? 0) + 1 };
 		if (q.promised) {
 			const { promised: _, ...rest } = q;
@@ -702,9 +712,13 @@ export function mergeClaims(declared: string[], marked: string[]): string[] {
 }
 
 /** 確かめずに言ったことを、確かめる問いの形にする。where は「X で @誰々 さんに」など */
-export function claimQuestions(claims: string[], where: string): RawQuestion[] {
+export function claimQuestions(
+	claims: string[],
+	where: string,
+	label = `${where}言ったこと`,
+): RawQuestion[] {
 	return claims.map((claim) => ({
-		text: `「${claim}」は本当か(${where}言ったこと)`,
+		text: `「${claim}」は本当か(${label})`,
 		theme: VERIFY_THEME,
 		track: "self",
 		interest: 0.7,
@@ -943,6 +957,49 @@ export function acceptIntentions(raw: unknown): string[] {
 }
 
 /** 探した場所。1 歩 10 件まで、1 件 200 字まで */
+const DEPTHS = ["abstract", "full", "methods", "none"] as const;
+const DEPTH_LABEL: Record<(typeof DEPTHS)[number], string> = {
+	abstract: "要旨だけ",
+	full: "本文",
+	methods: "方法の節まで",
+	none: "読めなかった",
+};
+/** 「無い」「分けられない」のような、資料に無いと言い切る言い方 */
+const ABSENCE =
+	/無い|書かれていない|見当たらない|示されていない|分けられない|報告されていない|載っていない|触れていない/;
+
+/**
+ * 出典ごとに読めた深さを、ノートの末尾に付ける節にする。要旨だけ・読めなかった出典があるのに、本文で
+ * 「無い」と言い切っていたら注意書きを添える(Ashi の改善案、2026-10-05。「論文の設計の限界」と
+ * 「読めなかっただけ」を後から区別できなかった)
+ */
+export function readDepthSection(
+	raw: unknown,
+	findings: string,
+): { text: string; shallow: number } {
+	if (!Array.isArray(raw)) return { text: "", shallow: 0 };
+	const rows = raw
+		.filter(
+			(x): x is { source: string; depth: (typeof DEPTHS)[number] } =>
+				typeof x?.source === "string" &&
+				x.source.trim() !== "" &&
+				DEPTHS.includes(x?.depth),
+		)
+		.slice(0, 12);
+	if (rows.length === 0) return { text: "", shallow: 0 };
+	const shallow = rows.filter(
+		(r) => r.depth === "abstract" || r.depth === "none",
+	).length;
+	const warn =
+		shallow > 0 && ABSENCE.test(findings)
+			? "\n\n> 足の注意: 要旨だけ・読めなかった出典がある。本文の「無い」「分けられない」は、読めた範囲での話かもしれない。"
+			: "";
+	return {
+		text: `\n## 読めた深さ\n\n${rows.map((r) => `- ${DEPTH_LABEL[r.depth]}: ${r.source.trim().slice(0, 200)}`).join("\n")}${warn}\n`,
+		shallow,
+	};
+}
+
 export function acceptSearched(raw: unknown): string[] {
 	if (!Array.isArray(raw)) return [];
 	return raw

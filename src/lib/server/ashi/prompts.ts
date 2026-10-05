@@ -133,6 +133,9 @@ export interface BridgeIdeaDraft {
 	idea: string;
 }
 
+/** 出典をどこまで読めたか。abstract: 要旨だけ / full: 本文 / methods: 方法の節まで / none: 読めなかった */
+export type ReadDepth = "abstract" | "full" | "methods" | "none";
+
 export interface ExploreAnswer {
 	title: string;
 	summary: string;
@@ -141,6 +144,7 @@ export interface ExploreAnswer {
 	/** 見つかったか。none が続いた問いは足が未測定の棚に移す */
 	found: "yes" | "partial" | "none";
 	searched: string[];
+	sources_read: { source: string; depth: ReadDepth }[];
 	new_questions: NewQuestion[];
 	bridge_ideas: BridgeIdeaDraft[];
 	crawl: string[];
@@ -200,6 +204,28 @@ export const EXPLORE_SCHEMA: JsonSchema = {
 			description:
 				"今回探した場所(検索語・サイト・論文・資料)。次に同じ所を探し直さないよう足が残す",
 		},
+		sources_read: {
+			type: "array",
+			description:
+				"ノートが拠った主な出典ごとに、どこまで読めたか(足がノートに残す)。「論文に無い」と「読めなかった」を後から区別するため",
+			items: {
+				type: "object",
+				properties: {
+					source: {
+						type: "string",
+						description: "出典(著者・年・題、URL など)",
+					},
+					depth: {
+						type: "string",
+						enum: ["abstract", "full", "methods", "none"],
+						description:
+							"abstract: 要旨だけ / full: 本文を読んだ / methods: 方法の節まで読んだ / none: 読めなかった",
+					},
+				},
+				required: ["source", "depth"],
+				additionalProperties: false,
+			},
+		},
 		new_questions: {
 			type: "array",
 			items: QUESTION_ITEM,
@@ -223,6 +249,7 @@ export const EXPLORE_SCHEMA: JsonSchema = {
 		"answered",
 		"found",
 		"searched",
+		"sources_read",
 		"new_questions",
 		"bridge_ideas",
 		"crawl",
@@ -380,6 +407,7 @@ ${
 道具で調べ(web 検索・fetch_url・これまでのノートの search_notes / read_note)、分かったことをノートにしてください。
 調べきれなくても構いません。分かったところまでを書き、残りは次の問いにしてください。
 探した場所は searched に、核心に触れる資料が見つからなかったら found を none にしてください。
+主な出典ごとに、どこまで読めたかを sources_read に書いてください。要旨しか読めなかった・読めなかった出典について「論文に無い」「分けられない」と結論するときは、「読めた範囲では」と書き分けてください。
 持ち主が権限・鍵・ログインを足せば進めるのに止まったところがあれば、blocked に書いてください。足が持ち主に知らせます。
 日本の判例は、裁判所ウェブサイトの裁判例検索(courts.go.jp)に全文が無料で載っていることがあります。有料の判例誌やデータベースしか見つからないときは、先にそこを当たってください。
 有料の購読・非公開の論文・会員限定の記事は、持ち主にも開けられないので blocked に書かないでください(持ち主に届いても直せない知らせになる)。分かったところまで(要旨・公開の解説)で書き、足りないところはノートに「未確認」として残せば十分です。
@@ -822,6 +850,10 @@ function talkBlock(t: ReflectTalk): string {
 									: `あなた: ${cut(x.text, 400)}`,
 							)
 							.join("\n")}\n持ち帰り: ${d.takeaway || "(無し)"}${
+							d.pushedBack?.length
+								? `\n相手に押し返されたこと(確かめの問いにした): ${d.pushedBack.join(" / ")}`
+								: ""
+						}${
 							d.aboutSelf?.length
 								? `\n自分について言ったこと(足の記録・自己記述と合っているか見ること): ${d.aboutSelf.join(" / ")}`
 								: ""
@@ -1401,6 +1433,17 @@ export const DIALOGUE_FINAL_SCHEMA: JsonSchema = {
 			description:
 				"この会話であなたが、あなた自身や自分の仕組み(ノート・自己記述・足の記録・道具)について言ったことを 1 文ずつ。web では確かめられないので確かめの問いにはせず、内省で足の記録と並べて見せる。無ければ空",
 		},
+		pushed_back: {
+			type: "array",
+			items: { type: "string" },
+			description:
+				"この会話で相手に誤りを指摘された・押し返された、あなたの発言(世の中の事実)を、事実の中身だけ 1 文ずつ。あなたが言い切ったものも含む。どちらが正しいかを足が確かめる問いにする。無ければ空",
+		},
+		spot_check: {
+			type: "string",
+			description:
+				"足がさいころで選んだあなたの発言があれば、その中の確かめられる世の中の事実を 1 文で。意見・問いかけ・自分についての文で、確かめる事実が無ければ空",
+		},
 	},
 	required: [
 		"reply",
@@ -1409,6 +1452,8 @@ export const DIALOGUE_FINAL_SCHEMA: JsonSchema = {
 		"unverified",
 		"accepted",
 		"about_self",
+		"pushed_back",
+		"spot_check",
 	],
 	additionalProperties: false,
 };
@@ -1418,6 +1463,8 @@ export function dialoguePrompt(
 	final: boolean,
 	/** 足がこれまでのあなたの発言から、確かめていない印で拾った文 */
 	marked: string[] = [],
+	/** 足がさいころで選んだ、あなたの言い切った文 */
+	spot?: string,
 ): string {
 	// 足は言い回しでしか拾えない(「確かめていないので、あなたの話を前提に考えます」のような断りまで
 	// 確かめの問いになっていた)。何の文かは頭に判定させる(Ashi の改善案、2026-10-04)
@@ -1430,7 +1477,11 @@ ${transcriptText(turns)}
 
 ${
 	final
-		? `これが最後の発言です。会話を締めくくり、この会話から生まれた、あなた自身が歩きたい問いがあれば new_questions に出してください(track は self)。${candidates}`
+		? `これが最後の発言です。会話を締めくくり、この会話から生まれた、あなた自身が歩きたい問いがあれば new_questions に出してください(track は self)。${candidates}${
+				spot
+					? `\n\n足がさいころで選んだ、あなたの発言(「確かめていない」と断らずに言い切った誤りも拾うため):\n- ${spot}\nこの中に確かめられる世の中の事実があれば、spot_check にその中身を 1 文で書いてください。無ければ空。`
+					: ""
+			}`
 		: "相手に答えてください。"
 }`;
 }

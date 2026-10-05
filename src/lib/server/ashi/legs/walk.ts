@@ -60,6 +60,9 @@ import {
 	normalizeIntentions,
 	ownerHandles,
 	ownerPull,
+	questionIds,
+	readDepthSection,
+	reopenable,
 	SELF_MAX,
 	selfEvolution,
 	similarPairs,
@@ -411,6 +414,9 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 			charge(usage);
 
 			const noteId = newId();
+			const findings = String(output.findings ?? "").trim();
+			// 出典をどこまで読めたか。足がノートの末尾に残す
+			const depth = readDepthSection(output.sources_read, findings);
 			const title = String(output.title || q.text).slice(0, 200);
 			const summary = String(output.summary ?? "").slice(0, 500);
 			store.addNote(
@@ -423,7 +429,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 					createdAt: now.toISOString(),
 					...(blind ? { blind: true } : {}),
 				},
-				`# ${title}\n\n問い: ${q.text}\n\n${String(output.findings ?? "").trim()}\n`,
+				`# ${title}\n\n問い: ${q.text}\n\n${findings}\n${depth.text}`,
 			);
 			let added: string[] = [];
 			let bridged: string[] = [];
@@ -780,10 +786,17 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 					store.questions(),
 				),
 			});
-			// 次の一歩に書いた問いに印を付ける(続けて書かれたら、足が先に歩く)
-			store.updateQuestions((qs) =>
-				markPromised(qs, store.walk().intentions ?? []),
-			);
+			// 次の一歩に書いた問いに印を付ける(続けて書かれたら、足が先に歩く)。上限で手放されていたら開き直す
+			let reopened: string[] = [];
+			store.updateQuestions((qs) => {
+				const ids = new Set(
+					(store.walk().intentions ?? []).flatMap(questionIds),
+				);
+				reopened = qs
+					.filter((x) => ids.has(x.id) && reopenable(x))
+					.map((x) => x.id);
+				return markPromised(qs, store.walk().intentions ?? []);
+			});
 			// 外に出したいこと(新しい投稿 1 件と、約束への返信 1 件まで)。上限と長さは足が見る
 			const posts = (Array.isArray(output.posts) ? output.posts : []).filter(
 				(p) => typeof p?.text === "string" && p.text.trim(),
@@ -843,6 +856,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 				renamed,
 				posted,
 				replied,
+				...(reopened.length ? { reopened } : {}),
 				...(unposted.length > 0 ? { unposted } : {}),
 				usd: usage.costUsd,
 			});

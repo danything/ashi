@@ -8,7 +8,7 @@ import {
 	strangerPrompt,
 	strangerSystem,
 } from "../prompts.ts";
-import type { Dialogue, Store } from "../state.ts";
+import type { Dialogue, Question, Store } from "../state.ts";
 import {
 	acceptClaims,
 	acceptNewQuestions,
@@ -34,6 +34,29 @@ import {
  * - 決めるのは Ashi。会話から出した問いも、ほかの問いと同じガードレールを通す
  * - 生まれた問いの出どころは stranger(via にモデルと分野)。ownerPull で効き目を測る
  */
+
+/**
+ * 会話のおよそこの割合で、足がさいころで Ashi の言い切った文を 1 つ選び、確かめる事実を頭に取り出させる。
+ * 確かめの問いは自分で「確かめていない」と言った発言からしか生まれず、疑わずに言い切った誤りは
+ * どこにも引っかからなかった(Ashi の改善案、2026-10-05)
+ */
+export const SPOT_RATE = 1 / 3;
+
+/** 言い切った文の候補(問いかけ・短い文・「確かめていない」と断った文は除く)から 1 つ */
+export function spotSentence(
+	texts: string[],
+	rng: () => number,
+): string | undefined {
+	const cands = texts
+		.flatMap((t) => t.split(/(?<=[。!!])|\n/))
+		.map((x) => x.trim())
+		.filter(
+			(x) =>
+				x.length >= 20 && !/[??]$/.test(x) && markedClaims([x]).length === 0,
+		);
+	if (cands.length === 0) return undefined;
+	return cands[Math.floor(rng() * cands.length)]?.slice(0, 200);
+}
 
 export const STRANGER_FIELDS = [
 	"生物学",
@@ -92,8 +115,12 @@ export async function talkWithStranger(opts: {
 		unverified?: unknown;
 		accepted?: unknown;
 		about_self?: unknown;
+		pushed_back?: unknown;
+		spot_check?: unknown;
 	} = {};
 	const n = Math.max(1, opts.turns);
+	const spotting = rng() < SPOT_RATE;
+	let spot: string | undefined;
 	for (let i = 0; i < n; i++) {
 		const s = await stranger.think<{ reply: string }>({
 			task: "stranger",
@@ -107,6 +134,8 @@ export async function talkWithStranger(opts: {
 		turns.push({ by: "stranger", text: said });
 
 		const last = i === n - 1;
+		const mine = turns.filter((t) => t.by === "ashi").map((t) => t.text);
+		if (last && spotting) spot = spotSentence(mine, rng);
 		const a = await head.think<{
 			reply: string;
 			new_questions?: RawQuestion[];
@@ -114,19 +143,13 @@ export async function talkWithStranger(opts: {
 			unverified?: unknown;
 			accepted?: unknown;
 			about_self?: unknown;
+			pushed_back?: unknown;
+			spot_check?: unknown;
 		}>({
 			task: last ? "dialogue-final" : "dialogue",
 			system: dialogueSystem(store.core(), store.self()),
 			// 締めでは、足が印で拾った文を見せ、何の文かを頭に分けさせる
-			prompt: dialoguePrompt(
-				turns,
-				last,
-				last
-					? markedClaims(
-							turns.filter((t) => t.by === "ashi").map((t) => t.text),
-						)
-					: [],
-			),
+			prompt: dialoguePrompt(turns, last, last ? markedClaims(mine) : [], spot),
 			schema: last ? DIALOGUE_FINAL_SCHEMA : DIALOGUE_REPLY_SCHEMA,
 		});
 		add(a.usage);
@@ -147,7 +170,10 @@ export async function talkWithStranger(opts: {
 		acceptClaims(final.unverified),
 		markedClaims(closing),
 	);
-	if (raw.length || claims.length) {
+	// 相手に押し返されたこと・さいころで選んだ文の事実も、どちらが正しいかを確かめる
+	const pushedBack = acceptClaims(final.pushed_back);
+	const spotClaim = text(final.spot_check).slice(0, 200);
+	if (raw.length || claims.length || pushedBack.length || spotClaim) {
 		const cfg = store.config();
 		const from = {
 			source: "stranger" as const,
@@ -155,14 +181,42 @@ export async function talkWithStranger(opts: {
 		};
 		store.updateQuestions((qs) => {
 			const got = acceptNewQuestions(raw, qs, cfg, undefined, now, from);
-			const checks = acceptNewQuestions(
-				claimQuestions(claims, `${field}の話し相手に`),
-				[...qs, ...got],
-				{ ...cfg, maxNewQuestions: claims.length },
-				undefined,
-				now,
-				from,
-			).map((q) => ({ ...q, verify: true }));
+			const checks: Question[] = [];
+			const put = (raws: RawQuestion[], kind?: Question["verifyKind"]) => {
+				if (raws.length === 0) return;
+				checks.push(
+					...acceptNewQuestions(
+						raws,
+						[...qs, ...got, ...checks],
+						{ ...cfg, maxNewQuestions: raws.length },
+						undefined,
+						now,
+						from,
+					).map((q) => ({
+						...q,
+						verify: true,
+						...(kind ? { verifyKind: kind } : {}),
+					})),
+				);
+			};
+			put(claimQuestions(claims, `${field}の話し相手に`));
+			put(
+				claimQuestions(
+					pushedBack,
+					"",
+					`${field}の話し相手に言って、押し返されたこと`,
+				),
+				"pushback",
+			);
+			if (spotClaim)
+				put(
+					claimQuestions(
+						[spotClaim],
+						"",
+						`${field}の話し相手に言い切ったこと。足がさいころで選んだ`,
+					),
+					"spot",
+				);
 			added = [...got, ...checks].map((q) => q.text);
 			return trimOpenQuestions([...qs, ...got, ...checks], cfg);
 		});
@@ -178,6 +232,8 @@ export async function talkWithStranger(opts: {
 		takeaway: text(final.takeaway).slice(0, 300),
 		...(accepted.length ? { accepted } : {}),
 		...(aboutSelf.length ? { aboutSelf } : {}),
+		...(pushedBack.length ? { pushedBack } : {}),
+		...(spot ? { spot: { sentence: spot, claim: spotClaim } } : {}),
 		patterns: patternHits(turns, store.walk().selfPatterns ?? []),
 	};
 	store.appendDialogue(dialogue);

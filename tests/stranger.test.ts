@@ -23,6 +23,7 @@ import {
 import { selectQuestion } from "../src/lib/server/ashi/legs/select.ts";
 import {
 	STRANGER_FIELDS,
+	spotSentence,
 	talkWithStranger,
 } from "../src/lib/server/ashi/legs/stranger.ts";
 import { step } from "../src/lib/server/ashi/legs/walk.ts";
@@ -370,6 +371,70 @@ describe("Ashi の改善案(2026-09-26)", () => {
 			"確かめていないことを書き出した一覧がある",
 		]);
 		expect(r.dialogue.accepted).toHaveLength(1);
+	});
+
+	test("相手に押し返された発言と、足がさいころで選んだ言い切りの事実を、種類つきの確かめの問いにする", async () => {
+		const store = freshStore();
+		const stranger = new FakeHead({
+			stranger: () => ({ reply: "それは違う。土星の環は氷が主だよ" }),
+		});
+		let finalPrompt = "";
+		const head = new FakeHead({
+			dialogue: () => ({
+				reply: "土星の環はほとんどが岩石でできています。観測の歴史は長いです。",
+			}),
+			"dialogue-final": (req) => {
+				finalPrompt = req.prompt;
+				return {
+					reply: "またね",
+					new_questions: [],
+					takeaway: "t",
+					unverified: [],
+					accepted: [],
+					about_self: [],
+					pushed_back: ["土星の環はほとんどが岩石でできている"],
+					spot_check: "土星の環の観測の歴史は 17 世紀に始まる",
+				};
+			},
+		});
+		const r = await talkWithStranger({
+			store,
+			head,
+			stranger,
+			turns: 2,
+			now,
+			// 0 はさいころが当たる(SPOT_RATE より小さい)
+			rng: () => 0,
+		});
+		expect(finalPrompt).toContain("足がさいころで選んだ、あなたの発言");
+		const checks = store.questions().filter((x) => x.verify);
+		expect(checks.map((x) => x.verifyKind).sort()).toEqual([
+			"pushback",
+			"spot",
+		]);
+		expect(checks.find((x) => x.verifyKind === "pushback")?.text).toContain(
+			"押し返されたこと",
+		);
+		expect(r.dialogue.pushedBack).toHaveLength(1);
+		expect(r.dialogue.spot?.claim).toContain("17 世紀");
+	});
+
+	test("言い切った文の候補から、短い文・問いかけ・確かめていないと断った文は除く", () => {
+		expect(
+			spotSentence(
+				["短い。", "これはどう思いますか、という長めの問いかけですか?"],
+				() => 0,
+			),
+		).toBeUndefined();
+		expect(
+			spotSentence(
+				[
+					"たしか記憶だけで言うと、土星の環は岩石でできているはずです。",
+					"土星の環はほとんどが氷でできていると言われています。",
+				],
+				() => 0,
+			),
+		).toBe("土星の環はほとんどが氷でできていると言われています。");
 	});
 
 	test("相手の話を受け入れただけのものは、確かめの問いにせず会話に残して内省で見せる", async () => {

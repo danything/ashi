@@ -9,9 +9,13 @@ import {
 	acceptSelf,
 	allowance,
 	clampSleep,
+	markPromised,
 	normalizeTheme,
+	readDepthSection,
+	reopenable,
 	trimOpenQuestions,
 } from "../src/lib/server/ashi/legs/guard.ts";
+import type { Question } from "../src/lib/server/ashi/state.ts";
 import { freshStore, q } from "./helpers.ts";
 
 const now = new Date("2026-09-24T12:00:00Z");
@@ -327,4 +331,36 @@ test("設定の画面のフォームを当てる。載っていない項目は�
 	expect(next.feeds.map((x) => x.id)).toEqual(["gh"]);
 	// 印の無いチェックボックスは触らない
 	expect(applySettingsForm(next, new FormData()).stranger.enabled).toBe(true);
+});
+
+test("次の一歩に書かれた問いが上限で手放されていたら開き直す。統合で手放した問いは開かない", () => {
+	const qs = [
+		q({ id: "aaaaaaa1", status: "dropped" }),
+		q({ id: "aaaaaaa2", status: "dropped", mergedInto: "aaaaaaa3" }),
+		q({ id: "aaaaaaa3" }),
+	];
+	const next = markPromised(qs, ["aaaaaaa1 の続き", "aaaaaaa2 も"]);
+	expect(next[0]).toMatchObject({ status: "open", promised: 1 });
+	expect(next[1]?.status).toBe("dropped");
+	expect(reopenable(qs[0] as Question)).toBe(true);
+});
+
+test("出典ごとに読めた深さをノートに残し、要旨だけの出典で「無い」と言い切っていたら注意書きを付ける", () => {
+	const r = readDepthSection(
+		[
+			{ source: "Kalske ら 2019", depth: "abstract" },
+			{ source: "Smith 2020", depth: "methods" },
+			{ source: "", depth: "full" },
+			{ source: "x", depth: "skimmed" },
+		],
+		"組の作り方は論文に書かれていない。",
+	);
+	expect(r.shallow).toBe(1);
+	expect(r.text).toContain("- 要旨だけ: Kalske ら 2019");
+	expect(r.text).toContain("- 方法の節まで: Smith 2020");
+	expect(r.text).toContain("足の注意");
+	expect(
+		readDepthSection([{ source: "a", depth: "full" }], "書かれていない").text,
+	).not.toContain("足の注意");
+	expect(readDepthSection(undefined, "").text).toBe("");
 });

@@ -50,6 +50,7 @@ import {
 	acceptSelfChanges,
 	addBridgeIdeas,
 	addOwnerCorrections,
+	adviceFollowups,
 	allowance,
 	applyMerges,
 	blindComparison,
@@ -71,7 +72,13 @@ import {
 	unit,
 	walkTrail,
 } from "./guard.ts";
-import { restingThemes, SEEDING, selectQuestion } from "./select.ts";
+import {
+	batchResults,
+	restingThemes,
+	SEEDING,
+	selectQuestion,
+	verifySiblings,
+} from "./select.ts";
 import { talkWithStranger } from "./stranger.ts";
 import type { GetDeps } from "./tools.ts";
 import {
@@ -401,10 +408,12 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 				cfg.selfBlindEvery > 0 &&
 				selfWalks % cfg.selfBlindEvery === 0;
 			if (q.track === "self") store.saveWalk({ ...store.walk(), selfWalks });
+			// よそ者の会話から出た確かめの問いは、同じ分野の確かめの問いを束ねて 1 歩で確かめる
+			const siblings = verifySiblings(q, store.questions(), cfg.verifyBatch);
 			const { output, usage } = await head.think<ExploreAnswer>({
 				task: "explore",
 				system: blind ? system(core, BLIND_SELF, store.owner()) : sys(),
-				prompt: explorePrompt(q, choice.reason, ctx()),
+				prompt: explorePrompt(q, choice.reason, ctx(), siblings),
 				schema: EXPLORE_SCHEMA,
 				tools,
 				allowWeb: cfg.allowWeb,
@@ -436,8 +445,26 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 			const searched = acceptSearched(output.searched);
 			const missed = output.found === "none" && output.answered !== true;
 			let parked = false;
+			const batch = batchResults(output.checked, siblings);
 			store.updateQuestions((qs) => {
 				const updated = qs.map((x) => {
+					// 束ねて確かめた問い。合う・外れは閉じ、読めなかったものは見つからなかった回数に足す
+					const r = batch.get(x.id);
+					if (r && x.status === "open") {
+						const misses = (x.misses ?? 0) + (r === "unreadable" ? 1 : 0);
+						return {
+							...x,
+							visits: x.visits + 1,
+							lastVisitedAt: now.toISOString(),
+							misses,
+							status:
+								r === "unreadable"
+									? misses >= cfg.missesToPark
+										? ("parked" as const)
+										: x.status
+									: ("answered" as const),
+						};
+					}
 					if (x.id !== q.id) return x;
 					// 見つからなかった回数を数え、上限に達したら未測定の棚へ(同じ所をぐるぐる探さない)
 					const misses = (x.misses ?? 0) + (missed ? 1 : 0);
@@ -543,6 +570,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 				...(uncorrected ? { uncorrected, correction } : {}),
 				reason: choice.reason,
 				score: choice.score,
+				...(batch.size ? { batch: Object.fromEntries(batch) } : {}),
 				noteId,
 				answered: output.answered === true,
 				added,
@@ -644,6 +672,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 					{
 						dialogues: store.recentDialogues(3),
 						chats: store.recentChats(5),
+						followups: adviceFollowups(store.recentChats(30), store.notes()),
 						stances: (store.walk().stances ?? []).slice(0, 10),
 						landing: strangerLanding(store.questions(), ownerHandles(cfg)),
 						trail: (() => {

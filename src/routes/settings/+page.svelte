@@ -80,6 +80,10 @@ const withCurrent = (list: string[], v: string) =>
 					1 歩の中で道具を使う往復の上限
 					<input type="number" name="maxToolRounds" min="0" max="50" value={data.cfg.maxToolRounds} />
 				</label>
+				<label>
+					確かめの問いをまとめて歩く本数
+					<input type="number" name="verifyBatch" min="1" max="6" value={data.cfg.verifyBatch} />
+				</label>
 			</div>
 			{#if !subscription}
 				<div class="grid">

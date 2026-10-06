@@ -7,14 +7,21 @@ import { taskUsage } from "../src/lib/server/ashi/head/head.ts";
 import {
 	acceptNewQuestions,
 	acceptSelf,
+	adviceFollowups,
 	allowance,
 	clampSleep,
 	markPromised,
+	missedPromises,
 	normalizeTheme,
 	readDepthSection,
 	reopenable,
+	scoreBreakdown,
 	trimOpenQuestions,
 } from "../src/lib/server/ashi/legs/guard.ts";
+import {
+	batchResults,
+	verifySiblings,
+} from "../src/lib/server/ashi/legs/select.ts";
 import type { Question } from "../src/lib/server/ashi/state.ts";
 import { freshStore, q } from "./helpers.ts";
 
@@ -363,4 +370,98 @@ test("出典ごとに読めた深さをノートに残し、要旨だけの出�
 		readDepthSection([{ source: "a", depth: "full" }], "書かれていない").text,
 	).not.toContain("足の注意");
 	expect(readDepthSection(undefined, "").text).toBe("");
+});
+
+test("次の一歩に書いたのに選ばれなかった問いに、点数の内訳と 1 位の点数を添える", () => {
+	const qs = [
+		q({ id: "aaaaaaa1", interest: 0.9, importance: 0.9, feasibility: 0.9 }),
+		q({
+			id: "aaaaaaa2",
+			interest: 0.5,
+			importance: 0.4,
+			feasibility: 0.6,
+			visits: 2,
+			promised: 1,
+		}),
+	];
+	const [m] = missedPromises(["aaaaaaa2"], qs, []);
+	expect(m?.why).toContain("2 位 / 2 本");
+	expect(m?.why).toContain("歩いた 2 回 −0.24");
+	expect(m?.why).toContain("面白さ 0.5・大事さ 0.4・歩けそうか 0.6");
+	expect(m?.why).toContain("1 位は 1.05");
+	expect(m?.why).toContain("続けて書かれた回数 1");
+	expect(scoreBreakdown(q({ visits: 0 }))).toContain("まだ歩いていない +0.15");
+});
+
+test("同じ話し相手の分野から出た確かめの問いを束ね、頭の結果のうち束ねた分だけを受け取る", () => {
+	const v = (id: string, via: string, at: string, more = {}) =>
+		q({
+			id,
+			verify: true,
+			source: "stranger",
+			via,
+			createdAt: at,
+			...more,
+		});
+	const main = v("aaaaaaa1", "m:気象", "2026-10-01T00:00:00Z");
+	const qs = [
+		main,
+		v("aaaaaaa3", "m:気象", "2026-10-03T00:00:00Z"),
+		v("aaaaaaa2", "m:気象", "2026-10-02T00:00:00Z"),
+		v("aaaaaaa4", "m:気象", "2026-10-04T00:00:00Z"),
+		v("aaaaaaa5", "m:料理", "2026-10-02T00:00:00Z"),
+		v("aaaaaaa6", "m:気象", "2026-10-02T00:00:00Z", { status: "answered" }),
+		v("aaaaaaa7", "m:気象", "2026-10-02T00:00:00Z", {
+			origin: { conversationId: "c", replyId: "r", username: "u", claim: "c" },
+		}),
+	];
+	const sib = verifySiblings(main, qs, 3);
+	expect(sib.map((x) => x.id)).toEqual(["aaaaaaa2", "aaaaaaa3"]);
+	expect(verifySiblings(q({ id: "x" }), qs, 3)).toEqual([]);
+	const r = batchResults(
+		[
+			{ id: "aaaaaaa2", result: "holds" },
+			{ id: "aaaaaaa3", result: "unreadable" },
+			{ id: "aaaaaaa5", result: "wrong" },
+			{ id: "aaaaaaa2", result: "maybe" },
+		],
+		sib,
+	);
+	expect(Object.fromEntries(r)).toEqual({
+		aaaaaaa2: "holds",
+		aaaaaaa3: "unreadable",
+	});
+});
+
+test("持ち主に言ったことのうち、拠ったノートと同じテーマで後から書いたノートがあるものを並べる", () => {
+	const note = (id: string, theme: string, at: string) => ({
+		id,
+		title: `題 ${id}`,
+		theme,
+		questionId: "x",
+		summary: "",
+		createdAt: at,
+	});
+	const notes = [
+		note("aaaaaaa1", "睡眠", "2026-10-01T00:00:00Z"),
+		note("aaaaaaa2", "睡眠", "2026-10-05T00:00:00Z"),
+		note("aaaaaaa3", "料理", "2026-10-05T00:00:00Z"),
+	];
+	const chats = [
+		{
+			at: "2026-10-03T00:00:00Z",
+			question: "寝る前のスマホは?",
+			reply: "やめたほうがいい",
+			notes: ["aaaaaaa1"],
+		},
+		{ at: "2026-10-04T00:00:00Z", question: "q", reply: "r" },
+	];
+	expect(adviceFollowups(chats, notes)).toEqual([
+		{
+			at: "2026-10-03T00:00:00Z",
+			question: "寝る前のスマホは?",
+			reply: "やめたほうがいい",
+			later: [{ id: "aaaaaaa2", title: "題 aaaaaaa2" }],
+		},
+	]);
 });

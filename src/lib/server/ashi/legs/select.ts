@@ -15,6 +15,52 @@ export function score(q: Question): number {
 	return base + novelty - fatigue;
 }
 
+/**
+ * よそ者との会話から出た確かめの問いを歩くとき、同じ話し相手の分野(via)から出た、開いている確かめの
+ * 問いを、batch - 1 本まで(古い順)。束ねて同じ 1 歩で確かめる。X の約束(origin)は返信の流れが
+ * あるので束ねない
+ */
+export function verifySiblings(
+	q: Question,
+	qs: Question[],
+	batch: number,
+): Question[] {
+	if (!q.verify || q.source !== "stranger" || !q.via || q.origin) return [];
+	return qs
+		.filter(
+			(x) =>
+				x.id !== q.id &&
+				x.status === "open" &&
+				x.verify &&
+				!x.origin &&
+				x.source === "stranger" &&
+				x.via === q.via,
+		)
+		.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+		.slice(0, Math.max(0, batch - 1));
+}
+
+/** 頭の checked のうち、束ねて渡した問いの結果だけ */
+export function batchResults(
+	raw: unknown,
+	siblings: Question[],
+): Map<string, "holds" | "wrong" | "unreadable"> {
+	const ids = new Set(siblings.map((x) => x.id));
+	const out = new Map<string, "holds" | "wrong" | "unreadable">();
+	if (!Array.isArray(raw)) return out;
+	for (const c of raw as { id?: unknown; result?: unknown }[]) {
+		if (
+			typeof c?.id === "string" &&
+			ids.has(c.id) &&
+			(c.result === "holds" ||
+				c.result === "wrong" ||
+				c.result === "unreadable")
+		)
+			out.set(c.id, c.result);
+	}
+	return out;
+}
+
 /** 直近で同じテーマが何歩続いたか */
 export function themeStreak(recentThemes: string[]): {
 	theme?: string;

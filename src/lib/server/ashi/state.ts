@@ -909,6 +909,8 @@ export interface ChatEntry {
 	reply: string;
 	/** その返事で問いに加えたもの(画面の「問いに加えた」) */
 	added?: string[];
+	/** その返事で拠ったノート(頭の申告と、返事に出てきたノートの ID)。あとのノートと照らすため */
+	notes?: string[];
 	usd: number;
 }
 

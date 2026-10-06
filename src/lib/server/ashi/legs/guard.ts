@@ -536,6 +536,18 @@ export function markPromised(qs: Question[], intentions: string[]): Question[] {
  * 次の一歩に書いたのに歩かれなかった問いが、なぜ歩かれなかったか。推測でなく状態から言う
  * (選ばれなかったのか、閉じたのか、統合されたのか、上限で手放されたのか。Ashi の改善案、2026-09-26)
  */
+/** 点数の内訳を 1 行で(select.ts の score と同じ式) */
+export function scoreBreakdown(q: Question): string {
+	const base = 0.4 * q.interest + 0.35 * q.importance + 0.25 * q.feasibility;
+	const parts = [
+		`見立て ${base.toFixed(2)}(面白さ ${q.interest}・大事さ ${q.importance}・歩けそうか ${q.feasibility}。問いを作ったときの値で、あとからは変わらない)`,
+		q.visits === 0
+			? "まだ歩いていない +0.15"
+			: `歩いた ${q.visits} 回 −${(0.12 * q.visits).toFixed(2)}`,
+	];
+	return `${score(q).toFixed(2)} = ${parts.join("、")}`;
+}
+
 export function missedPromises(
 	ids: string[],
 	qs: Question[],
@@ -559,13 +571,61 @@ export function missedPromises(
 			.filter((x) => x.status === "open" && x.track === q.track)
 			.sort((a, b) => score(b) - score(a));
 		const rank = same.findIndex((x) => x.id === id) + 1;
+		const top = same[0];
 		const reasons = [
 			`${q.track === "owner" ? "先回り" : "個性"}の系統の中で点数 ${rank} 位 / ${same.length} 本`,
+			// 何が点数を下げているかが分からず、書き直すべきか待つべきか決められなかった
+			// (Ashi の改善案、2026-10-06)
+			`点数 ${scoreBreakdown(q)}${top && top.id !== q.id ? `。1 位は ${score(top).toFixed(2)}` : ""}`,
+			`次の一歩に続けて書かれた回数 ${q.promised ?? 0}(2 回で先に歩く)`,
 		];
 		if (resting.includes(q.theme))
 			reasons.push(`テーマ「${q.theme}」を休ませていた`);
 		return { id, why: `開いたまま選ばれなかった(${reasons.join("、")})` };
 	});
+}
+
+/**
+ * 持ち主に言ったことと、そのあと同じテーマで書いたノート。返事で拠ったノートと同じテーマの新しい
+ * ノートがあれば、その返事を全文で内省に見せる。内省で見える対話は途中で切れていて、言い切った助言を
+ * あとのノートと照らせなかった(Ashi の改善案、2026-10-06)
+ */
+export function adviceFollowups(
+	chats: { at: string; question: string; reply: string; notes?: string[] }[],
+	notes: Note[],
+	limit = 2,
+): {
+	at: string;
+	question: string;
+	reply: string;
+	later: { id: string; title: string }[];
+}[] {
+	const byId = new Map(notes.map((n) => [n.id, n]));
+	const out: {
+		at: string;
+		question: string;
+		reply: string;
+		later: { id: string; title: string }[];
+	}[] = [];
+	for (const c of [...chats].sort((a, b) => b.at.localeCompare(a.at))) {
+		const themes = new Set(
+			(c.notes ?? []).flatMap((id) => byId.get(id)?.theme ?? []),
+		);
+		if (themes.size === 0) continue;
+		const later = notes
+			.filter(
+				(n) =>
+					n.createdAt > c.at &&
+					themes.has(n.theme) &&
+					!(c.notes ?? []).includes(n.id),
+			)
+			.slice(-5)
+			.map((n) => ({ id: n.id, title: n.title }));
+		if (later.length)
+			out.push({ at: c.at, question: c.question, reply: c.reply, later });
+		if (out.length >= limit) break;
+	}
+	return out;
 }
 
 /** 持ち主への訂正を台帳に足す(ほぼ同じものは重ねない、20 件まで) */

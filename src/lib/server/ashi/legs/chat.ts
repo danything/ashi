@@ -162,12 +162,23 @@ export async function chat(
 			),
 		});
 		const reply = String(output.reply ?? "").trim() || "(返事が空でした)";
+		// 拠ったノート。あとで同じテーマのノートが増えたら、内省でこの返事を全文で見せる(Ashi の改善案、2026-10-06)
+		const known = new Set(store.notes().map((n) => n.id));
+		const notes = [
+			...new Set([
+				...(Array.isArray(output.notes_used) ? output.notes_used : []),
+				...(reply.match(/\b[0-9a-f]{8}\b/g) ?? []),
+			]),
+		]
+			.filter((id): id is string => typeof id === "string" && known.has(id))
+			.slice(0, 10);
 		store.appendChat({
 			at: now.toISOString(),
 			by,
 			question: text,
 			reply,
 			added,
+			...(notes.length ? { notes } : {}),
 			usd: usage.costUsd,
 		});
 		store.log("chat", { by, added, usd: usage.costUsd });

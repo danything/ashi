@@ -145,6 +145,7 @@ export interface ExploreAnswer {
 	found: "yes" | "partial" | "none";
 	searched: string[];
 	sources_read: { source: string; depth: ReadDepth }[];
+	checked: { id: string; result: "holds" | "wrong" | "unreadable" }[];
 	new_questions: NewQuestion[];
 	bridge_ideas: BridgeIdeaDraft[];
 	crawl: string[];
@@ -226,6 +227,20 @@ export const EXPLORE_SCHEMA: JsonSchema = {
 				additionalProperties: false,
 			},
 		},
+		checked: {
+			type: "array",
+			description:
+				"確かめの問いをまとめて渡されたときだけ。歩いた問いも含め、問いの ID ごとに結果。holds: 合っていた / wrong: 外れていた / unreadable: 資料が読めず確かめられなかった。まとめて渡されていなければ空",
+			items: {
+				type: "object",
+				properties: {
+					id: { type: "string" },
+					result: { type: "string", enum: ["holds", "wrong", "unreadable"] },
+				},
+				required: ["id", "result"],
+				additionalProperties: false,
+			},
+		},
 		new_questions: {
 			type: "array",
 			items: QUESTION_ITEM,
@@ -250,6 +265,7 @@ export const EXPLORE_SCHEMA: JsonSchema = {
 		"found",
 		"searched",
 		"sources_read",
+		"checked",
 		"new_questions",
 		"bridge_ideas",
 		"crawl",
@@ -325,6 +341,7 @@ export interface WalkContext {
 
 /** 足がどう問いを選んでいるか。頭は自分では選ばないので、影響できるところを伝える */
 const HOW_LEGS_CHOOSE = `問いを選ぶのは足です(点数とさいころ。系統は先回り:個性の割合で決め、直近に多く歩いたテーマは休ませる)。
+点数は、問いを作ったときの見立て(面白さ×0.4・大事さ×0.35・歩けそうか×0.25)に、まだ歩いていなければ +0.15、歩いた回数ごとに −0.12。系統の中で 1 位を歩き、ときどき(15%)さいころで寄り道する。内省の next_steps に 2 回続けて書いた問いは、点数に関係なく先に歩く。
 あなたが次の歩みに影響できるのは、new_questions に出す問いとその見立て、bridge_ideas、内省の next_steps です。`;
 
 function themeTally(themes: string[]): string {
@@ -386,16 +403,21 @@ export function explorePrompt(
 	q: Question,
 	reason: "score" | "detour" | "echo" | "verify" | "promised",
 	c: WalkContext,
+	/** 同じ話し相手の分野から出た確かめの問い。まとめて確かめる */
+	siblings: Question[] = [],
 ): string {
+	const batch = siblings.length
+		? `\n\n同じ話し相手の分野から出た確かめの問いを、まとめて渡します。同じ資料で確かめられるものは一緒に確かめ、ノートでは主張ごとに「合う / 外れ / 読めなかった」を分けて書いてください。結果は checked に、歩く問い(${q.id})も含めて ID ごとに入れてください:\n${siblings.map((x) => `- ${x.id}: ${x.text}`).join("\n")}`
+		: "";
 	const searched = q.searchedWhere?.length
 		? `\nこれまでに探した場所(同じ所は探し直さず、別の場所を当たること): ${q.searchedWhere.join("、")}`
 		: "";
 	return `次の問いを歩いてください${reason === "detour" ? "(足がさいころを振って選んだ寄り道です)" : reason === "echo" ? "(言い換えが何度も出たのにまだ歩いていない問いなので、足が先に回しました。答えを出すか、見つからなければ found を none に。堂々巡りをここで止めるのが目的です)" : reason === "promised" ? "(あなたが内省の次の一歩に続けて書いた問いです。足が約束どおり先に回しました)" : reason === "verify" ? "(あなたが外で確かめずに言ったことです。日が経っても歩かれていなかったので、足が先に回しました。出典に当たって確かめ、違っていたらノートにそう書いてください)" : ""}。
 
-問い: ${q.text}
+問い(${q.id}): ${q.text}
 テーマ: ${q.theme}
 系統: ${q.track}
-これまでに歩いた回数: ${q.visits}${q.misses ? `(うち見つからなかった回数 ${q.misses})` : ""}${searched}
+これまでに歩いた回数: ${q.visits}${q.misses ? `(うち見つからなかった回数 ${q.misses})` : ""}${searched}${batch}
 
 ${TRACK_HINT[q.track]}
 ${
@@ -650,6 +672,13 @@ export const REFLECT_SCHEMA: JsonSchema = {
 export interface ReflectTalk {
 	dialogues: Dialogue[];
 	chats: { at: string; question: string; reply: string }[];
+	/** 持ち主に言ったことのうち、拠ったノートと同じテーマで後からノートが書かれたもの(返事は全文) */
+	followups?: {
+		at: string;
+		question: string;
+		reply: string;
+		later: { id: string; title: string }[];
+	}[];
 	stances: { at: string; text: string }[];
 	/** よそ者から来た問いのうち、持ち主由来のテーマ(home)・前からの自分のテーマ(own)に着地した数 */
 	landing: { home: number; own: number; total: number };
@@ -891,7 +920,19 @@ ${lastSelfText(t.lastSelf)}${citationsText(t.citations)}${trailText(t.trail)}${b
 
 持ち主との最近の対話:
 ${chats}
-
+${
+	t.followups?.length
+		? `
+持ち主に言ったことと、そのあと同じテーマで書いたノート(返事は全文。言い切った助言が、後のノートと合っているかを見てください。違っていたら owner_corrections に):
+${t.followups
+	.map(
+		(f) =>
+			`### ${localStamp(f.at)}\n持ち主: ${cut(f.question, 600)}\nあなた: ${cut(f.reply, 4000)}\nそのあとのノート: ${f.later.map((n) => `[${n.id}] ${n.title}`).join(" / ")}`,
+	)
+	.join("\n\n")}
+`
+		: ""
+}
 あなたが持ち主との対話で取った立場(新しい順):
 ${stances}
 
@@ -1111,6 +1152,7 @@ export interface ChatAnswer {
 	stances?: string[];
 	unverified?: string[];
 	delivered_corrections?: string[];
+	notes_used?: string[];
 	new_questions: NewQuestion[];
 	crawl: string[];
 }
@@ -1131,6 +1173,12 @@ export const CHAT_SCHEMA: JsonSchema = {
 			description:
 				"この返事で持ち主に伝えた訂正の ID(下の「持ち主に伝えていない訂正」の [ ] の中)。足が台帳から消す。無ければ空",
 		},
+		notes_used: {
+			type: "array",
+			items: { type: "string" },
+			description:
+				"この返事で拠ったノートの ID(8 桁)。足が残し、あとで同じテーマのノートが増えたら、内省でこの返事と並べて見せる。無ければ空",
+		},
 		stances: {
 			type: "array",
 			items: { type: "string" },
@@ -1150,6 +1198,7 @@ export const CHAT_SCHEMA: JsonSchema = {
 		"stances",
 		"unverified",
 		"delivered_corrections",
+		"notes_used",
 		"new_questions",
 		"crawl",
 	],

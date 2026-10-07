@@ -14,6 +14,7 @@ import {
 import { join } from "node:path";
 import { type Config, DEFAULT_CONFIG, normalizeConfig } from "./config.ts";
 import { addUsage, type Usage } from "./head/head.ts";
+import type { BaselineTotals } from "./legs/baseline.ts";
 import type { BlockerRecord } from "./legs/blockers.ts";
 import type { FeedState } from "./legs/feeds.ts";
 
@@ -246,6 +247,10 @@ export interface Walk {
 	}[];
 	/** 型の当たり率の基準線を最後に測った日(1 日 1 回。legs/baseline.ts) */
 	lastBaselineDay?: string;
+	/** ノートの著者の食い違いが、内省で続けて出た回数(-1 は確かめの問いを積んだ印。legs/citations.ts) */
+	citationStreaks?: Record<string, number>;
+	/** 型の当たり率の累計(legs/baseline.ts の BaselineTotals) */
+	baselineTotals?: BaselineTotals;
 	/**
 	 * 直前の内省で、自己記述がどうなったか。上限を超えた版を黙って捨てていて、頭は「書き忘れたのか、
 	 * 保存されなかったのか」区別できなかった(Ashi の改善案、2026-09-27)。次の内省で頭に伝える

@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { citationConflicts } from "../src/lib/server/ashi/legs/citations.ts";
+import {
+	citationConflicts,
+	trackConflicts,
+} from "../src/lib/server/ashi/legs/citations.ts";
 import { localStamp } from "../src/lib/server/ashi/state.ts";
+import { freshStore } from "./helpers.ts";
 
 describe("citationConflicts", () => {
 	test("同じ著者を、あるノートは査読前、別のノートは採録と書いていたら出す", () => {
@@ -66,4 +70,28 @@ test("localStamp は日記の見出しと同じローカル時刻にする", () 
 	} finally {
 		process.env.TZ = prev;
 	}
+});
+
+describe("trackConflicts", () => {
+	const now = new Date("2026-10-07T00:00:00Z");
+	const c = {
+		authors: "Novak",
+		kind: "status" as const,
+		variants: [
+			{ label: "査読前", noteIds: ["n1"] },
+			{ label: "採録・出版", noteIds: ["n2"] },
+		],
+	};
+	test("同じ食い違いが 2 回の内省で続いたら、確かめの問いを 1 本だけ積む。消えたら数え直す", () => {
+		const store = freshStore();
+		expect(trackConflicts(store, [c], now)).toEqual([]);
+		const added = trackConflicts(store, [c], now);
+		expect(added).toHaveLength(1);
+		expect(added[0]).toContain("Novak の論文の査読の状態");
+		const q = store.questions().find((x) => x.text === added[0]);
+		expect(q).toMatchObject({ verify: true, theme: "確かめること" });
+		expect(trackConflicts(store, [c], now)).toEqual([]);
+		trackConflicts(store, [], now);
+		expect(store.walk().citationStreaks).toEqual({});
+	});
 });

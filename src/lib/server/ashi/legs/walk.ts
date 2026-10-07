@@ -36,9 +36,13 @@ import {
 	type Store,
 	type Track,
 } from "../state.ts";
-import { measureBaseline, recentBaselines } from "./baseline.ts";
+import {
+	baselineTotalsFromLog,
+	measureBaseline,
+	recentBaselines,
+} from "./baseline.ts";
 import { raiseBlocker, resolveBlockers, webhookNotify } from "./blockers.ts";
-import { noteCitationConflicts } from "./citations.ts";
+import { noteCitationConflicts, trackConflicts } from "./citations.ts";
 import { crawlRequested, feedStatus } from "./feeds.ts";
 import {
 	acceptIntentions,
@@ -632,6 +636,9 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 				});
 			}
 			const selfBefore = store.self();
+			// ノートの著者の食い違い。続けて出たら確かめの問いを積む
+			const conflicts = noteCitationConflicts(store);
+			trackConflicts(store, conflicts, now);
 			const { output, usage } = await head.think<ReflectAnswer>({
 				task: "reflect",
 				system: sys(),
@@ -690,7 +697,10 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 						evolution: selfEvolution(store.selfHistory()),
 						lastSelf: w.lastSelf,
 						baseline: recentBaselines(store.recentLog(1000), 2),
-						citations: noteCitationConflicts(store),
+						baselineTotals:
+							store.walk().baselineTotals ??
+							baselineTotalsFromLog(store.recentLog(100_000)),
+						citations: conflicts,
 					},
 				),
 				schema: REFLECT_SCHEMA,

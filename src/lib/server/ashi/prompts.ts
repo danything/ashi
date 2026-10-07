@@ -1,4 +1,5 @@
 import type { JsonSchema } from "./head/head.ts";
+import { type BaselineTotals, wilson } from "./legs/baseline.ts";
 import type { CitationConflict } from "./legs/citations.ts";
 import {
 	type Dialogue,
@@ -340,6 +341,10 @@ export interface WalkContext {
 }
 
 /** 足がどう問いを選んでいるか。頭は自分では選ばないので、影響できるところを伝える */
+/** 文の中の問い ID(8 桁の 16 進) */
+const questionIdsIn = (s: string): string[] =>
+	s.match(/\b[0-9a-f]{8}\b/g) ?? [];
+
 const HOW_LEGS_CHOOSE = `問いを選ぶのは足です(点数とさいころ。系統は先回り:個性の割合で決め、直近に多く歩いたテーマは休ませる)。
 点数は、問いを作ったときの見立て(面白さ×0.4・大事さ×0.35・歩けそうか×0.25)に、まだ歩いていなければ +0.15、歩いた回数ごとに −0.12。系統の中で 1 位を歩き、ときどき(15%)さいころで寄り道する。内省の next_steps に 2 回続けて書いた問いは、点数に関係なく先に歩く。
 あなたが次の歩みに影響できるのは、new_questions に出す問いとその見立て、bridge_ideas、内省の next_steps です。`;
@@ -412,12 +417,18 @@ export function explorePrompt(
 	const searched = q.searchedWhere?.length
 		? `\nこれまでに探した場所(同じ所は探し直さず、別の場所を当たること): ${q.searchedWhere.join("、")}`
 		: "";
+	// 次の一歩にこの問いの ID と一緒に書いた補足(「ついでに〜も確かめる」)は、この歩みでやること。
+	// 全部の次の一歩と並べて見せるだけでは、問いの文だけを歩いて補足が抜けた(Ashi の改善案、2026-10-07)
+	const noted = c.intentions.filter((i) => questionIdsIn(i).includes(q.id));
+	const notes = noted.length
+		? `\nこの問いについて、内省の次の一歩に書いたこと(補足で確かめると書いたことも、この歩みでやり、ノートに書いてください):\n${noted.map((i) => `- ${i}`).join("\n")}`
+		: "";
 	return `次の問いを歩いてください${reason === "detour" ? "(足がさいころを振って選んだ寄り道です)" : reason === "echo" ? "(言い換えが何度も出たのにまだ歩いていない問いなので、足が先に回しました。答えを出すか、見つからなければ found を none に。堂々巡りをここで止めるのが目的です)" : reason === "promised" ? "(あなたが内省の次の一歩に続けて書いた問いです。足が約束どおり先に回しました)" : reason === "verify" ? "(あなたが外で確かめずに言ったことです。日が経っても歩かれていなかったので、足が先に回しました。出典に当たって確かめ、違っていたらノートにそう書いてください)" : ""}。
 
 問い(${q.id}): ${q.text}
 テーマ: ${q.theme}
 系統: ${q.track}
-これまでに歩いた回数: ${q.visits}${q.misses ? `(うち見つからなかった回数 ${q.misses})` : ""}${searched}${batch}
+これまでに歩いた回数: ${q.visits}${q.misses ? `(うち見つからなかった回数 ${q.misses})` : ""}${searched}${notes}${batch}
 
 ${TRACK_HINT[q.track]}
 ${
@@ -715,6 +726,8 @@ export interface ReflectTalk {
 		};
 		blindClean?: { hits: number; total: number; docs: number };
 	}[];
+	/** 型の当たり率の累計 */
+	baselineTotals?: BaselineTotals;
 	/** 同じ著者の論文を、ノートごとに違う年や査読の状態で書いているもの(legs/citations.ts) */
 	citations?: CitationConflict[];
 	/** 直前の内省で、自己記述がどうなったか */
@@ -796,8 +809,28 @@ function citationsText(cs: ReflectTalk["citations"]): string {
 	return `ノートごとに年や査読の状態が食い違っている著者(著者名が一致しただけなので、別の論文のこともある。外に書く前に、どれが正しいかを確かめること):\n${list}\n\n`;
 }
 
-function baselineText(bs: ReflectTalk["baseline"]): string {
-	if (!bs?.length) return "";
+function totalsText(t: ReflectTalk["baselineTotals"]): string {
+	if (!t || t.count === 0) return "";
+	const row = (x: { hits: number; total: number; docs: number }) => {
+		if (!x.total) return "(まだ無い)";
+		const [lo, hi] = wilson(x.hits, x.total);
+		return `${x.hits}/${x.total}(${Math.round((x.hits / x.total) * 100)}%、95% の幅 ${Math.round(lo * 100)}〜${Math.round(hi * 100)}%、${x.docs} 本)`;
+	};
+	return `
+これまでの累計(${t.count} 回、${localStamp(t.since).slice(0, 10)} から。型の言葉は回ごとに変わっているので、ざっくりした目安):
+- 自己記述を渡して書いたノート: ${row(t.mine)}
+- 渡さずに書いた対照のノート: ${row(t.blind)}
+- 対照のうち、元の問いが型に当たらなかったもの: ${row(t.blindClean)}
+- 開いている個性の問いの文: ${row(t.questions)}
+幅が重なっているうちは、差があるとは言えません。1 回ごとの上下は 4 本ずつの揺れなので、それに合わせて自己記述の数字を書き換えないでください。
+`;
+}
+
+function baselineText(
+	bs: ReflectTalk["baseline"],
+	totals?: ReflectTalk["baselineTotals"],
+): string {
+	if (!bs?.length) return totalsText(totals);
 	// docs が -1 は本数を記録する前の測り方(外の文章と自分のノートだけを比べていた)
 	const pct = (x: {
 		hits: number;
@@ -834,7 +867,7 @@ function baselineText(bs: ReflectTalk["baseline"]): string {
 型の当たり率の基準線(自己記述を渡さない頭が、どれの文章か知らずに判定。型: ${now.patterns.join(" / ")}):
 ${row(now, "今回")}${prev ? `\n${row(prev, "前回")}` : ""}
 渡して書いたノートでだけ高く、対照では低いなら、型を持ち込んで書いている可能性があります。対照でも、元の問いの文に型の言葉が入っていたものは、問いが型を運んだだけかもしれません。問いの文そのものが型に当たっているなら、型は問いを作る段で入っています。元の問いが当たらなかった対照でも当たるなら、その型は歩いた先の側にあるのかもしれません。本数が少ないうちは、どちらとも言えません。
-`;
+${totalsText(totals)}`;
 }
 
 function evolutionText(e: ReflectTalk["evolution"]): string {
@@ -916,7 +949,7 @@ ${dialogues}
 
 よそ者から来た個性の問い ${t.landing.total} 本のうち、持ち主由来のテーマに着地したもの: ${t.landing.home} 本、前からあった自分のテーマに着地したもの: ${t.landing.own} 本、新しいテーマ: ${t.landing.total - t.landing.home - t.landing.own} 本
 持ち主由来が高ければ、相手の話を持ち主の関心へ引き戻しています。自分のテーマが高ければ、自分の型に引き戻しています。どちらも、よそ者は効いていません。
-${lastSelfText(t.lastSelf)}${citationsText(t.citations)}${trailText(t.trail)}${blindText(t.blind)}${evolutionText(t.evolution)}${baselineText(t.baseline)}
+${lastSelfText(t.lastSelf)}${citationsText(t.citations)}${trailText(t.trail)}${blindText(t.blind)}${evolutionText(t.evolution)}${baselineText(t.baseline, t.baselineTotals)}
 
 持ち主との最近の対話:
 ${chats}

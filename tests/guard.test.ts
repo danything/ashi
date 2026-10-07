@@ -5,6 +5,11 @@ import {
 } from "../src/lib/server/ashi/config.ts";
 import { taskUsage } from "../src/lib/server/ashi/head/head.ts";
 import {
+	addBaseline,
+	baselineTotalsFromLog,
+	wilson,
+} from "../src/lib/server/ashi/legs/baseline.ts";
+import {
 	acceptNewQuestions,
 	acceptSelf,
 	adviceFollowups,
@@ -22,6 +27,7 @@ import {
 	batchResults,
 	verifySiblings,
 } from "../src/lib/server/ashi/legs/select.ts";
+import { explorePrompt } from "../src/lib/server/ashi/prompts.ts";
 import type { Question } from "../src/lib/server/ashi/state.ts";
 import { freshStore, q } from "./helpers.ts";
 
@@ -464,4 +470,65 @@ test("持ち主に言ったことのうち、拠ったノートと同じテー�
 			later: [{ id: "aaaaaaa2", title: "題 aaaaaaa2" }],
 		},
 	]);
+});
+
+test("型の当たり率を累計し、95% の幅を出す。ログから足し上げるときは本数を記録する前の測り方を除く", () => {
+	const b = (mine: number, blind: number) => ({
+		patterns: ["型"],
+		external: { hits: 0, total: 4, docs: 4 },
+		mine: { hits: mine, total: 4, docs: 4 },
+		blind: { hits: blind, total: 4, docs: 4 },
+		blindClean: { hits: 0, total: 2, docs: 2 },
+	});
+	let t = addBaseline(undefined, b(1, 2), "2026-10-01T00:00:00Z");
+	t = addBaseline(t, b(3, 0), "2026-10-02T00:00:00Z");
+	expect(t).toMatchObject({
+		since: "2026-10-01T00:00:00Z",
+		count: 2,
+		mine: { hits: 4, total: 8, docs: 8 },
+		blind: { hits: 2, total: 8, docs: 8 },
+		blindClean: { hits: 0, total: 4, docs: 4 },
+	});
+	const [lo, hi] = wilson(4, 8);
+	expect(lo).toBeGreaterThan(0.2);
+	expect(hi).toBeLessThan(0.8);
+	expect(wilson(0, 0)).toEqual([0, 1]);
+	const log = [
+		{ event: "baseline", at: "2026-10-02T00:00:00Z", ...b(3, 0) },
+		{ event: "baseline", at: "2026-10-01T00:00:00Z", ...b(1, 2) },
+		{
+			event: "baseline",
+			at: "2026-09-26T00:00:00Z",
+			patterns: [],
+			mine: { hits: 9, total: 9 },
+		},
+	];
+	expect(baselineTotalsFromLog(log)).toMatchObject({
+		count: 2,
+		since: "2026-10-01T00:00:00Z",
+		mine: { hits: 4, total: 8 },
+	});
+});
+
+test("次の一歩にこの問いの ID と一緒に書いた補足を、歩くときに問いのすぐ下に見せる", () => {
+	const qq = q({ id: "e6092714", text: "問い本体" });
+	const p = explorePrompt(qq, "score", {
+		notes: [],
+		questions: [qq],
+		feeds: "",
+		intentions: [
+			"e6092714 を歩き、エチオピアのセム系言語の話も確かめる",
+			"aaaaaaa1 を歩く",
+		],
+		bridges: [],
+		recentThemes: [],
+		resting: [],
+		maxOpenPerTheme: 6,
+	} as unknown as Parameters<typeof explorePrompt>[2]);
+	expect(p).toContain("この問いについて、内省の次の一歩に書いたこと");
+	expect(p).toContain(
+		"- e6092714 を歩き、エチオピアのセム系言語の話も確かめる",
+	);
+	const section = p.split("この問いについて")[1]?.split("\n\n")[0] ?? "";
+	expect(section).not.toContain("aaaaaaa1");
 });

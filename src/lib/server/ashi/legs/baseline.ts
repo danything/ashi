@@ -85,6 +85,75 @@ function sample<T>(xs: T[], n: number, rng: () => number): T[] {
 	return a.slice(0, n);
 }
 
+/**
+ * 型の当たり率の累計。1 回 4 本ずつでは揺れが大きく、毎回の上下を読もうとして自己記述の数字を
+ * 書き換えるだけになっていた(Ashi の改善案、2026-10-07)。型の言葉は回ごとに変わるので、ざっくりした目安
+ */
+export interface BaselineTotals {
+	/** 足し始めた日時と、足した回数 */
+	since: string;
+	count: number;
+	mine: Tally;
+	blind: Tally;
+	blindClean: Tally;
+	questions: Tally;
+}
+
+const emptyTally = (): Tally => ({ hits: 0, total: 0, docs: 0 });
+const addTally = (a: Tally, b?: Tally): Tally =>
+	b
+		? {
+				hits: a.hits + b.hits,
+				total: a.total + b.total,
+				docs: a.docs + Math.max(0, b.docs),
+			}
+		: a;
+
+/** 1 回分の基準線を累計に足す */
+export function addBaseline(
+	totals: BaselineTotals | undefined,
+	b: Baseline,
+	at: string,
+): BaselineTotals {
+	const t = totals ?? {
+		since: at,
+		count: 0,
+		mine: emptyTally(),
+		blind: emptyTally(),
+		blindClean: emptyTally(),
+		questions: emptyTally(),
+	};
+	return {
+		since: t.since,
+		count: t.count + 1,
+		mine: addTally(t.mine, b.mine),
+		blind: addTally(t.blind, b.blind),
+		blindClean: addTally(t.blindClean, b.blindClean),
+		questions: addTally(t.questions, b.questions),
+	};
+}
+
+/** 累計がまだ無いとき、ログに残っている基準線から足し上げる(古い順) */
+export function baselineTotalsFromLog(
+	log: { event: string; at?: string; [k: string]: unknown }[],
+): BaselineTotals | undefined {
+	const bs = recentBaselines(log, Number.MAX_SAFE_INTEGER).reverse();
+	let t: BaselineTotals | undefined;
+	for (const b of bs) if (b.mine.docs >= 0) t = addBaseline(t, b, b.at);
+	return t;
+}
+
+/** 割合の 95% の幅(Wilson)。判定は文章ごとに独立ではないので、ざっくりした目安 */
+export function wilson(hits: number, total: number): [number, number] {
+	if (total === 0) return [0, 1];
+	const z = 1.96;
+	const p = hits / total;
+	const d = 1 + (z * z) / total;
+	const c = p + (z * z) / (2 * total);
+	const r = z * Math.sqrt((p * (1 - p) + (z * z) / (4 * total)) / total);
+	return [Math.max(0, (c - r) / d), Math.min(1, (c + r) / d)];
+}
+
 /** 1 日 1 回だけ測る。型か比べる文章が足りなければ何もしない */
 export async function measureBaseline(opts: {
 	store: Store;
@@ -228,7 +297,16 @@ ${docs.map((d) => `<doc id="${d.label}">\n${d.text}\n</doc>`).join("\n\n")}`;
 		blindClean.hits += answers.filter((x) => x === true).length;
 	}
 	const baseline: Baseline = { patterns, ...tally, blindClean };
-	store.saveWalk({ ...store.walk(), lastBaselineDay: today });
+	const w2 = store.walk();
+	store.saveWalk({
+		...w2,
+		lastBaselineDay: today,
+		baselineTotals: addBaseline(
+			w2.baselineTotals ?? baselineTotalsFromLog(store.recentLog(100_000)),
+			baseline,
+			now.toISOString(),
+		),
+	});
 	store.log("baseline", { ...baseline });
 	return { baseline, usage };
 }

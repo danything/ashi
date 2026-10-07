@@ -1,4 +1,6 @@
 import type { Store } from "../state.ts";
+import { acceptNewQuestions, trimOpenQuestions } from "./guard.ts";
+import { VERIFY_THEME } from "./select.ts";
 
 /**
  * 同じ著者の論文を、ノートごとに違う年や査読の状態で書いているものを候補として出す。
@@ -128,4 +130,61 @@ export function noteCitationConflicts(store: Store): CitationConflict[] {
 			text: `${n.title}\n${n.summary}\n${store.noteBody(n.id) ?? ""}`,
 		})),
 	);
+}
+
+/** 食い違いがこの回数の内省で続けて出たら、確かめの問いを積む */
+export const CONFLICT_STREAK = 2;
+
+const conflictKey = (c: CitationConflict) => `${c.kind}:${c.authors}`;
+
+/**
+ * 内省で見せた食い違いを数え、CONFLICT_STREAK 回続いたら、どれが正しいかを確かめる問いを 1 本積む
+ * (同じ食い違いでは 1 回だけ)。知らせるだけでは確かめる問いが無く、借りのまま残り続けた
+ * (Ashi の改善案、2026-10-07)。食い違いが消えたら数え直す
+ */
+export function trackConflicts(
+	store: Store,
+	conflicts: CitationConflict[],
+	now: Date,
+): string[] {
+	const prev = store.walk().citationStreaks ?? {};
+	const next: Record<string, number> = {};
+	const due: CitationConflict[] = [];
+	for (const c of conflicts) {
+		const k = conflictKey(c);
+		const p = prev[k] ?? 0;
+		// -1 は積んだ印
+		next[k] = p < 0 ? p : p + 1;
+		if (next[k] >= CONFLICT_STREAK) due.push(c);
+	}
+	const text = (c: CitationConflict) =>
+		`${c.authors} の論文の${c.kind === "year" ? "年" : "査読の状態"}が、ノートで食い違っている(${c.variants.map((v) => `${v.label}: ${v.noteIds.join("、")}`).join(" / ")})。どれが正しいか`;
+	let added: string[] = [];
+	if (due.length) {
+		const cfg = store.config();
+		store.updateQuestions((qs) => {
+			const got = acceptNewQuestions(
+				due.map((c) => ({
+					text: text(c),
+					theme: VERIFY_THEME,
+					track: "self",
+					interest: 0.6,
+					importance: 0.8,
+					feasibility: 0.8,
+				})),
+				qs,
+				{ ...cfg, maxNewQuestions: due.length },
+				undefined,
+				now,
+				{ source: "explore", via: "citations" },
+			).map((q) => ({ ...q, verify: true }));
+			added = got.map((q) => q.text);
+			return trimOpenQuestions([...qs, ...got], cfg);
+		});
+		// 積めたものにだけ印を付ける(テーマの枠で受け取られなければ、次の内省でまた積もうとする)
+		for (const c of due) if (added.includes(text(c))) next[conflictKey(c)] = -1;
+		if (added.length) store.log("citation-checks", { added });
+	}
+	store.saveWalk({ ...store.walk(), citationStreaks: next });
+	return added;
 }

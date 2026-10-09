@@ -24,12 +24,26 @@ const PRICES: Record<string, [number, number, number?]> = {
 	"claude-opus-4-8": [5, 25],
 	"claude-sonnet-5-5": [2, 10, 0.2],
 	"claude-sonnet-5": [2, 10],
+	"claude-haiku-5-5": [0.1, 0.5],
 	"claude-haiku-4-5": [1, 5],
+};
+/**
+ * プロンプト(入力・キャッシュの読み書きの合計)が over トークンを超えたら、別の料金になるモデル。
+ * Haiku 5.5 は 10 万トークンを超えると入力 0.5・出力 2.5 ドル
+ */
+const LONG_PROMPT_PRICES: Record<
+	string,
+	{ over: number; price: [number, number] }
+> = {
+	"claude-haiku-5-5": { over: 100_000, price: [0.5, 2.5] },
 };
 /** web 検索は 1,000 回で 10 ドル */
 const WEB_SEARCH_USD = 0.01;
 
-/** 拒否されたら分類に合わせて別のモデルで答え直させる(サーバー側)。Opus 5 の既定の作法 */
+/**
+ * 拒否されたら分類に合わせて別のモデルで答え直させる(サーバー側)。Opus 5 の既定の作法。
+ * Haiku 5.5 には答え直す先が無く、"default" なら断られたまま返る(配列で名指しすると 400)
+ */
 const FALLBACK_BETA = "server-side-fallback-2026-07-01";
 
 /** サーバー側の道具(web 検索)が途中で止まったときに続けさせる回数の上限 */
@@ -196,11 +210,14 @@ export class ClaudeHead implements Head {
 	}
 
 	private price(res: Anthropic.Beta.BetaMessage, task: string): Usage {
-		const [inUsd, outUsd, readUsd = inUsd * 0.1] = PRICES[res.model] ??
-			PRICES[this.name] ?? [5, 25];
 		const u = res.usage;
 		const cacheRead = u.cache_read_input_tokens ?? 0;
 		const cacheWrite = u.cache_creation_input_tokens ?? 0;
+		const long = LONG_PROMPT_PRICES[res.model] ?? LONG_PROMPT_PRICES[this.name];
+		const [inUsd, outUsd, readUsd = inUsd * 0.1] =
+			long && u.input_tokens + cacheRead + cacheWrite > long.over
+				? long.price
+				: (PRICES[res.model] ?? PRICES[this.name] ?? [5, 25]);
 		const searches = u.server_tool_use?.web_search_requests ?? 0;
 		const costUsd =
 			(u.input_tokens * inUsd +

@@ -527,6 +527,27 @@ export interface ReflectAnswer {
 	themes: { from: string[]; to: string }[];
 }
 
+/** 改善案 1 件の形(内省と、持ち主との対話で使う) */
+const PROPOSAL_ITEM = {
+	type: "object",
+	properties: {
+		title: {
+			type: "string",
+			description: "改善案の題(issue の題になる)。1 行で",
+		},
+		why: {
+			type: "string",
+			description: "何に困ったか。実際に起きたことを具体的に",
+		},
+		idea: {
+			type: "string",
+			description: "どう変えればよさそうか。分からなければ分からないと書く",
+		},
+	},
+	required: ["title", "why", "idea"],
+	additionalProperties: false,
+};
+
 export const REFLECT_SCHEMA: JsonSchema = {
 	type: "object",
 	properties: {
@@ -641,26 +662,7 @@ export const REFLECT_SCHEMA: JsonSchema = {
 			type: "array",
 			description:
 				"自分(Ashi)の仕組みへの改善案。足の動き・道具・プロンプト・画面で困ったこと、こうなれば歩きやすいこと。持ち主が読んで直すかを決める。無ければ空",
-			items: {
-				type: "object",
-				properties: {
-					title: {
-						type: "string",
-						description: "改善案の題(issue の題になる)。1 行で",
-					},
-					why: {
-						type: "string",
-						description: "何に困ったか。歩いていて実際に起きたことを具体的に",
-					},
-					idea: {
-						type: "string",
-						description:
-							"どう変えればよさそうか。分からなければ分からないと書く",
-					},
-				},
-				required: ["title", "why", "idea"],
-				additionalProperties: false,
-			},
+			items: PROPOSAL_ITEM,
 		},
 	},
 	required: [
@@ -1186,14 +1188,41 @@ export interface ChatAnswer {
 	unverified?: string[];
 	delivered_corrections?: string[];
 	notes_used?: string[];
+	flagged_phrases?: string[];
+	proposals?: ProposalDraft[];
 	new_questions: NewQuestion[];
 	crawl: string[];
 }
 
+/**
+ * 持ち主と話すときの書き方。返事の型を「Markdown」にしていて、会話なのに見出しと太字の報告書に
+ * なっていた。推測の断りも前置きの段落になっていた(持ち主の指摘と Ashi の見立て、2026-10-09)
+ */
+const CHAT_STYLE = `書き方:
+- 平文で書く。見出しは使わない。太字は 1 か所まで。箇条書きは、本当に並べるものがあるときだけ
+- 推測は前置きの段落にせず、その文の中に「(推測)」と短く付ける。分かったことと推測の区別はコア原則なので、付けること自体はやめない
+- 冒頭で持ち主の発言を持ち上げない。「言いにくいことですが」のようなクッションを置かない。毎回質問で締めない
+- 文末を「〜と思います」「〜かもしれません」で埋めない。推測に (推測) を付けたら、文末は言い切ってよい`;
+
 export const CHAT_SCHEMA: JsonSchema = {
 	type: "object",
 	properties: {
-		reply: { type: "string", description: "持ち主への返事(Markdown)" },
+		reply: {
+			type: "string",
+			description: "持ち主への返事(平文。見出しは使わず、太字は 1 か所まで)",
+		},
+		flagged_phrases: {
+			type: "array",
+			items: { type: "string" },
+			description:
+				"持ち主がこの発言で「Claude っぽい」「その言い方やめて」などと指摘した言い回しを、短い語句のまま 1 つずつ(例: 「筋が通って」)。足が台帳に積み、次から返す前に数える。無ければ空",
+		},
+		proposals: {
+			type: "array",
+			description:
+				"持ち主に「直すことに足して」と頼まれた、または話していて気づいた、自分(Ashi)の仕組みへの改善案。足が「直すこと」に積む(あなたには書き込む道具が無いので、ここに書かないと積まれない)。無ければ空",
+			items: PROPOSAL_ITEM,
+		},
 		unverified: {
 			type: "array",
 			items: { type: "string" },
@@ -1232,11 +1261,35 @@ export const CHAT_SCHEMA: JsonSchema = {
 		"unverified",
 		"delivered_corrections",
 		"notes_used",
+		"flagged_phrases",
+		"proposals",
 		"new_questions",
 		"crawl",
 	],
 	additionalProperties: false,
 };
+
+/** 足のリンタに当たった返事の書き直し。返事の本文だけを返させる */
+export const CHAT_REWRITE_SCHEMA: JsonSchema = {
+	type: "object",
+	properties: {
+		reply: { type: "string", description: "書き直した返事(平文)" },
+	},
+	required: ["reply"],
+	additionalProperties: false,
+};
+
+export function chatRewritePrompt(reply: string, problems: string[]): string {
+	return `いま書いた持ち主への返事を、足が数えて次の点に当たりました。言っている中身(主張・数字・出典・ノートの ID・(推測) の印)は変えずに、言い回しだけを直して書き直してください。
+
+${problems.map((p) => `- ${p}`).join("\n")}
+
+${CHAT_STYLE}
+
+<reply>
+${reply}
+</reply>`;
+}
 
 /** 持ち主に伝えていない訂正を、話すときに見せる形 */
 export function correctionsBlock(
@@ -1261,8 +1314,13 @@ export function chatPrompt(
 	blockers: string,
 	news = "",
 	corrections = "",
+	/** 持ち主が「Claude っぽい」と言った言い回し(legs/style.ts の台帳) */
+	phrases: string[] = [],
 ): string {
 	return `持ち主が話しかけています。いまは歩いておらず、持ち主と話しています。
+
+${CHAT_STYLE}${phrases.length ? `\n- 持ち主が Claude っぽいと言った言い回し(使わない): ${phrases.map((p) => `「${p}」`).join("")}` : ""}
+持ち主が言い回しを「Claude っぽい」「やめて」と指摘したら、その語句を flagged_phrases に入れる。「直すことに足して」と頼まれた改善案は proposals に入れる(あなたには書き込む道具が無く、ここに書かないと積まれない)。
 何を学んだか、どこを歩いているかを聞かれたら、ノート(search_notes / read_note)を引いて答えてください。
 先回りで掘ってあったことを聞かれたら、そのノートを元に答えてください。
 調べてほしいと頼まれたら、その場で調べ尽くさず new_questions に入れてください(足が後で歩きます)。

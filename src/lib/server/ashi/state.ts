@@ -17,6 +17,7 @@ import { addUsage, type Usage } from "./head/head.ts";
 import type { BaselineTotals } from "./legs/baseline.ts";
 import type { BlockerRecord } from "./legs/blockers.ts";
 import type { FeedState } from "./legs/feeds.ts";
+import type { PhraseEntry } from "./legs/style.ts";
 
 /**
  * 状態ディレクトリ(ASHI_HOME)。ファイルを読み書きするのは足だけで、頭には中身を文字で見せるだけ。
@@ -31,6 +32,7 @@ import type { FeedState } from "./legs/feeds.ts";
  *   conversations.json  X でほかの人と交わした会話(来客の材料。持ち主の地図には入れない)
  *   cleanup.json    X のアカウントの前の用途の投稿を消す係の残り(アーカイブの tweets.js から)
  *   proposals.json  Ashi が内省で出した自分の仕組みへの改善案(持ち主が GitHub の issue にする)
+ *   phrases.json    持ち主が「Claude っぽい」と言った言い回しの台帳(legs/style.ts)
  *   blockers.json   弾かれたこと(権限・鍵・課金・巡回の失敗)と、その直し方
  *   feeds.json      足跡ごとの、最後に読んだ時刻と取り込み済みの鍵
  *   questions.json  問い
@@ -582,6 +584,15 @@ export class Store {
 		this.writeJson("proposals.json", ps);
 	}
 
+	/** 言い回しの台帳。まだ無ければ undefined(legs/style.ts の最初の一覧を使う) */
+	phrases(): PhraseEntry[] | undefined {
+		return this.readJson<PhraseEntry[] | undefined>("phrases.json", undefined);
+	}
+
+	savePhrases(ps: PhraseEntry[]): void {
+		this.writeJson("phrases.json", ps);
+	}
+
 	xAccount(): XAccount | undefined {
 		return this.readJson<XAccount | null>("x.json", null) ?? undefined;
 	}
@@ -916,6 +927,9 @@ export interface ChatEntry {
 	added?: string[];
 	/** その返事で拠ったノート(頭の申告と、返事に出てきたノートの ID)。あとのノートと照らすため */
 	notes?: string[];
+	/** 足のリンタが当たったこと(legs/style.ts)と、書き直したか */
+	lint?: string[];
+	rewritten?: boolean;
 	usd: number;
 }
 

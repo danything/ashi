@@ -5,6 +5,7 @@ import {
 	MODELS,
 	normalizeConfig,
 } from "#lib/server/ashi/config.ts";
+import { phraseLedger } from "#lib/server/ashi/legs/style.ts";
 import { localDay } from "#lib/server/ashi/state.ts";
 import { saveConfig, store } from "#lib/server/runtime.ts";
 import type { Actions, PageServerLoad } from "./$types";
@@ -34,10 +35,30 @@ export const load: PageServerLoad = () => {
 			outputTokens: b.outputTokens,
 		},
 		history: store.budgetHistory().slice(-7).reverse(),
+		phrases: phraseLedger(store),
 	};
 };
 
 export const actions: Actions = {
+	/** 言い回しの台帳を 1 行 1 つで書き直す。前からある行は、いつ・誰が足したかを残す */
+	savePhrases: async ({ request, locals }) => {
+		const text = String((await request.formData()).get("phrases") ?? "");
+		const prev = new Map(phraseLedger(store).map((p) => [p.text, p]));
+		const now = new Date().toISOString();
+		const lines = [
+			...new Set(
+				text
+					.split(/\r?\n/)
+					.map((l) => l.trim().slice(0, 40))
+					.filter((l) => l.length >= 2),
+			),
+		].slice(0, 100);
+		store.savePhrases(
+			lines.map((l) => prev.get(l) ?? { text: l, from: "edit", at: now }),
+		);
+		store.log("phrases", { by: locals.user?.name ?? "?", count: lines.length });
+		return { phrasesSaved: true };
+	},
 	save: async ({ request, locals }) => {
 		saveConfig(
 			applySettingsForm(store.config(), await request.formData()),

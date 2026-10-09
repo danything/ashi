@@ -191,6 +191,19 @@ const withCurrent = (list: string[], v: string) =>
 	</details>
 
 	<section class="panel">
+		<div class="panel-head"><h2>話すときに使わない言い回し</h2></div>
+		<p class="small muted">
+			持ち主が「Claude っぽい」と言った言い回し。話すときに見せ、返す前に足が数えて、冒頭で使った・何度も使ったときは書き直させる。
+			会話で指摘すると頭が足し、ここでも 1 行 1 つで直せる。
+		</p>
+		{#if form && "phrasesSaved" in form}<p class="note ok small">保存した。次の返事から効く。</p>{/if}
+		<form method="POST" action="?/savePhrases" use:enhance class="stack">
+			<textarea name="phrases" rows="8" spellcheck="false">{data.phrases.map((p) => p.text).join("\n")}</textarea>
+			<div class="cluster"><button type="submit" class="outline small">保存する</button></div>
+		</form>
+	</section>
+
+	<section class="panel">
 		<div class="panel-head"><h2>トークンの使用量</h2></div>
 		<ul class="rows">
 			<li>

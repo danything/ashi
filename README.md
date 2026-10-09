@@ -60,6 +60,7 @@ Give your AI legs.
 | `feeds.json` | 足 | 足跡ごとの最後に読んだ時刻と取り込み済みの鍵 |
 | `walk.json` `budget.json` `budget-history.jsonl` | 足 | 歩数・直近のテーマ・次に起きる時刻、今日と前の日までの使用量(トークン・キャッシュ・仕事ごと) |
 | `log.jsonl` `chat.jsonl` | 足 | 出来事、対話 |
+| `phrases.json` | 人(会話での指摘・設定の画面) | 持ち主が「Claude っぽい」と言った、話すときに使わない言い回し |
 
 足跡は画面の「設定」で足す。`ashi.json` では次の形になる:
 

@@ -6,9 +6,11 @@ import {
 	type Turn,
 } from "../head/head.ts";
 import {
+	CHAT_REWRITE_SCHEMA,
 	CHAT_SCHEMA,
 	type ChatAnswer,
 	chatPrompt,
+	chatRewritePrompt,
 	correctionsBlock,
 	system,
 } from "../prompts.ts";
@@ -23,6 +25,7 @@ import { feedStatus } from "./feeds.ts";
 import {
 	acceptClaims,
 	acceptNewQuestions,
+	acceptProposals,
 	addStances,
 	allowance,
 	claimQuestions,
@@ -31,6 +34,7 @@ import {
 	trimOpenQuestions,
 } from "./guard.ts";
 import { newsBlock } from "./news.ts";
+import { addPhrases, lintReply, phraseLedger } from "./style.ts";
 import { crawlIds } from "./walk.ts";
 
 /**
@@ -43,6 +47,8 @@ export class ChatRefused extends Error {}
 
 const MAX_TURNS = 20;
 const MAX_CHARS = 4000;
+/** 質問で終わる返事の続きを数えるのに見る、前の返事の数 */
+const ASK_HISTORY = 2;
 
 /**
  * いま頭が考えている発言(話しかけた人ごと)。返事を待つ間に画面を移って戻ると、送った発言が
@@ -94,6 +100,7 @@ export async function chat(
 	while (turns[0]?.role === "assistant") turns.shift();
 
 	thinking.set(by, { question: text, at: now.toISOString() });
+	const phrases = phraseLedger(store).map((p) => p.text);
 	try {
 		const { output, usage } = await head.think<ChatAnswer>({
 			task: "chat",
@@ -110,6 +117,7 @@ export async function chat(
 					store.walk().ownerCorrections ?? [],
 					cfg.ownerCorrections,
 				),
+				phrases,
 			),
 			schema: CHAT_SCHEMA,
 			tools: ctx.tools.filter((t) => t.readOnly === true),
@@ -161,7 +169,43 @@ export async function chat(
 					).includes(c.id),
 			),
 		});
-		const reply = String(output.reply ?? "").trim() || "(返事が空でした)";
+		let reply = String(output.reply ?? "").trim() || "(返事が空でした)";
+		// 返す前に数え、当たったら中身を変えずに 1 回だけ書き直させる(持ち主の指摘、2026-10-09)
+		const lint = lintReply(
+			reply,
+			phrases,
+			store.recentChats(ASK_HISTORY).map((c) => c.reply),
+		);
+		let rewritten = false;
+		if (lint.length) {
+			try {
+				const r = await head.think<{ reply: string }>({
+					task: "chat-rewrite",
+					system: system(store.core(), store.self(), store.owner()),
+					prompt: chatRewritePrompt(reply, lint),
+					schema: CHAT_REWRITE_SCHEMA,
+					maxCostUsd: Math.max(0, left - usage.costUsd),
+				});
+				store.charge(today, r.usage);
+				const again = String(r.output.reply ?? "").trim();
+				if (again) {
+					reply = again;
+					rewritten = true;
+				}
+			} catch (e) {
+				// 書き直せなければ、最初の返事のまま返す(返事を止めない)
+				if (e instanceof HeadError) store.charge(today, e.usage);
+				else throw e;
+			}
+		}
+		// 持ち主が指摘した言い回しは台帳に、頼まれた改善案は「直すこと」に積む
+		const flagged = addPhrases(store, output.flagged_phrases, "owner", now);
+		const { proposals, added: proposed } = acceptProposals(
+			output.proposals,
+			store.proposals(),
+			now,
+		);
+		if (proposed.length) store.saveProposals(proposals);
 		// 拠ったノート。あとで同じテーマのノートが増えたら、内省でこの返事を全文で見せる(Ashi の改善案、2026-10-06)
 		const known = new Set(store.notes().map((n) => n.id));
 		const notes = [
@@ -179,9 +223,17 @@ export async function chat(
 			reply,
 			added,
 			...(notes.length ? { notes } : {}),
+			...(lint.length ? { lint, rewritten } : {}),
 			usd: usage.costUsd,
 		});
-		store.log("chat", { by, added, usd: usage.costUsd });
+		store.log("chat", {
+			by,
+			added,
+			usd: usage.costUsd,
+			...(lint.length ? { lint, rewritten } : {}),
+			...(flagged.length ? { flagged } : {}),
+			...(proposed.length ? { proposed } : {}),
+		});
 		return { reply, added, crawl, usd: usage.costUsd };
 	} catch (e) {
 		if (e instanceof HeadError) store.charge(today, e.usage);

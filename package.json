@@ -15,7 +15,7 @@
 	"dependencies": {},
 	"devDependencies": {
 		"3d-force-graph": "^1.80.1",
-		"@anthropic-ai/sdk": "^0.132.1",
+		"@anthropic-ai/sdk": "^0.133.0",
 		"@biomejs/biome": "^2.5.15",
 		"@picocss/pico": "^2.1.1",
 		"@sveltejs/adapter-node": "^6.0.0",

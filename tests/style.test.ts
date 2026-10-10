@@ -5,6 +5,7 @@ import {
 	lintReply,
 	phraseLedger,
 	SEED_PHRASES,
+	styleComparison,
 } from "../src/lib/server/ashi/legs/style.ts";
 import { FakeHead, freshStore } from "./helpers.ts";
 
@@ -116,5 +117,63 @@ describe("持ち主との対話の書き方", () => {
 			"天気は",
 		);
 		expect(head.calls.map((c) => c.task)).toEqual(["chat"]);
+	});
+});
+
+describe("訳調と引用", () => {
+	test("「」の中の言い回しは数えず、「あなた」「私は」「という形です」を数える", () => {
+		const quoted =
+			"冒頭の「大事な」や「筋が通って」、締めの「聞かせてください」は訳から来ています。";
+		expect(
+			lintReply(quoted, ["大事な", "筋が通って", "聞かせてください"], []),
+		).toEqual([]);
+		const r = lintReply(
+			"あなたの話は分かります。あなたが言うとおり、あなたの家では違います。私は賛成です。私は試します。これは任せるという形です。それは止めるという形です。",
+			[],
+			[],
+		);
+		expect(r.join()).toContain("「あなた」と 3 回");
+		expect(r.join()).toContain("「私は」が 2 回");
+		expect(r.join()).toContain("で受ける文が 2");
+	});
+
+	test("指摘された言い回しに訳調・口ぐせの札を付けて積む", () => {
+		const store = freshStore();
+		addPhrases(
+			store,
+			[
+				{ text: "大事な点", kind: "訳調" },
+				{ text: "無理しないで", kind: "" },
+			],
+			"owner",
+			now,
+		);
+		const l = phraseLedger(store);
+		expect(l.find((p) => p.text === "大事な点")?.kind).toBe("訳調");
+		expect(l.find((p) => p.text === "無理しないで")?.kind).toBeUndefined();
+	});
+
+	test("直す前と後で、返事 1 通あたりの癖を比べ、書き直しで印が減ったものを数える", () => {
+		const g = styleComparison(
+			[
+				{ at: "2026-10-01T00:00:00Z", reply: "## 見出し\n大事なことです。" },
+				{
+					at: "2026-10-10T01:00:00Z",
+					reply: "晴れです。",
+					draft: "晴れです(推測)。",
+					rewritten: true,
+				},
+			],
+			["大事な"],
+		);
+		expect(g[0]).toMatchObject({ label: "直す前", n: 1, rewritten: 0 });
+		expect(g[0]?.avg.headings).toBe(1);
+		expect(g[0]?.avg.phrases).toBe(1);
+		expect(g[1]).toMatchObject({
+			label: "直した後",
+			n: 1,
+			rewritten: 1,
+			lostInRewrite: 1,
+		});
 	});
 });

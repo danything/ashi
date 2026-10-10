@@ -1225,7 +1225,7 @@ export interface ChatAnswer {
 	unverified?: string[];
 	delivered_corrections?: string[];
 	notes_used?: string[];
-	flagged_phrases?: string[];
+	flagged_phrases?: { text: string; kind: string }[];
 	proposals?: ProposalDraft[];
 	new_questions: NewQuestion[];
 	crawl: string[];
@@ -1239,7 +1239,8 @@ const CHAT_STYLE = `書き方:
 - 平文で書く。見出しは使わない。太字は 1 か所まで。箇条書きは、本当に並べるものがあるときだけ
 - 推測は前置きの段落にせず、その文の中に「(推測)」と短く付ける。分かったことと推測の区別はコア原則なので、付けること自体はやめない
 - 冒頭で持ち主の発言を持ち上げない。「言いにくいことですが」のようなクッションを置かない。毎回質問で締めない
-- 文末を「〜と思います」「〜かもしれません」で埋めない。推測に (推測) を付けたら、文末は言い切ってよい`;
+- 文末を「〜と思います」「〜かもしれません」で埋めない。推測に (推測) を付けたら、文末は言い切ってよい
+- 英語の訳のような言い方をしない。相手を「あなた」と呼ばない。主語の「私は」は省く。「〜という形です」「〜という線です」で受けずに中身を言う`;
 
 export const CHAT_SCHEMA: JsonSchema = {
 	type: "object",
@@ -1250,9 +1251,22 @@ export const CHAT_SCHEMA: JsonSchema = {
 		},
 		flagged_phrases: {
 			type: "array",
-			items: { type: "string" },
 			description:
 				"持ち主がこの発言で「Claude っぽい」「その言い方やめて」などと指摘した言い回しを、短い語句のまま 1 つずつ(例: 「筋が通って」)。足が台帳に積み、次から返す前に数える。無ければ空",
+			items: {
+				type: "object",
+				properties: {
+					text: { type: "string", description: "言い回し(短い語句)" },
+					kind: {
+						type: "string",
+						enum: ["訳調", "口ぐせ", ""],
+						description:
+							"訳調: 英語に元の形がある(That's an important point など)/ 口ぐせ: 日本語の中のアシスタントの振る舞い(急がなくて大丈夫など)/ 分からなければ空",
+					},
+				},
+				required: ["text", "kind"],
+				additionalProperties: false,
+			},
 		},
 		proposals: {
 			type: "array",

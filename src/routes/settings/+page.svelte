@@ -194,13 +194,30 @@ const withCurrent = (list: string[], v: string) =>
 		<div class="panel-head"><h2>話すときに使わない言い回し</h2></div>
 		<p class="small muted">
 			持ち主が「Claude っぽい」と言った言い回し。話すときに見せ、返す前に足が数えて、冒頭で使った・何度も使ったときは書き直させる。
-			会話で指摘すると頭が足し、ここでも 1 行 1 つで直せる。
+			会話で指摘すると頭が足し、ここでも 1 行 1 つで直せる。「語句 / 訳調」「語句 / 口ぐせ」と書くと、英語の訳から来た言い方か、アシスタントの振る舞いかの札を付けられる。
 		</p>
 		{#if form && "phrasesSaved" in form}<p class="note ok small">保存した。次の返事から効く。</p>{/if}
 		<form method="POST" action="?/savePhrases" use:enhance class="stack">
-			<textarea name="phrases" rows="8" spellcheck="false">{data.phrases.map((p) => p.text).join("\n")}</textarea>
+			<textarea name="phrases" rows="8" spellcheck="false">{data.phrases.map((p) => (p.kind ? `${p.text} / ${p.kind}` : p.text)).join("\n")}</textarea>
 			<div class="cluster"><button type="submit" class="outline small">保存する</button></div>
 		</form>
+	</section>
+
+	<section class="panel">
+		<div class="panel-head"><h2>話し方を直す前と後</h2></div>
+		<p class="small muted">返事 1 通あたりの平均。言い回しは台帳の語句(引用の「」の中は数えない)。書き直しで (推測) の印やノートの ID が減った返事も数える。</p>
+		<div class="overflow-auto">
+			<table class="small nums">
+				<thead><tr><th></th><th>返事</th><th>言い回し</th><th>文末のぼかし</th><th>質問で終わる</th><th>見出し</th><th>太字</th><th>(推測)</th><th>あなた</th><th>私は</th><th>書き直し</th><th>印が減った</th></tr></thead>
+				<tbody>
+					{#each data.style as g (g.label)}
+						<tr>
+							<th>{g.label}</th><td>{g.n}</td><td>{g.avg.phrases.toFixed(1)}</td><td>{Math.round(g.avg.hedgeShare * 100)}%</td><td>{Math.round(g.avg.asks * 100)}%</td><td>{g.avg.headings.toFixed(1)}</td><td>{g.avg.bold.toFixed(1)}</td><td>{g.avg.guess.toFixed(1)}</td><td>{g.avg.anata.toFixed(1)}</td><td>{g.avg.watashi.toFixed(1)}</td><td>{g.rewritten}</td><td>{g.lostInRewrite}</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+		</div>
 	</section>
 
 	<section class="panel">

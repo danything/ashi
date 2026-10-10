@@ -204,6 +204,7 @@ export async function chat(
 				"「足します」「記録します」のように言っているが、改善案・言い回し・問いのどの欄にも何も積んでいない。足せていないなら、そう書く",
 			);
 		let rewritten = false;
+		let draft: string | undefined;
 		if (lint.length) {
 			try {
 				const r = await head.think<{ reply: string }>({
@@ -216,6 +217,7 @@ export async function chat(
 				store.charge(today, r.usage);
 				const again = String(r.output.reply ?? "").trim();
 				if (again) {
+					draft = reply;
 					reply = again;
 					rewritten = true;
 				}
@@ -245,6 +247,7 @@ export async function chat(
 			added,
 			...(notes.length ? { notes } : {}),
 			...(lint.length ? { lint, rewritten } : {}),
+			...(draft ? { draft } : {}),
 			...(sweeping.length ? { sweeping } : {}),
 			usd: usage.costUsd,
 		});

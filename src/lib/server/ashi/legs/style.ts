@@ -15,7 +15,15 @@ export interface PhraseEntry {
 	/** owner: 持ち主が会話で指摘した / seed: Ashi が自分で挙げた最初の一覧 / edit: 設定の画面で書いた */
 	from: "owner" | "seed" | "edit";
 	at: string;
+	/**
+	 * 訳調: 英語に元の形がある(That's an important point → 大事な点です)/ 口ぐせ: 日本語の中の
+	 * アシスタントの振る舞い(急がなくて大丈夫)。原因で効く直し方が違う(Ashi の改善案、2026-10-10)。分からなければ無し
+	 */
+	kind?: PhraseKind;
 }
+
+export type PhraseKind = "訳調" | "口ぐせ";
+const KINDS: PhraseKind[] = ["訳調", "口ぐせ"];
 
 /** 最初の台帳。2026-10-09 に Ashi が自分の返事を見返して挙げた言い回し */
 export const SEED_PHRASES = [
@@ -54,12 +62,20 @@ export function addPhrases(
 	const known = new Set(ledger.map((p) => p.text));
 	const added: string[] = [];
 	for (const x of raw.slice(0, 10)) {
-		if (typeof x !== "string") continue;
-		const text = x.trim().slice(0, 40);
+		// 語句だけでも、{ text, kind } でもよい
+		const t =
+			typeof x === "string" ? x : typeof x?.text === "string" ? x.text : "";
+		const kind = KINDS.find((k) => k === x?.kind);
+		const text = t.trim().slice(0, 40);
 		if (text.length < 2 || known.has(text)) continue;
 		known.add(text);
 		added.push(text);
-		ledger.push({ text, from, at: now.toISOString() });
+		ledger.push({
+			text,
+			from,
+			at: now.toISOString(),
+			...(kind ? { kind } : {}),
+		});
 	}
 	if (added.length) store.savePhrases(ledger.slice(-MAX_PHRASES));
 	return added;
@@ -108,14 +124,17 @@ export function lintReply(
 ): string[] {
 	const out: string[] = [];
 	const ss = sentences(reply);
-	const first = ss[0] ?? "";
+	// 「」の中は、言い回しそのものを話題にしている引用なので数えない(Ashi が癖を説明した返事まで
+	// 書き直しに回していた。2026-10-10)
+	const plain = unquote(reply);
+	const first = unquote(ss[0] ?? "");
 	const opening = phrases.filter((p) => first.includes(p));
 	if (opening.length)
 		out.push(
 			`冒頭の文で、持ち主が Claude っぽいと言った言い回しを使っている(${opening.map((p) => `「${p}」`).join("")})`,
 		);
 	const uses = phrases
-		.map((p) => ({ p, n: reply.split(p).length - 1 }))
+		.map((p) => ({ p, n: plain.split(p).length - 1 }))
 		.filter((x) => x.n > 0);
 	const total = uses.reduce((a, x) => a + x.n, 0);
 	if (total > 2)
@@ -136,5 +155,120 @@ export function lintReply(
 	if (/^#{1,6}\s/m.test(reply)) out.push("見出しを使っている(会話は平文)");
 	const bold = (reply.match(/\*\*[^*]+\*\*/g) ?? []).length;
 	if (bold > 1) out.push(`太字が ${bold} か所(1 か所まで)`);
+	// 訳調の印。相手を「あなた」と呼ぶ(you)、主語の「私は」(I)、抽象名詞で受ける言い方。持ち主の見立て
+	// (違和感は英語の訳から来ている)と Ashi の改善案から(2026-10-10)
+	const t = translationese(plain);
+	if (t.anata >= ANATA_MAX)
+		out.push(
+			`相手を「あなた」と ${t.anata} 回呼んでいる。日本語の会話では呼ばずに済ませる`,
+		);
+	if (t.watashi >= WATASHI_MAX)
+		out.push(`主語の「私は」が ${t.watashi} 回。日本語では省ける`);
+	if (t.katachi >= KATACHI_MAX)
+		out.push(
+			`「〜という形です」「〜という線です」で受ける文が ${t.katachi}。中身を直接言う`,
+		);
 	return out;
+}
+
+/** 訳調の印の数 */
+export const ANATA_MAX = 3;
+export const WATASHI_MAX = 2;
+export const KATACHI_MAX = 2;
+
+export function translationese(t: string): {
+	anata: number;
+	watashi: number;
+	katachi: number;
+} {
+	const n = (re: RegExp) => (t.match(re) ?? []).length;
+	return {
+		anata: n(/あなた/g),
+		watashi: n(/(?:私|わたし)は/g),
+		katachi: n(/という(?:形|線)(?:です|だ|になります)/g),
+	};
+}
+
+/** 「」の中を空にする */
+const unquote = (t: string) => t.replace(/「[^」]*」/g, "「」");
+
+/** 返事 1 通の癖の数(前後を比べる物差し) */
+export interface StyleCount {
+	phrases: number;
+	hedgeShare: number;
+	asks: boolean;
+	headings: number;
+	bold: number;
+	guess: number;
+	anata: number;
+	watashi: number;
+}
+
+export function countStyle(reply: string, phrases: string[]): StyleCount {
+	const plain = unquote(reply);
+	const ss = sentences(reply);
+	const t = translationese(plain);
+	return {
+		phrases: phrases.reduce((a, p) => a + plain.split(p).length - 1, 0),
+		hedgeShare: ss.length
+			? ss.filter((x) => HEDGE.test(x)).length / ss.length
+			: 0,
+		asks: ASKS.test(reply.trim()),
+		headings: (reply.match(/^#{1,6}\s/gm) ?? []).length,
+		bold: (reply.match(/\*\*[^*]+\*\*/g) ?? []).length,
+		guess: (reply.match(/[((]推測[))]/g) ?? []).length,
+		anata: t.anata,
+		watashi: t.watashi,
+	};
+}
+
+/** 話し方を直した日。これより前と後で返事の癖を比べる */
+export const STYLE_SINCE = "2026-10-10T00:00:00.000Z";
+
+/** 返事を前と後に分け、1 通あたりの平均を出す */
+export function styleComparison(
+	chats: { at: string; reply: string; draft?: string; rewritten?: boolean }[],
+	phrases: string[],
+): {
+	label: string;
+	n: number;
+	avg: Record<keyof StyleCount, number>;
+	rewritten: number;
+	lostInRewrite: number;
+}[] {
+	const groups = [
+		{ label: "直す前", xs: chats.filter((c) => c.at < STYLE_SINCE) },
+		{ label: "直した後", xs: chats.filter((c) => c.at >= STYLE_SINCE) },
+	];
+	return groups.map(({ label, xs }) => {
+		const counts = xs.map((c) => countStyle(c.reply, phrases));
+		const avg = {} as Record<keyof StyleCount, number>;
+		for (const k of [
+			"phrases",
+			"hedgeShare",
+			"asks",
+			"headings",
+			"bold",
+			"guess",
+			"anata",
+			"watashi",
+		] as (keyof StyleCount)[])
+			avg[k] = counts.length
+				? counts.reduce((a, c) => a + Number(c[k]), 0) / counts.length
+				: 0;
+		// 書き直しで (推測) の印やノートの ID が減ったもの(中身を変えるなと言っている)
+		const marks = (t: string) =>
+			(t.match(/[((]推測[))]/g) ?? []).length +
+			(t.match(/\b[0-9a-f]{8}\b/g) ?? []).length;
+		const lostInRewrite = xs.filter(
+			(c) => c.rewritten && c.draft && marks(c.reply) < marks(c.draft),
+		).length;
+		return {
+			label,
+			n: xs.length,
+			avg,
+			rewritten: xs.filter((c) => c.rewritten).length,
+			lostInRewrite,
+		};
+	});
 }

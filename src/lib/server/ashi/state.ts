@@ -934,6 +934,8 @@ export interface ChatEntry {
 	/** 足のリンタが当たったこと(legs/style.ts)と、書き直したか */
 	lint?: string[];
 	rewritten?: boolean;
+	/** 書き直す前の返事(書き直しで中身や印が消えていないかを、あとで数えるため) */
+	draft?: string;
 	/** 返事の中の、総称・全称・確度の語を含む文(legs/style.ts の SWEEPING) */
 	sweeping?: string[];
 	usd: number;

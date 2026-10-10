@@ -5,7 +5,11 @@ import {
 	MODELS,
 	normalizeConfig,
 } from "#lib/server/ashi/config.ts";
-import { phraseLedger } from "#lib/server/ashi/legs/style.ts";
+import {
+	type PhraseEntry,
+	phraseLedger,
+	styleComparison,
+} from "#lib/server/ashi/legs/style.ts";
 import { localDay } from "#lib/server/ashi/state.ts";
 import { saveConfig, store } from "#lib/server/runtime.ts";
 import type { Actions, PageServerLoad } from "./$types";
@@ -36,6 +40,11 @@ export const load: PageServerLoad = () => {
 		},
 		history: store.budgetHistory().slice(-7).reverse(),
 		phrases: phraseLedger(store),
+		// 話し方を直す前と後で、返事 1 通あたりの癖の数を比べる(Ashi の改善案、2026-10-10)
+		style: styleComparison(
+			store.recentChats(2000),
+			phraseLedger(store).map((p) => p.text),
+		),
 	};
 };
 
@@ -45,17 +54,24 @@ export const actions: Actions = {
 		const text = String((await request.formData()).get("phrases") ?? "");
 		const prev = new Map(phraseLedger(store).map((p) => [p.text, p]));
 		const now = new Date().toISOString();
-		const lines = [
-			...new Set(
-				text
-					.split(/\r?\n/)
-					.map((l) => l.trim().slice(0, 40))
-					.filter((l) => l.length >= 2),
-			),
-		].slice(0, 100);
-		store.savePhrases(
-			lines.map((l) => prev.get(l) ?? { text: l, from: "edit", at: now }),
-		);
+		const seen = new Set<string>();
+		const entries: PhraseEntry[] = [];
+		// 1 行に 1 つ。「語句 / 訳調」「語句 / 口ぐせ」で札を付けられる
+		for (const line of text.split(/\r?\n/)) {
+			const [head, tail] = line.split(/\s*\/\s*/);
+			const t = (head ?? "").trim().slice(0, 40);
+			if (t.length < 2 || seen.has(t)) continue;
+			seen.add(t);
+			const kind =
+				tail?.trim() === "訳調" || tail?.trim() === "口ぐせ"
+					? (tail.trim() as PhraseEntry["kind"])
+					: undefined;
+			const base = prev.get(t) ?? { text: t, from: "edit" as const, at: now };
+			const { kind: _, ...rest } = base;
+			entries.push(kind ? { ...rest, kind } : rest);
+		}
+		const lines = entries.slice(0, 100);
+		store.savePhrases(lines);
 		store.log("phrases", { by: locals.user?.name ?? "?", count: lines.length });
 		return { phrasesSaved: true };
 	},

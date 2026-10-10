@@ -222,6 +222,29 @@ export function countStyle(reply: string, phrases: string[]): StyleCount {
 	};
 }
 
+/**
+ * 返事の冒頭の文と締めの文(新しい順)。台帳の語句を禁じても、同じ働きの別の言い方(「筋が通って」→
+ * 「理にかなって」)にすり抜けうるが、機械では見分けられない(Ashi の改善案、2026-10-10)。
+ * 持ち上げ・クッション・締めの質問が出るのは冒頭と締めなので、そこだけ並べて持ち主が目で見て台帳に足す
+ */
+export function openingsAndClosings(
+	chats: { at: string; reply: string }[],
+	n = 20,
+): { at: string; first: string; last: string }[] {
+	return chats
+		.filter((c) => c.at >= STYLE_SINCE)
+		.sort((a, b) => b.at.localeCompare(a.at))
+		.slice(0, n)
+		.map((c) => {
+			const ss = sentences(c.reply);
+			return {
+				at: c.at,
+				first: (ss[0] ?? "").slice(0, 160),
+				last: ss.length > 1 ? (ss.at(-1) ?? "").slice(0, 160) : "",
+			};
+		});
+}
+
 /** 話し方を直した日。これより前と後で返事の癖を比べる */
 export const STYLE_SINCE = "2026-10-10T00:00:00.000Z";
 

@@ -6,6 +6,8 @@ import {
 	normalizeConfig,
 } from "#lib/server/ashi/config.ts";
 import {
+	addPhrases,
+	openingsAndClosings,
 	type PhraseEntry,
 	phraseLedger,
 	styleComparison,
@@ -41,6 +43,7 @@ export const load: PageServerLoad = () => {
 		history: store.budgetHistory().slice(-7).reverse(),
 		phrases: phraseLedger(store),
 		// 話し方を直す前と後で、返事 1 通あたりの癖の数を比べる(Ashi の改善案、2026-10-10)
+		edges: openingsAndClosings(store.recentChats(200)),
 		style: styleComparison(
 			store.recentChats(2000),
 			phraseLedger(store).map((p) => p.text),
@@ -49,6 +52,16 @@ export const load: PageServerLoad = () => {
 };
 
 export const actions: Actions = {
+	/** 冒頭と締めの文を見て、すり抜けた言い回しを 1 つ足す */
+	addPhrase: async ({ request, locals }) => {
+		const f = await request.formData();
+		const text = String(f.get("text") ?? "").trim();
+		const kind = String(f.get("kind") ?? "");
+		const added = addPhrases(store, [{ text, kind }], "edit", new Date());
+		if (added.length)
+			store.log("phrases", { by: locals.user?.name ?? "?", added });
+		return { phraseAdded: added[0] ?? "" };
+	},
 	/** 言い回しの台帳を 1 行 1 つで書き直す。前からある行は、いつ・誰が足したかを残す */
 	savePhrases: async ({ request, locals }) => {
 		const text = String((await request.formData()).get("phrases") ?? "");

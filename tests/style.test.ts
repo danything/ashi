@@ -3,6 +3,7 @@ import { chat } from "../src/lib/server/ashi/legs/chat.ts";
 import {
 	addPhrases,
 	lintReply,
+	openingsAndClosings,
 	phraseLedger,
 	SEED_PHRASES,
 	styleComparison,
@@ -176,4 +177,23 @@ describe("訳調と引用", () => {
 			lostInRewrite: 1,
 		});
 	});
+});
+
+test("直した後の返事の冒頭と締めの文を、新しい順に並べる", () => {
+	const r = openingsAndClosings([
+		{ at: "2026-10-01T00:00:00Z", reply: "前の返事。" },
+		{
+			at: "2026-10-10T01:00:00Z",
+			reply: "理にかなっています。中身。締めです。",
+		},
+		{ at: "2026-10-10T02:00:00Z", reply: "一文だけ。" },
+	]);
+	expect(r).toEqual([
+		{ at: "2026-10-10T02:00:00Z", first: "一文だけ。", last: "" },
+		{
+			at: "2026-10-10T01:00:00Z",
+			first: "理にかなっています。",
+			last: "締めです。",
+		},
+	]);
 });

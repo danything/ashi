@@ -204,6 +204,38 @@ const withCurrent = (list: string[], v: string) =>
 	</section>
 
 	<section class="panel">
+		<div class="panel-head"><h2>返事の冒頭と締め</h2></div>
+		<p class="small muted">
+			持ち上げ・クッション・締めの質問は、返事の最初と最後の文に出る。台帳の語句を禁じても、同じ働きの別の言い方にすり抜けることがあり、足では見分けられない。
+			ここに直した後の返事の最初と最後の文を並べるので、すり抜けた言い回しを見つけたら下で台帳に足す。
+		</p>
+		{#if data.edges.length}
+			<ul class="rows small">
+				{#each data.edges as e (e.at)}
+					<li>
+						<span class="muted tiny nums">{e.at.slice(5, 16).replace("T", " ")}</span>
+						<span class="grow">{e.first}{#if e.last}<span class="muted"> … </span>{e.last}{/if}</span>
+					</li>
+				{/each}
+			</ul>
+		{:else}
+			<p class="empty">直した後の返事はまだ無い。</p>
+		{/if}
+		{#if form && "phraseAdded" in form}
+			<p class="note small {form.phraseAdded ? 'ok' : 'warn'}">{form.phraseAdded ? `「${form.phraseAdded}」を台帳に足した。` : "足せなかった(2 字未満か、もう台帳にある)。"}</p>
+		{/if}
+		<form method="POST" action="?/addPhrase" use:enhance class="cluster">
+			<input name="text" placeholder="すり抜けた言い回し(例: 理にかなって)" required class="grow" />
+			<select name="kind" aria-label="札">
+				<option value="">札なし</option>
+				<option value="訳調">訳調</option>
+				<option value="口ぐせ">口ぐせ</option>
+			</select>
+			<button type="submit" class="outline small">台帳に足す</button>
+		</form>
+	</section>
+
+	<section class="panel">
 		<div class="panel-head"><h2>話し方を直す前と後</h2></div>
 		<p class="small muted">返事 1 通あたりの平均。言い回しは台帳の語句(引用の「」の中は数えない)。書き直しで (推測) の印やノートの ID が減った返事も数える。</p>
 		<div class="overflow-auto">

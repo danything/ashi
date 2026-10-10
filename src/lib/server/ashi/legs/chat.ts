@@ -34,7 +34,12 @@ import {
 	trimOpenQuestions,
 } from "./guard.ts";
 import { newsBlock } from "./news.ts";
-import { addPhrases, lintReply, phraseLedger } from "./style.ts";
+import {
+	addPhrases,
+	lintReply,
+	phraseLedger,
+	sweepingSentences,
+} from "./style.ts";
 import { crawlIds } from "./walk.ts";
 
 /**
@@ -49,6 +54,9 @@ const MAX_TURNS = 20;
 const MAX_CHARS = 4000;
 /** 質問で終わる返事の続きを数えるのに見る、前の返事の数 */
 const ASK_HISTORY = 2;
+/** 何かを積んだと言う言い方 */
+const UNBACKED =
+	/(?:足します|足しておきます|足しました|記録します|記録しました|積みます|積んでおきます|追加します|追加しました|入れておきます|覚えておきます)/;
 
 /**
  * いま頭が考えている発言(話しかけた人ごと)。返事を待つ間に画面を移って戻ると、送った発言が
@@ -170,12 +178,31 @@ export async function chat(
 			),
 		});
 		let reply = String(output.reply ?? "").trim() || "(返事が空でした)";
+		// 持ち主が指摘した言い回しは台帳に、頼まれた改善案は「直すこと」に積む
+		const flagged = addPhrases(store, output.flagged_phrases, "owner", now);
+		const { proposals, added: proposed } = acceptProposals(
+			output.proposals,
+			store.proposals(),
+			now,
+		);
+		if (proposed.length) store.saveProposals(proposals);
 		// 返す前に数え、当たったら中身を変えずに 1 回だけ書き直させる(持ち主の指摘、2026-10-09)
 		const lint = lintReply(
 			reply,
 			phrases,
 			store.recentChats(ASK_HISTORY).map((c) => c.reply),
 		);
+		// 「足します」と言ったのに、どの欄にも積んでいない。前は何も記録されないまま「足しました」と
+		// 返していた(Ashi の改善案、2026-10-10)
+		const unbacked =
+			UNBACKED.test(reply) &&
+			proposed.length === 0 &&
+			flagged.length === 0 &&
+			added.length === 0;
+		if (unbacked)
+			lint.push(
+				"「足します」「記録します」のように言っているが、改善案・言い回し・問いのどの欄にも何も積んでいない。足せていないなら、そう書く",
+			);
 		let rewritten = false;
 		if (lint.length) {
 			try {
@@ -198,14 +225,8 @@ export async function chat(
 				else throw e;
 			}
 		}
-		// 持ち主が指摘した言い回しは台帳に、頼まれた改善案は「直すこと」に積む
-		const flagged = addPhrases(store, output.flagged_phrases, "owner", now);
-		const { proposals, added: proposed } = acceptProposals(
-			output.proposals,
-			store.proposals(),
-			now,
-		);
-		if (proposed.length) store.saveProposals(proposals);
+		// 総称・全称・確度の語を含む文を残す(あとで、確かめて外れた率を印の有無で数える)
+		const sweeping = sweepingSentences([reply]);
 		// 拠ったノート。あとで同じテーマのノートが増えたら、内省でこの返事を全文で見せる(Ashi の改善案、2026-10-06)
 		const known = new Set(store.notes().map((n) => n.id));
 		const notes = [
@@ -224,6 +245,7 @@ export async function chat(
 			added,
 			...(notes.length ? { notes } : {}),
 			...(lint.length ? { lint, rewritten } : {}),
+			...(sweeping.length ? { sweeping } : {}),
 			usd: usage.costUsd,
 		});
 		store.log("chat", {

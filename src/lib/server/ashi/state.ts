@@ -89,7 +89,7 @@ export interface Question {
 	 * 確かめの問いの種類。pushback: 相手に誤りを指摘された・押し返された発言。spot: 足がさいころで選んだ
 	 * 言い切った発言(自分で「確かめていない」と言わなかった誤りも拾うため。Ashi の改善案、2026-10-05)
 	 */
-	verifyKind?: "pushback" | "spot";
+	verifyKind?: "pushback" | "spot" | "sweeping";
 	/**
 	 * 内省の次の一歩に、続けて書かれた回数。2 回以上なら足が先に歩き、開いた問いの上限で手放さない。
 	 * 3 回続けて書いても選ばれず、上限で黙って手放されてもいた(Ashi の改善案、2026-09-26)。歩いたら消す
@@ -97,6 +97,8 @@ export interface Question {
 	promised?: number;
 	/** 内省で統合され、手放したときの行き先 */
 	mergedInto?: string;
+	/** 内省で、答えの出たノートを答えとして閉じたときのノートの ID(close_by_note) */
+	answeredBy?: string;
 	/** 探して何も見つからなかった回数 */
 	misses?: number;
 	/** これまでに探した場所(検索語・サイト・資料)。同じ所を探し直さないように次の歩みで見せる */
@@ -913,6 +915,8 @@ export interface Dialogue {
 	aboutSelf?: string[];
 	/** 相手に誤りを指摘された・押し返された Ashi の発言(確かめの問いにする) */
 	pushedBack?: string[];
+	/** 足が拾った、総称・全称・確度の語を含む Ashi の発言(legs/style.ts の SWEEPING) */
+	sweeping?: string[];
 	/** 足がさいころで選んだ Ashi の言い切った文と、頭が取り出した確かめる事実(無ければ空) */
 	spot?: { sentence: string; claim: string };
 }
@@ -930,6 +934,8 @@ export interface ChatEntry {
 	/** 足のリンタが当たったこと(legs/style.ts)と、書き直したか */
 	lint?: string[];
 	rewritten?: boolean;
+	/** 返事の中の、総称・全称・確度の語を含む文(legs/style.ts の SWEEPING) */
+	sweeping?: string[];
 	usd: number;
 }
 

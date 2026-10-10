@@ -510,6 +510,72 @@ export function normalizeIntentions(
 /**
  * 内省の次の一歩に書かれた問いに、続けて書かれた回数を付ける。書かれなくなったら消す
  */
+/**
+ * 内省の close_by_note を当てる。開いた問いを、答えの出たノートで閉じる(answeredBy にノートの ID)。
+ * merges は開いた問いどうしにしか使えず、閉じた問いと同じことを聞く問いが開いたまま残っていた
+ * (Ashi の改善案、2026-10-10)。ノートが無い・問いが開いていないものは当てない。1 回 10 件まで
+ */
+export function closeByNote(
+	qs: Question[],
+	raw: unknown,
+	notes: { id: string }[],
+	now: Date,
+): { questions: Question[]; closed: { id: string; note: string }[] } {
+	const known = new Set(notes.map((n) => n.id));
+	const want = new Map<string, string>();
+	for (const x of (Array.isArray(raw) ? raw : []).slice(0, 10)) {
+		const q = typeof x?.question_id === "string" ? x.question_id.trim() : "";
+		const n = typeof x?.note_id === "string" ? x.note_id.trim() : "";
+		if (q && known.has(n)) want.set(q, n);
+	}
+	const closed: { id: string; note: string }[] = [];
+	const questions = qs.map((q) => {
+		const note = want.get(q.id);
+		if (!note || q.status !== "open") return q;
+		closed.push({ id: q.id, note });
+		const { promised: _, ...rest } = q;
+		return {
+			...rest,
+			status: "answered" as const,
+			answeredBy: note,
+			lastVisitedAt: now.toISOString(),
+		};
+	});
+	return { questions, closed };
+}
+
+/**
+ * 外に残っている借り(外で確かめずに言ったことの確かめの問い)の台帳。開いているものと、最近閉じた
+ * もの。自己記述に一覧を書いていて 4000 字の 1 割以上を取り、消すと照合もできなくなっていた
+ * (Ashi の改善案、2026-10-10)。足が状態から出すので、自己記述に書かなくてよい
+ */
+export function debtLedger(
+	qs: Question[],
+	now: Date,
+	days = 14,
+): { open: Question[]; closed: Question[] } {
+	const since = now.getTime() - days * 86400e3;
+	const debts = qs.filter((q) => q.verify);
+	return {
+		open: debts
+			.filter((q) => q.status === "open")
+			.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+			.slice(0, 30),
+		closed: debts
+			.filter(
+				(q) =>
+					q.status !== "open" &&
+					Date.parse(q.lastVisitedAt ?? q.createdAt) >= since,
+			)
+			.sort((a, b) =>
+				(b.lastVisitedAt ?? b.createdAt).localeCompare(
+					a.lastVisitedAt ?? a.createdAt,
+				),
+			)
+			.slice(0, 15),
+	};
+}
+
 /** 点数の低さで上限から手放されただけの問い(統合されたものではない) */
 export function reopenable(q: Question): boolean {
 	return q.status === "dropped" && !q.mergedInto;

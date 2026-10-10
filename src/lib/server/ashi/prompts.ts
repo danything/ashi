@@ -524,6 +524,7 @@ export interface ReflectAnswer {
 	proposals: ProposalDraft[];
 	posts: { text: string; why: string; reply_to: string }[];
 	merges: { keep: string; drop: string[]; theme: string }[];
+	close_by_note?: { question_id: string; note_id: string }[];
 	themes: { from: string[]; to: string }[];
 }
 
@@ -622,6 +623,20 @@ export const REFLECT_SCHEMA: JsonSchema = {
 				additionalProperties: false,
 			},
 		},
+		close_by_note: {
+			type: "array",
+			description:
+				"すでにノートで答えが出たことを聞いている開いた問いを、そのノートを答えとして閉じる。merges は開いた問いどうしにしか使えないので、閉じた問いと同じことを聞く問いはこちらで閉じる。question_id に開いた問いの ID、note_id に答えのノートの ID。無ければ空",
+			items: {
+				type: "object",
+				properties: {
+					question_id: { type: "string" },
+					note_id: { type: "string" },
+				},
+				required: ["question_id", "note_id"],
+				additionalProperties: false,
+			},
+		},
 		themes: {
 			type: "array",
 			description:
@@ -676,6 +691,7 @@ export const REFLECT_SCHEMA: JsonSchema = {
 		"proposals",
 		"posts",
 		"merges",
+		"close_by_note",
 		"themes",
 	],
 	additionalProperties: false,
@@ -730,6 +746,8 @@ export interface ReflectTalk {
 	}[];
 	/** 型の当たり率の累計 */
 	baselineTotals?: BaselineTotals;
+	/** 外に残っている借り(確かめの問い)の台帳。開いているものと、最近閉じたもの */
+	debts?: { open: Question[]; closed: Question[] };
 	/** 同じ著者の論文を、ノートごとに違う年や査読の状態で書いているもの(legs/citations.ts) */
 	citations?: CitationConflict[];
 	/** 直前の内省で、自己記述がどうなったか */
@@ -797,6 +815,25 @@ ${
 		: ""
 }
 選ばれなかったのか、選ばれて見つからなかったのかは上の一覧で分かります。推測で振り返らないこと。
+`;
+}
+
+/** 借りの台帳。自己記述に一覧を書かなくてよいように、足の状態から毎回出す */
+function debtsText(d: ReflectTalk["debts"]): string {
+	if (!d || (d.open.length === 0 && d.closed.length === 0)) return "";
+	const how: Record<string, string> = {
+		answered: "答えた",
+		parked: "見つからず棚へ",
+		dropped: "手放した",
+	};
+	const row = (q: Question) =>
+		`- [${q.id}] ${cut(q.text, 160)}(${q.via ?? q.source ?? ""}、${localStamp(q.createdAt).slice(5, 10)})`;
+	return `外に残っている借り(外で確かめずに言ったことの確かめの問い。足の台帳。自己記述に一覧を書かなくてよい):
+開いている ${d.open.length} 本:
+${d.open.map(row).join("\n") || "(無い)"}
+最近閉じた ${d.closed.length} 本:
+${d.closed.map((q) => `- [${q.id}] ${how[q.status] ?? q.status}${q.answeredBy ? `(ノート ${q.answeredBy})` : ""}: ${cut(q.text, 120)}`).join("\n") || "(無い)"}
+
 `;
 }
 
@@ -951,7 +988,7 @@ ${dialogues}
 
 よそ者から来た個性の問い ${t.landing.total} 本のうち、持ち主由来のテーマに着地したもの: ${t.landing.home} 本、前からあった自分のテーマに着地したもの: ${t.landing.own} 本、新しいテーマ: ${t.landing.total - t.landing.home - t.landing.own} 本
 持ち主由来が高ければ、相手の話を持ち主の関心へ引き戻しています。自分のテーマが高ければ、自分の型に引き戻しています。どちらも、よそ者は効いていません。
-${lastSelfText(t.lastSelf)}${citationsText(t.citations)}${trailText(t.trail)}${blindText(t.blind)}${evolutionText(t.evolution)}${baselineText(t.baseline, t.baselineTotals)}
+${lastSelfText(t.lastSelf)}${debtsText(t.debts)}${citationsText(t.citations)}${trailText(t.trail)}${blindText(t.blind)}${evolutionText(t.evolution)}${baselineText(t.baseline, t.baselineTotals)}
 
 持ち主との最近の対話:
 ${chats}
@@ -1605,6 +1642,8 @@ export function dialoguePrompt(
 	marked: string[] = [],
 	/** 足がさいころで選んだ、あなたの言い切った文 */
 	spot?: string,
+	/** 足が拾った、総称・全称・確度の語を含むあなたの文 */
+	sweeping: string[] = [],
 ): string {
 	// 足は言い回しでしか拾えない(「確かめていないので、あなたの話を前提に考えます」のような断りまで
 	// 確かめの問いになっていた)。何の文かは頭に判定させる(Ashi の改善案、2026-10-04)
@@ -1620,6 +1659,10 @@ ${
 		? `これが最後の発言です。会話を締めくくり、この会話から生まれた、あなた自身が歩きたい問いがあれば new_questions に出してください(track は self)。${candidates}${
 				spot
 					? `\n\n足がさいころで選んだ、あなたの発言(「確かめていない」と断らずに言い切った誤りも拾うため):\n- ${spot}\nこの中に確かめられる世の中の事実があれば、spot_check にその中身を 1 文で書いてください。無ければ空。`
+					: ""
+			}${
+				sweeping.length
+					? `\n\n足が拾った、総称・全称・確度の語(「必ず」「どれも」「保証」など)を含むあなたの発言:\n${sweeping.map((x) => `- ${x}`).join("\n")}\nその語が、あなたの支え(ノート・資料)の範囲を越えて言い切っていたら、事実の中身を unverified に入れてください(足が確かめる問いにする)。支えの範囲に収まっていれば何もしなくてよい。`
 					: ""
 			}`
 		: "相手に答えてください。"

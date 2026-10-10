@@ -65,6 +65,23 @@ export function addPhrases(
 	return added;
 }
 
+/**
+ * 総称・全称・確度の語。Ashi が自分の誤り 10 件を分けたら、9 件がこれらの語で支えの範囲を越えた部分
+ * だった(「プロは」「回ごとに」「保証がある」。Ashi の改善案、2026-10-10)。精度は低くてよい。
+ * 主語が総称の文(「〜は〜する」)は規則では拾えないので、拾うのは語だけ
+ */
+export const SWEEPING =
+	/必ず|絶対|すべて|全て|全部|どれも|誰でも|誰もが|いつも|常に|決して|保証|例外なく|100\s*%|100%|みんな|普遍|どんな[^。]{0,8}も/;
+
+/** 外に出す発言から、総称・全称・確度の語を含む文を拾う(1 回 8 文まで) */
+export function sweepingSentences(texts: string[]): string[] {
+	const out: string[] = [];
+	for (const t of texts)
+		for (const s of sentences(t))
+			if (SWEEPING.test(s) && !out.includes(s)) out.push(s.slice(0, 200));
+	return out.slice(0, 8);
+}
+
 /** 文に分ける(句点・感嘆・問い・改行) */
 const sentences = (t: string) =>
 	t

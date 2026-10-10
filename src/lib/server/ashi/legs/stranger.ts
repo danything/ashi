@@ -19,6 +19,7 @@ import {
 	type RawQuestion,
 	trimOpenQuestions,
 } from "./guard.ts";
+import { SWEEPING, sweepingSentences } from "./style.ts";
 
 /**
  * よそ者との対話。内省のたびに、持ち主の地図を知らない別のモデルと短く話し、個性の問いの種にする。
@@ -121,6 +122,7 @@ export async function talkWithStranger(opts: {
 	const n = Math.max(1, opts.turns);
 	const spotting = rng() < SPOT_RATE;
 	let spot: string | undefined;
+	let sweeping: string[] = [];
 	for (let i = 0; i < n; i++) {
 		const s = await stranger.think<{ reply: string }>({
 			task: "stranger",
@@ -136,6 +138,8 @@ export async function talkWithStranger(opts: {
 		const last = i === n - 1;
 		const mine = turns.filter((t) => t.by === "ashi").map((t) => t.text);
 		if (last && spotting) spot = spotSentence(mine, rng);
+		// 締めでは、総称・全称・確度の語を含む自分の発言も見せる
+		if (last) sweeping = sweepingSentences(mine);
 		const a = await head.think<{
 			reply: string;
 			new_questions?: RawQuestion[];
@@ -149,7 +153,13 @@ export async function talkWithStranger(opts: {
 			task: last ? "dialogue-final" : "dialogue",
 			system: dialogueSystem(store.core(), store.self()),
 			// 締めでは、足が印で拾った文を見せ、何の文かを頭に分けさせる
-			prompt: dialoguePrompt(turns, last, last ? markedClaims(mine) : [], spot),
+			prompt: dialoguePrompt(
+				turns,
+				last,
+				last ? markedClaims(mine) : [],
+				spot,
+				sweeping,
+			),
 			schema: last ? DIALOGUE_FINAL_SCHEMA : DIALOGUE_REPLY_SCHEMA,
 		});
 		add(a.usage);
@@ -199,7 +209,20 @@ export async function talkWithStranger(opts: {
 					})),
 				);
 			};
-			put(claimQuestions(claims, `${field}の話し相手に`));
+			// 総称・全称・確度の語を含む主張には印を付ける(あとで誤りの率を印の有無で数える)
+			put(
+				claimQuestions(
+					claims.filter((c) => !SWEEPING.test(c)),
+					`${field}の話し相手に`,
+				),
+			);
+			put(
+				claimQuestions(
+					claims.filter((c) => SWEEPING.test(c)),
+					`${field}の話し相手に`,
+				),
+				"sweeping",
+			);
 			put(
 				claimQuestions(
 					pushedBack,
@@ -233,6 +256,7 @@ export async function talkWithStranger(opts: {
 		...(accepted.length ? { accepted } : {}),
 		...(aboutSelf.length ? { aboutSelf } : {}),
 		...(pushedBack.length ? { pushedBack } : {}),
+		...(sweeping.length ? { sweeping } : {}),
 		...(spot ? { spot: { sentence: spot, claim: spotClaim } } : {}),
 		patterns: patternHits(turns, store.walk().selfPatterns ?? []),
 	};

@@ -28,6 +28,22 @@ const UNREVIEWED = /査読前|未査読|プレプリント|preprint|working pape
 const PUBLISHED =
 	/採録|掲載(?:され|済)|出版され|forthcoming|accepted|published|advance article/i;
 
+/**
+ * 誌名・機関名・題によく出る一般語。「Journal of Consumer Research 2026」の Research を著者として数え、
+ * 答えの出ない確かめの問いを積んでいた(Ashi の改善案、2026-10-10)
+ */
+const GENERIC = new Set(
+	(
+		"Research Journal Journals Proceedings Review Reviews Science Sciences Nature Studies Study " +
+		"Psychology Psychological Letters Bulletin Quarterly Annual Annals Press University Society " +
+		"Association Conference Findings Working Paper Papers Advances Trends Frontiers Communications " +
+		"International National American European Japanese Institute Center Centre Department " +
+		"Report Reports Medicine Medical Health Economics Economic Management Marketing Consumer " +
+		"Behavior Behaviour Social Cognitive Experimental Applied Computational Language Linguistics " +
+		"Transactions Archives Handbook Encyclopedia Library Online Open Data Survey Analysis"
+	).split(" "),
+);
+
 type Seen = Map<string, Map<string, Set<string>>>;
 
 function add(seen: Seen, key: string, label: string, noteId: string): void {
@@ -53,8 +69,8 @@ export function citationConflicts(
 	for (const n of texts)
 		for (const line of n.lines)
 			for (const m of line.matchAll(CITE)) {
-				if (m[1] && m[4]) authors.add(m[1]);
-				if (m[2] && m[4]) authors.add(m[2]);
+				if (m[1] && m[4] && !GENERIC.has(m[1])) authors.add(m[1]);
+				if (m[2] && m[4] && !GENERIC.has(m[2])) authors.add(m[2]);
 			}
 	for (const n of texts) {
 		// 1 本のノートが同じ著者の複数の年を挙げているなら、別々の論文を並べている
@@ -62,7 +78,7 @@ export function citationConflicts(
 		for (const line of n.lines) {
 			for (const m of line.matchAll(CITE)) {
 				const [, a, b, etal, y] = m;
-				if (!a || !y) continue;
+				if (!a || !y || GENERIC.has(a) || (b && GENERIC.has(b))) continue;
 				const key = b ? `${a}・${b}` : etal ? `${a} ら` : a;
 				mine.set(key, (mine.get(key) ?? new Set()).add(y));
 			}
@@ -137,6 +153,27 @@ export const CONFLICT_STREAK = 2;
 
 const conflictKey = (c: CitationConflict) => `${c.kind}:${c.authors}`;
 
+/** 足が積む確かめの問いの書き出し(答えが出たかを探すのにも使う) */
+const checkLead = (c: CitationConflict) =>
+	`${c.authors} の論文の${c.kind === "year" ? "年" : "査読の状態"}が、ノートで食い違っている`;
+
+/**
+ * 足が積んだ確かめの問いが閉じた(答えが出た・手放した)食い違いを外す。古いノートの書き方は
+ * 残るので、答えが出たあとも同じ食い違いが内省に出続けていた(Ashi の改善案、2026-10-10)
+ */
+export function unsettledConflicts(
+	conflicts: CitationConflict[],
+	qs: { text: string; status: string; via?: string }[],
+): CitationConflict[] {
+	return conflicts.filter((c) => {
+		const lead = checkLead(c);
+		const check = qs.find(
+			(q) => q.via === "citations" && q.text.startsWith(lead),
+		);
+		return !check || check.status === "open";
+	});
+}
+
 /**
  * 内省で見せた食い違いを数え、CONFLICT_STREAK 回続いたら、どれが正しいかを確かめる問いを 1 本積む
  * (同じ食い違いでは 1 回だけ)。知らせるだけでは確かめる問いが無く、借りのまま残り続けた
@@ -158,7 +195,7 @@ export function trackConflicts(
 		if (next[k] >= CONFLICT_STREAK) due.push(c);
 	}
 	const text = (c: CitationConflict) =>
-		`${c.authors} の論文の${c.kind === "year" ? "年" : "査読の状態"}が、ノートで食い違っている(${c.variants.map((v) => `${v.label}: ${v.noteIds.join("、")}`).join(" / ")})。どれが正しいか`;
+		`${checkLead(c)}(${c.variants.map((v) => `${v.label}: ${v.noteIds.join("、")}`).join(" / ")})。どれが正しいか`;
 	let added: string[] = [];
 	if (due.length) {
 		const cfg = store.config();

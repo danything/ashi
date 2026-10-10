@@ -42,7 +42,11 @@ import {
 	recentBaselines,
 } from "./baseline.ts";
 import { raiseBlocker, resolveBlockers, webhookNotify } from "./blockers.ts";
-import { noteCitationConflicts, trackConflicts } from "./citations.ts";
+import {
+	noteCitationConflicts,
+	trackConflicts,
+	unsettledConflicts,
+} from "./citations.ts";
 import { crawlRequested, feedStatus } from "./feeds.ts";
 import {
 	acceptIntentions,
@@ -59,6 +63,8 @@ import {
 	applyMerges,
 	blindComparison,
 	clampSleep,
+	closeByNote,
+	debtLedger,
 	markPromised,
 	missedPromises,
 	nextMidnight,
@@ -637,7 +643,10 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 			}
 			const selfBefore = store.self();
 			// ノートの著者の食い違い。続けて出たら確かめの問いを積む
-			const conflicts = noteCitationConflicts(store);
+			const conflicts = unsettledConflicts(
+				noteCitationConflicts(store),
+				store.questions(),
+			);
 			trackConflicts(store, conflicts, now);
 			const { output, usage } = await head.think<ReflectAnswer>({
 				task: "reflect",
@@ -701,6 +710,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 							store.walk().baselineTotals ??
 							baselineTotalsFromLog(store.recentLog(100_000)),
 						citations: conflicts,
+						debts: debtLedger(store.questions(), now),
 					},
 				),
 				schema: REFLECT_SCHEMA,
@@ -803,12 +813,20 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 			let merged = 0;
 			let renamed = 0;
 			let renames = new Map<string, string>();
+			let closedByNote: { id: string; note: string }[] = [];
 			store.updateQuestions((qs) => {
 				const r = applyMerges(qs, output.merges, output.themes);
 				merged = r.merged;
 				renamed = r.renamed;
 				renames = r.renames;
-				return r.questions;
+				const c = closeByNote(
+					r.questions,
+					output.close_by_note,
+					store.notes(),
+					now,
+				);
+				closedByNote = c.closed;
+				return c.questions;
 			});
 			addBridgeIdeas(store, output.bridge_ideas, undefined, now);
 			// 次の一歩は内省のたびに書き直す(古い意図を引きずらない)
@@ -892,6 +910,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 				selfUpdated: Boolean(self),
 				proposed,
 				merged,
+				...(closedByNote.length ? { closedByNote } : {}),
 				renamed,
 				posted,
 				replied,

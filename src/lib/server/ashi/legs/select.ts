@@ -61,6 +61,21 @@ export function batchResults(
 	return out;
 }
 
+/**
+ * 点数の順。0.01 刻みで同じなら、内省の次の一歩に書かれた問いを先に並べる。1 位と同点だった問いが
+ * 3 位扱いで歩かれず、次の一歩に書いた 5 本が 1 本も歩かれなかった(Ashi の改善案、2026-10-11)。
+ * 2 回続けて書けば点数に関係なく先に歩く規則(promised)はそのまま
+ */
+export function byRank(a: Question, b: Question): number {
+	const sa = score(a);
+	const sb = score(b);
+	return (
+		Math.round(sb * 100) - Math.round(sa * 100) ||
+		Number(Boolean(b.promised)) - Number(Boolean(a.promised)) ||
+		sb - sa
+	);
+}
+
 /** 直近で同じテーマが何歩続いたか */
 export function themeStreak(recentThemes: string[]): {
 	theme?: string;
@@ -160,7 +175,7 @@ export function selectQuestion(
 				q.status === "open" && !avoid.includes(q.theme) && q.track === track,
 		)
 		.map((q) => ({ question: q, score: score(q) }))
-		.sort((a, b) => b.score - a.score);
+		.sort((a, b) => byRank(a.question, b.question));
 	const [top, ...rest] = candidates;
 	if (!top) return { seed: track, avoid };
 	// 外(X・よそ者・持ち主)で確かめずに言ったことは、VERIFY_AFTER_DAYS 日歩かれなければ先に確かめる。

@@ -73,6 +73,7 @@ import {
 	ownerPull,
 	questionIds,
 	readDepthSection,
+	relatedOpen,
 	reopenable,
 	SELF_MAX,
 	selfEvolution,
@@ -420,10 +421,12 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 			if (q.track === "self") store.saveWalk({ ...store.walk(), selfWalks });
 			// よそ者の会話から出た確かめの問いは、同じ分野の確かめの問いを束ねて 1 歩で確かめる
 			const siblings = verifySiblings(q, store.questions(), cfg.verifyBatch);
+			// 確かめの問いと近い、開いている問い。同じ資料で答えが出るなら一緒に
+			const related = relatedOpen(q, store.questions());
 			const { output, usage } = await head.think<ExploreAnswer>({
 				task: "explore",
 				system: blind ? system(core, BLIND_SELF, store.owner()) : sys(),
-				prompt: explorePrompt(q, choice.reason, ctx(), siblings),
+				prompt: explorePrompt(q, choice.reason, ctx(), siblings, related),
 				schema: EXPLORE_SCHEMA,
 				tools,
 				allowWeb: cfg.allowWeb,
@@ -456,6 +459,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 			const missed = output.found === "none" && output.answered !== true;
 			let parked = false;
 			const batch = batchResults(output.checked, siblings);
+			let alsoAnswered: string[] = [];
 			store.updateQuestions((qs) => {
 				const updated = qs.map((x) => {
 					// 束ねて確かめた問い。合う・外れは閉じ、読めなかったものは見つからなかった回数に足す
@@ -509,7 +513,18 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 				// 個性の問いから生まれた先回りの問い = 個性で得た見方を持ち主の側へ持ち帰ったもの
 				if (q.track === "self")
 					bridged = got.filter((a) => a.track === "owner").map((a) => a.text);
-				return trimOpenQuestions([...updated, ...got], cfg);
+				// 添えた近い問いのうち、このノートで答えが出たものを閉じる
+				const near = new Set(related.map((x) => x.id));
+				const c = closeByNote(
+					updated,
+					(Array.isArray(output.also_answered) ? output.also_answered : [])
+						.filter((id) => typeof id === "string" && near.has(id))
+						.map((id) => ({ question_id: id, note_id: noteId })),
+					[{ id: noteId }],
+					now,
+				);
+				alsoAnswered = c.closed.map((x) => x.id);
+				return trimOpenQuestions([...c.questions, ...got], cfg);
 			});
 			addBridgeIdeas(
 				store,
@@ -581,6 +596,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 				reason: choice.reason,
 				score: choice.score,
 				...(batch.size ? { batch: Object.fromEntries(batch) } : {}),
+				...(alsoAnswered.length ? { alsoAnswered } : {}),
 				noteId,
 				answered: output.answered === true,
 				added,

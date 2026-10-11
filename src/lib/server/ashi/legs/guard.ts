@@ -7,7 +7,7 @@ import {
 	type Question,
 	type Store,
 } from "../state.ts";
-import { score, VERIFY_THEME } from "./select.ts";
+import { byRank, score, VERIFY_THEME } from "./select.ts";
 
 /**
  * ガードレール。頭が何を言っても、ここを通したものだけが状態に残る。
@@ -576,6 +576,23 @@ export function debtLedger(
 	};
 }
 
+/**
+ * 確かめの問いと文字の近い、開いている問い(確かめの問いではないもの、近い順に n 本まで)。同じ資料で
+ * 答えが出るのに別々に選ばれ、同じ資料を二度読んでいた(Ashi の改善案、2026-10-11)。近さは統合の候補と
+ * 同じしきい値(SIMILAR)
+ */
+export function relatedOpen(q: Question, qs: Question[], n = 2): Question[] {
+	if (!q.verify) return [];
+	const g = bigrams(q.text);
+	return qs
+		.filter((x) => x.id !== q.id && x.status === "open" && !x.verify)
+		.map((x) => ({ x, sim: jaccard(g, bigrams(x.text)) }))
+		.filter((r) => r.sim >= SIMILAR)
+		.sort((a, b) => b.sim - a.sim)
+		.slice(0, n)
+		.map((r) => r.x);
+}
+
 /** 点数の低さで上限から手放されただけの問い(統合されたものではない) */
 export function reopenable(q: Question): boolean {
 	return q.status === "dropped" && !q.mergedInto;
@@ -635,7 +652,7 @@ export function missedPromises(
 			};
 		const same = qs
 			.filter((x) => x.status === "open" && x.track === q.track)
-			.sort((a, b) => score(b) - score(a));
+			.sort(byRank);
 		const rank = same.findIndex((x) => x.id === id) + 1;
 		const top = same[0];
 		const reasons = [

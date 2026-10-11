@@ -147,6 +147,7 @@ export interface ExploreAnswer {
 	searched: string[];
 	sources_read: { source: string; depth: ReadDepth }[];
 	checked: { id: string; result: "holds" | "wrong" | "unreadable" }[];
+	also_answered?: string[];
 	new_questions: NewQuestion[];
 	bridge_ideas: BridgeIdeaDraft[];
 	crawl: string[];
@@ -242,6 +243,12 @@ export const EXPLORE_SCHEMA: JsonSchema = {
 				additionalProperties: false,
 			},
 		},
+		also_answered: {
+			type: "array",
+			items: { type: "string" },
+			description:
+				"確かめの問いに近い問いを添えて渡されたときだけ。このノートで答えが出た、添えた問いの ID。足がこのノートを答えとして閉じる。無ければ空",
+		},
 		new_questions: {
 			type: "array",
 			items: QUESTION_ITEM,
@@ -267,6 +274,7 @@ export const EXPLORE_SCHEMA: JsonSchema = {
 		"searched",
 		"sources_read",
 		"checked",
+		"also_answered",
 		"new_questions",
 		"bridge_ideas",
 		"crawl",
@@ -410,7 +418,12 @@ export function explorePrompt(
 	c: WalkContext,
 	/** 同じ話し相手の分野から出た確かめの問い。まとめて確かめる */
 	siblings: Question[] = [],
+	/** 確かめの問いと文字の近い、開いている問い。同じ資料で答えが出るなら一緒に */
+	related: Question[] = [],
 ): string {
+	const near = related.length
+		? `\n\nこの確かめの問いと近い、開いている問いがあります。同じ資料で答えが出るなら、このノートで一緒に答え、答えが出た問いの ID を also_answered に入れてください(足がこのノートを答えとして閉じます):\n${related.map((x) => `- ${x.id}: ${x.text}`).join("\n")}`
+		: "";
 	const batch = siblings.length
 		? `\n\n同じ話し相手の分野から出た確かめの問いを、まとめて渡します。同じ資料で確かめられるものは一緒に確かめ、ノートでは主張ごとに「合う / 外れ / 読めなかった」を分けて書いてください。結果は checked に、歩く問い(${q.id})も含めて ID ごとに入れてください:\n${siblings.map((x) => `- ${x.id}: ${x.text}`).join("\n")}`
 		: "";
@@ -428,7 +441,7 @@ export function explorePrompt(
 問い(${q.id}): ${q.text}
 テーマ: ${q.theme}
 系統: ${q.track}
-これまでに歩いた回数: ${q.visits}${q.misses ? `(うち見つからなかった回数 ${q.misses})` : ""}${searched}${notes}${batch}
+これまでに歩いた回数: ${q.visits}${q.misses ? `(うち見つからなかった回数 ${q.misses})` : ""}${searched}${notes}${batch}${near}
 
 ${TRACK_HINT[q.track]}
 ${

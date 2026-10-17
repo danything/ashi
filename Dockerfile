@@ -19,6 +19,7 @@ RUN bun run build
 
 # 実行時の依存は無い: dependencies を空にしてあるので、Anthropic の SDK も含めて
 # 画面は Vite が、CLI は bun build が build/ に束ねる。node_modules をイメージに載せない
+# (新しく足す依存も devDependencies に。dependencies に入れると束ねられず、本番で見つからない)
 FROM base
 # 自動更新はしない(イメージを焼き直して上げる)
 ENV NODE_ENV=production ASHI_HOME=/data DISABLE_AUTOUPDATER=1

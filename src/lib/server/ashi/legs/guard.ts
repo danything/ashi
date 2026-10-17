@@ -553,7 +553,12 @@ export function debtLedger(
 	qs: Question[],
 	now: Date,
 	days = 14,
-): { open: Question[]; closed: Question[] } {
+	notes: Note[] = [],
+): {
+	open: Question[];
+	closed: Question[];
+	notes: Record<string, { id: string; title: string }>;
+} {
 	const since = now.getTime() - days * 86400e3;
 	const debts = qs.filter((q) => q.verify);
 	return {
@@ -573,7 +578,22 @@ export function debtLedger(
 				),
 			)
 			.slice(0, 15),
+		// 閉じた借りの答えのノート。無いと close_by_note で同じことを聞く問いを閉じられなかった
+		// (Ashi の改善案、2026-10-15)
+		notes: latestNoteByQuestion(notes),
 	};
+}
+
+/** 問いごとの、いちばん新しいノート */
+export function latestNoteByQuestion(
+	notes: Note[],
+): Record<string, { id: string; title: string }> {
+	const out: Record<string, { id: string; title: string }> = {};
+	for (const n of [...notes].sort((a, b) =>
+		a.createdAt.localeCompare(b.createdAt),
+	))
+		out[n.questionId] = { id: n.id, title: n.title };
+	return out;
 }
 
 /**
@@ -591,6 +611,92 @@ export function relatedOpen(q: Question, qs: Question[], n = 2): Question[] {
 		.sort((a, b) => b.sim - a.sim)
 		.slice(0, n)
 		.map((r) => r.x);
+}
+
+/**
+ * 内省の walk_together。開いている問いだけの 2〜4 本の組を、5 組まで。同じ論文で答えが出る確かめの
+ * 問いが別々に選ばれ、同じ論文を何度も読むか、どれかが取り残されていた(Ashi の改善案、2026-10-15)
+ */
+export function acceptGroups(raw: unknown, qs: Question[]): string[][] {
+	const open = new Set(qs.filter((q) => q.status === "open").map((q) => q.id));
+	const out: string[][] = [];
+	for (const g of Array.isArray(raw) ? raw : []) {
+		const given: unknown[] = Array.isArray(g?.ids) ? g.ids : [];
+		const ids = [
+			...new Set(
+				given.filter(
+					(id): id is string => typeof id === "string" && open.has(id),
+				),
+			),
+		].slice(0, 4);
+		if (ids.length >= 2) out.push(ids);
+		if (out.length >= 5) break;
+	}
+	return out;
+}
+
+/** この問いと組になっている、開いている問い */
+export function groupMates(
+	q: Question,
+	groups: string[][] | undefined,
+	qs: Question[],
+): Question[] {
+	const ids = new Set((groups ?? []).filter((g) => g.includes(q.id)).flat());
+	ids.delete(q.id);
+	return qs.filter((x) => ids.has(x.id) && x.status === "open");
+}
+
+/**
+ * 内省の reestimate を当てる(開いた問いだけ、1 回 5 本まで、0〜1 に丸める)。点数は作ったときの見立ての
+ * ままで、その後のノートで歩きやすくなっても最下位に残っていた(Ashi の改善案、2026-10-14)。
+ * 付け直した回数を reestimated に残す
+ */
+export function applyReestimates(
+	qs: Question[],
+	raw: unknown,
+): {
+	questions: Question[];
+	changed: { id: string; from: number[]; to: number[]; why: string }[];
+} {
+	const want = new Map<
+		string,
+		{ interest: number; importance: number; feasibility: number; why: string }
+	>();
+	for (const x of (Array.isArray(raw) ? raw : []).slice(0, 5)) {
+		if (typeof x?.question_id !== "string") continue;
+		const n = (v: unknown) =>
+			typeof v === "number" && Number.isFinite(v)
+				? Math.min(1, Math.max(0, v))
+				: undefined;
+		const [i, m, f] = [n(x.interest), n(x.importance), n(x.feasibility)];
+		if (i === undefined || m === undefined || f === undefined) continue;
+		want.set(x.question_id, {
+			interest: i,
+			importance: m,
+			feasibility: f,
+			why: String(x.why ?? "").slice(0, 300),
+		});
+	}
+	const changed: { id: string; from: number[]; to: number[]; why: string }[] =
+		[];
+	const questions = qs.map((q) => {
+		const w = want.get(q.id);
+		if (!w || q.status !== "open") return q;
+		changed.push({
+			id: q.id,
+			from: [q.interest, q.importance, q.feasibility],
+			to: [w.interest, w.importance, w.feasibility],
+			why: w.why,
+		});
+		return {
+			...q,
+			interest: w.interest,
+			importance: w.importance,
+			feasibility: w.feasibility,
+			reestimated: (q.reestimated ?? 0) + 1,
+		};
+	});
+	return { questions, changed };
 }
 
 /** 点数の低さで上限から手放されただけの問い(統合されたものではない) */
@@ -635,6 +741,13 @@ export function missedPromises(
 	ids: string[],
 	qs: Question[],
 	resting: string[],
+	/** 前回の内省からの足どり(walkTrail の steps)。その間に同じ系統で何が選ばれたかを書く */
+	steps: {
+		questionId?: string;
+		track?: string;
+		reason?: string;
+		resting?: string[];
+	}[] = [],
 ): { id: string; why: string }[] {
 	const byId = new Map(qs.map((q) => [q.id, q]));
 	return ids.map((id) => {
@@ -664,8 +777,47 @@ export function missedPromises(
 		];
 		if (resting.includes(q.theme))
 			reasons.push(`テーマ「${q.theme}」を休ませていた`);
+		// 代わりに何が選ばれ、何が決め手だったか。点数が出ても、なぜ外れたかが分からなかった
+		// (Ashi の改善案、2026-10-13・10-16)
+		reasons.push(choiceStory(q, steps));
 		return { id, why: `開いたまま選ばれなかった(${reasons.join("、")})` };
 	});
+}
+
+const REASON_LABEL: Record<string, string> = {
+	score: "点数の順",
+	detour: "さいころの寄り道",
+	echo: "言い換えが続いた問いの先回し",
+	verify: "確かめの先回し",
+	promised: "次の一歩に 2 回書かれた問いの先回し",
+};
+
+/** 前回の内省からの歩みのうち、この問いの系統で何が選ばれたか */
+function choiceStory(
+	q: Question,
+	steps: {
+		questionId?: string;
+		track?: string;
+		reason?: string;
+		resting?: string[];
+	}[],
+): string {
+	const label = q.track === "owner" ? "先回り" : "個性";
+	if (steps.length === 0) return "その間の歩みの記録が無い";
+	const known = steps.filter((s) => s.track);
+	if (known.length === 0)
+		return `その間 ${steps.length} 歩(系統の記録が無い歩みで、決め手は分からない)`;
+	const same = known.filter((s) => s.track === q.track);
+	if (same.length === 0)
+		return `その間 ${steps.length} 歩はどれも、系統のさいころで${label}が出なかった`;
+	const picked = same
+		.map(
+			(s) =>
+				`[${s.questionId ?? "?"}] ${REASON_LABEL[s.reason ?? ""] ?? s.reason ?? "理由の記録なし"}`,
+		)
+		.join(" / ");
+	const rested = same.filter((s) => s.resting?.includes(q.theme)).length;
+	return `その間に${label}の系統は ${same.length} 歩で、選ばれたのは ${picked}${rested ? `。そのうち ${rested} 歩はテーマ「${q.theme}」を休ませていた` : ""}`;
 }
 
 /**
@@ -884,6 +1036,9 @@ export function walkTrail(
 		theme: string;
 		result: "note" | "none" | "parked";
 		promised: boolean;
+		track?: string;
+		reason?: string;
+		resting?: string[];
 	}[];
 	promised: string[];
 	kept: string[];
@@ -910,6 +1065,9 @@ export function walkTrail(
 					| "none"
 					| "parked",
 				promised: Boolean(questionId && promised.includes(questionId)),
+				...(typeof e.track === "string" ? { track: e.track } : {}),
+				...(typeof e.reason === "string" ? { reason: e.reason } : {}),
+				...(Array.isArray(e.resting) ? { resting: e.resting as string[] } : {}),
 			};
 		});
 	const walked = new Set(steps.map((s) => s.questionId).filter(Boolean));

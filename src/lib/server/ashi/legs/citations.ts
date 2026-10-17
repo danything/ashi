@@ -151,7 +151,8 @@ export function noteCitationConflicts(store: Store): CitationConflict[] {
 /** 食い違いがこの回数の内省で続けて出たら、確かめの問いを積む */
 export const CONFLICT_STREAK = 2;
 
-const conflictKey = (c: CitationConflict) => `${c.kind}:${c.authors}`;
+export const conflictKey = (c: { kind: string; authors: string }) =>
+	`${c.kind}:${c.authors}`;
 
 /** 足が積む確かめの問いの書き出し(答えが出たかを探すのにも使う) */
 const checkLead = (c: CitationConflict) =>
@@ -164,8 +165,11 @@ const checkLead = (c: CitationConflict) =>
 export function unsettledConflicts(
 	conflicts: CitationConflict[],
 	qs: { text: string; status: string; via?: string }[],
+	/** 内省の conflicts_settled で決着したもの(別の論文だった・どちらかの誤りをノートで確かめた) */
+	settled: Record<string, unknown> = {},
 ): CitationConflict[] {
 	return conflicts.filter((c) => {
+		if (settled[conflictKey(c)]) return false;
 		const lead = checkLead(c);
 		const check = qs.find(
 			(q) => q.via === "citations" && q.text.startsWith(lead),

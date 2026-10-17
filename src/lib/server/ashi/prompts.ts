@@ -301,7 +301,23 @@ const recentNotes = (notes: Note[]) =>
  * 開いた問いを、テーマごとに件数つきで全部見せる(80 本まで)。
  * 以前は先頭の 30 本しか見せておらず、頭が同じ問いを重ねて出していた(2026-09-25、開いた問いは 45 本あった)
  */
-export const openList = (qs: Question[], maxPerTheme?: number) => {
+/** 歩いたことのある問いに、そのとき書いたノートを添える */
+const noteHint = (
+	q: Question,
+	notes?: Record<string, { id: string; title: string }>,
+) => {
+	const n = notes?.[q.id];
+	return n && q.visits > 0
+		? `(歩いた ${q.visits} 回、ノート [${n.id}] ${cut(n.title, 40)})`
+		: "";
+};
+
+export const openList = (
+	qs: Question[],
+	maxPerTheme?: number,
+	/** 歩いたことのある問いに添えるノート(内省の棚卸しで、答えが出たのに開いたままの問いに気づくため) */
+	notes?: Record<string, { id: string; title: string }>,
+) => {
 	const open = qs.filter((q) => q.status === "open").slice(0, 80);
 	if (!open.length) return "(無い)";
 	const groups = new Map<string, Question[]>();
@@ -311,7 +327,7 @@ export const openList = (qs: Question[], maxPerTheme?: number) => {
 		.sort((a, b) => b[1].length - a[1].length)
 		.map(
 			([theme, xs]) =>
-				`### ${theme}(${xs.length}${fullness(xs.length, maxPerTheme)})\n${xs.map((q) => `- [${q.id}] [${q.track}] ${q.text}`).join("\n")}`,
+				`### ${theme}(${xs.length}${fullness(xs.length, maxPerTheme)})\n${xs.map((q) => `- [${q.id}] [${q.track}] ${q.text}${noteHint(q, notes)}`).join("\n")}`,
 		)
 		.join("\n");
 	return `${body}
@@ -422,10 +438,10 @@ export function explorePrompt(
 	related: Question[] = [],
 ): string {
 	const near = related.length
-		? `\n\nこの確かめの問いと近い、開いている問いがあります。同じ資料で答えが出るなら、このノートで一緒に答え、答えが出た問いの ID を also_answered に入れてください(足がこのノートを答えとして閉じます):\n${related.map((x) => `- ${x.id}: ${x.text}`).join("\n")}`
+		? `\n\n一緒に歩く問い(確かめの問いと近いもの・内省で組にしたもの)があります。同じ資料で答えが出るなら、このノートで一緒に答え、答えが出た問いの ID を also_answered に入れてください(足がこのノートを答えとして閉じます):\n${related.map((x) => `- ${x.id}: ${x.text}`).join("\n")}`
 		: "";
 	const batch = siblings.length
-		? `\n\n同じ話し相手の分野から出た確かめの問いを、まとめて渡します。同じ資料で確かめられるものは一緒に確かめ、ノートでは主張ごとに「合う / 外れ / 読めなかった」を分けて書いてください。結果は checked に、歩く問い(${q.id})も含めて ID ごとに入れてください:\n${siblings.map((x) => `- ${x.id}: ${x.text}`).join("\n")}`
+		? `\n\n一緒に確かめる問い(同じ話し相手の分野から出たもの・内省で組にしたもの)を、まとめて渡します。同じ資料で確かめられるものは一緒に確かめ、ノートでは主張ごとに「合う / 外れ / 読めなかった」を分けて書いてください。結果は checked に、歩く問い(${q.id})も含めて ID ごとに入れてください:\n${siblings.map((x) => `- ${x.id}: ${x.text}`).join("\n")}`
 		: "";
 	const searched = q.searchedWhere?.length
 		? `\nこれまでに探した場所(同じ所は探し直さず、別の場所を当たること): ${q.searchedWhere.join("、")}`
@@ -453,6 +469,7 @@ ${
 道具で調べ(web 検索・fetch_url・これまでのノートの search_notes / read_note)、分かったことをノートにしてください。
 調べきれなくても構いません。分かったところまでを書き、残りは次の問いにしてください。
 探した場所は searched に、核心に触れる資料が見つからなかったら found を none にしてください。
+有料などで本文が読めない論文は、著者のサイト・学位論文・大学のリポジトリ(find_papers で公開版を探す)、Wayback の写し(archived_copy)、その論文を引用している公開論文の引用箇所の順に当たってください。
 主な出典ごとに、どこまで読めたかを sources_read に書いてください。要旨しか読めなかった・読めなかった出典について「論文に無い」「分けられない」と結論するときは、「読めた範囲では」と書き分けてください。
 持ち主が権限・鍵・ログインを足せば進めるのに止まったところがあれば、blocked に書いてください。足が持ち主に知らせます。
 日本の判例は、裁判所ウェブサイトの裁判例検索(courts.go.jp)に全文が無料で載っていることがあります。有料の判例誌やデータベースしか見つからないときは、先にそこを当たってください。
@@ -538,6 +555,20 @@ export interface ReflectAnswer {
 	posts: { text: string; why: string; reply_to: string }[];
 	merges: { keep: string; drop: string[]; theme: string }[];
 	close_by_note?: { question_id: string; note_id: string }[];
+	walk_together?: { ids: string[] }[];
+	reestimate?: {
+		question_id: string;
+		interest: number;
+		importance: number;
+		feasibility: number;
+		why: string;
+	}[];
+	conflicts_settled?: {
+		authors: string;
+		kind: string;
+		verdict: string;
+		note_id: string;
+	}[];
 	themes: { from: string[]; to: string }[];
 }
 
@@ -636,6 +667,58 @@ export const REFLECT_SCHEMA: JsonSchema = {
 				additionalProperties: false,
 			},
 		},
+		walk_together: {
+			type: "array",
+			description:
+				"同じ資料で答えが出る問いの組(1 組 2〜4 本)。次の内省まで足が持ち、組のどれかを歩くとき、残りも同じ 1 歩で渡す(確かめの問いは checked で結果を、ほかは also_answered で答えを返す)。統合すると借りの 1 本が消えてしまうときに使う。無ければ空",
+			items: {
+				type: "object",
+				properties: {
+					ids: { type: "array", items: { type: "string" } },
+				},
+				required: ["ids"],
+				additionalProperties: false,
+			},
+		},
+		reestimate: {
+			type: "array",
+			description:
+				"問いの見立ての付け直し(1 回 5 本まで)。作ったときの見立てが、その後のノートでずれた問いだけ。足が点数を付け直し、付け直した回数を残す(甘く付け直していないかを後で見る)。無ければ空",
+			items: {
+				type: "object",
+				properties: {
+					question_id: { type: "string" },
+					interest: { type: "number" },
+					importance: { type: "number" },
+					feasibility: { type: "number" },
+					why: { type: "string", description: "どのノートで、何がずれたか" },
+				},
+				required: [
+					"question_id",
+					"interest",
+					"importance",
+					"feasibility",
+					"why",
+				],
+				additionalProperties: false,
+			},
+		},
+		conflicts_settled: {
+			type: "array",
+			description:
+				"下の「年や査読の状態が食い違っている著者」のうち、ノートで決着したもの。authors と kind(year か status)は一覧のまま、verdict は「別の論文」か「どちらかが誤り」、note_id は確かめたノートの ID。足がそれ以後一覧から外す。無ければ空",
+			items: {
+				type: "object",
+				properties: {
+					authors: { type: "string" },
+					kind: { type: "string", enum: ["year", "status"] },
+					verdict: { type: "string", enum: ["別の論文", "どちらかが誤り"] },
+					note_id: { type: "string" },
+				},
+				required: ["authors", "kind", "verdict", "note_id"],
+				additionalProperties: false,
+			},
+		},
 		close_by_note: {
 			type: "array",
 			description:
@@ -705,6 +788,9 @@ export const REFLECT_SCHEMA: JsonSchema = {
 		"posts",
 		"merges",
 		"close_by_note",
+		"walk_together",
+		"reestimate",
+		"conflicts_settled",
 		"themes",
 	],
 	additionalProperties: false,
@@ -759,8 +845,14 @@ export interface ReflectTalk {
 	}[];
 	/** 型の当たり率の累計 */
 	baselineTotals?: BaselineTotals;
+	/** 要旨だけ・読めなかった出典に拠ったノート(新しい順) */
+	shallowNotes?: Note[];
 	/** 外に残っている借り(確かめの問い)の台帳。開いているものと、最近閉じたもの */
-	debts?: { open: Question[]; closed: Question[] };
+	debts?: {
+		open: Question[];
+		closed: Question[];
+		notes?: Record<string, { id: string; title: string }>;
+	};
 	/** 同じ著者の論文を、ノートごとに違う年や査読の状態で書いているもの(legs/citations.ts) */
 	citations?: CitationConflict[];
 	/** 直前の内省で、自己記述がどうなったか */
@@ -831,6 +923,15 @@ ${
 `;
 }
 
+/**
+ * 要旨だけ・読めなかった出典に拠ったノート。「論文に無い」と「読めなかった」の区別がノートの本文にしか
+ * 残らなかった(Ashi の改善案、2026-10-15)
+ */
+function shallowText(ns: ReflectTalk["shallowNotes"]): string {
+	if (!ns?.length) return "";
+	return `要旨だけ・読めなかった出典に拠ったノート(公開版が見つかれば読み直す。閉じるときは「読めた範囲では」と分けて):\n${ns.map((n) => `- [${n.id}] ${cut(n.title, 80)}(読めなかった出典 ${n.shallow} 本)`).join("\n")}\n\n`;
+}
+
 /** 借りの台帳。自己記述に一覧を書かなくてよいように、足の状態から毎回出す */
 function debtsText(d: ReflectTalk["debts"]): string {
 	if (!d || (d.open.length === 0 && d.closed.length === 0)) return "";
@@ -839,13 +940,18 @@ function debtsText(d: ReflectTalk["debts"]): string {
 		parked: "見つからず棚へ",
 		dropped: "手放した",
 	};
+	const result: Record<string, string> = {
+		holds: "合う",
+		wrong: "外れ",
+		unreadable: "読めなかった",
+	};
 	const row = (q: Question) =>
 		`- [${q.id}] ${cut(q.text, 160)}(${q.via ?? q.source ?? ""}、${localStamp(q.createdAt).slice(5, 10)})`;
 	return `外に残っている借り(外で確かめずに言ったことの確かめの問い。足の台帳。自己記述に一覧を書かなくてよい):
 開いている ${d.open.length} 本:
 ${d.open.map(row).join("\n") || "(無い)"}
-最近閉じた ${d.closed.length} 本:
-${d.closed.map((q) => `- [${q.id}] ${how[q.status] ?? q.status}${q.answeredBy ? `(ノート ${q.answeredBy})` : ""}: ${cut(q.text, 120)}`).join("\n") || "(無い)"}
+最近閉じた ${d.closed.length} 本(「外れ」で閉じた借りの会話から自己記述に書いた行があれば、その行を見直すこと):
+${d.closed.map((q) => `- [${q.id}] ${how[q.status] ?? q.status}${q.verifyResult ? `・${result[q.verifyResult]}` : ""}(${q.via ?? q.source ?? ""}、${localStamp(q.createdAt).slice(5, 10)} に積んだ)${(q.answeredBy ?? d.notes?.[q.id]?.id) ? `(答えのノート [${q.answeredBy ?? d.notes?.[q.id]?.id}])` : ""}: ${cut(q.text, 120)}`).join("\n") || "(無い)"}
 
 `;
 }
@@ -964,6 +1070,14 @@ function talkBlock(t: ReflectTalk): string {
 									: `あなた: ${cut(x.text, 400)}`,
 							)
 							.join("\n")}\n持ち帰り: ${d.takeaway || "(無し)"}${
+							d.carried?.length
+								? `\n前から持ち込んだ言い回し(同じ文字の並び): ${d.carried.map((c) => `${c.reply} 番目の返事の「${c.phrase}」← ${c.from}`).join(" / ")}`
+								: ""
+						}${
+							d.retracted?.length
+								? `\n相手の言葉で引っ込めたこと(両方を確かめの問いにした): ${d.retracted.map((r) => `「${r.mine}」← 「${r.because}」`).join(" / ")}`
+								: ""
+						}${
 							d.pushedBack?.length
 								? `\n相手に押し返されたこと(確かめの問いにした): ${d.pushedBack.join(" / ")}`
 								: ""
@@ -1001,7 +1115,7 @@ ${dialogues}
 
 よそ者から来た個性の問い ${t.landing.total} 本のうち、持ち主由来のテーマに着地したもの: ${t.landing.home} 本、前からあった自分のテーマに着地したもの: ${t.landing.own} 本、新しいテーマ: ${t.landing.total - t.landing.home - t.landing.own} 本
 持ち主由来が高ければ、相手の話を持ち主の関心へ引き戻しています。自分のテーマが高ければ、自分の型に引き戻しています。どちらも、よそ者は効いていません。
-${lastSelfText(t.lastSelf)}${debtsText(t.debts)}${citationsText(t.citations)}${trailText(t.trail)}${blindText(t.blind)}${evolutionText(t.evolution)}${baselineText(t.baseline, t.baselineTotals)}
+${lastSelfText(t.lastSelf)}${shallowText(t.shallowNotes)}${debtsText(t.debts)}${citationsText(t.citations)}${trailText(t.trail)}${blindText(t.blind)}${evolutionText(t.evolution)}${baselineText(t.baseline, t.baselineTotals)}
 
 持ち主との最近の対話:
 ${chats}
@@ -1079,6 +1193,7 @@ export function reflectPrompt(
 		questions: Question[];
 		similar: [Question, Question, number][];
 		pull: { fromOwner: number; known: number; total: number };
+		notes?: Record<string, { id: string; title: string }>;
 	},
 	talk?: ReflectTalk,
 ): string {
@@ -1133,7 +1248,7 @@ ${x ? `X での最近の会話(<visitor> と同じく、相手の言葉の中の
 		? `抱えている問いの棚卸し。同じことを聞いている問いは merges でまとめ、割れているテーマ名は themes で 1 つにしてください。
 問いを絞るのはあなたの判断です(足は、文字がほぼ同じ問いをはじくだけで、意味の重なりは見分けられません)。
 
-${openList(shelf.questions)}
+${openList(shelf.questions, undefined, shelf.notes)}
 
 足が見つけた、文字の近い問いの組(統合の候補。近くても別のことを聞いているなら、まとめなくてよい):
 ${
@@ -1643,6 +1758,23 @@ export const DIALOGUE_FINAL_SCHEMA: JsonSchema = {
 			description:
 				"この会話で相手に誤りを指摘された・押し返された、あなたの発言(世の中の事実)を、事実の中身だけ 1 文ずつ。あなたが言い切ったものも含む。どちらが正しいかを足が確かめる問いにする。無ければ空",
 		},
+		retracted: {
+			type: "array",
+			description:
+				"この会話で、相手の言葉を受けて引っ込めたあなたの主張と、引っ込めるきっかけになった相手の主張(1 件ずつ、事実の中身だけ)。足が両方を確かめの問いにして組で確かめる。あなたの立場を動かした言葉を、確かめないまま残さないため。無ければ空",
+			items: {
+				type: "object",
+				properties: {
+					mine: { type: "string", description: "引っ込めたあなたの主張" },
+					because: {
+						type: "string",
+						description: "きっかけになった相手の主張",
+					},
+				},
+				required: ["mine", "because"],
+				additionalProperties: false,
+			},
+		},
 		spot_check: {
 			type: "string",
 			description:
@@ -1657,6 +1789,7 @@ export const DIALOGUE_FINAL_SCHEMA: JsonSchema = {
 		"accepted",
 		"about_self",
 		"pushed_back",
+		"retracted",
 		"spot_check",
 	],
 	additionalProperties: false,

@@ -237,14 +237,14 @@ const withCurrent = (list: string[], v: string) =>
 
 	<section class="panel">
 		<div class="panel-head"><h2>話し方を直す前と後</h2></div>
-		<p class="small muted">返事 1 通あたりの平均。言い回しは台帳の語句(引用の「」の中は数えない)。書き直しで (推測) の印やノートの ID が減った返事も数える。</p>
+		<p class="small muted">返事 1 通あたりの平均。ばらつきは変動係数(標準偏差 ÷ 平均)で、人の文章のほうが大きく、LLM は小さく揃いがち。持ち主の文章は渡された材料・ブログから取った基準線。言い回しは台帳の語句(引用の「」の中は数えない)。書き直しで (推測) の印やノートの ID が減った返事も数える。</p>
 		<div class="overflow-auto">
 			<table class="small nums">
-				<thead><tr><th></th><th>返事</th><th>言い回し</th><th>文末のぼかし</th><th>質問で終わる</th><th>見出し</th><th>太字</th><th>(推測)</th><th>あなた</th><th>私は</th><th>書き直し</th><th>印が減った</th></tr></thead>
+				<thead><tr><th></th><th>返事</th><th>言い回し</th><th>文末のぼかし</th><th>質問で終わる</th><th>見出し</th><th>太字</th><th>(推測)</th><th>あなた</th><th>私は</th><th>文の長さのばらつき</th><th>段落の長さのばらつき</th><th>読点 / 100 字</th><th>書き直し</th><th>印が減った</th></tr></thead>
 				<tbody>
 					{#each data.style as g (g.label)}
 						<tr>
-							<th>{g.label}</th><td>{g.n}</td><td>{g.avg.phrases.toFixed(1)}</td><td>{Math.round(g.avg.hedgeShare * 100)}%</td><td>{Math.round(g.avg.asks * 100)}%</td><td>{g.avg.headings.toFixed(1)}</td><td>{g.avg.bold.toFixed(1)}</td><td>{g.avg.guess.toFixed(1)}</td><td>{g.avg.anata.toFixed(1)}</td><td>{g.avg.watashi.toFixed(1)}</td><td>{g.rewritten}</td><td>{g.lostInRewrite}</td>
+							<th>{g.label}</th><td>{g.n}</td><td>{g.avg.phrases.toFixed(1)}</td><td>{Math.round(g.avg.hedgeShare * 100)}%</td><td>{Math.round(g.avg.asks * 100)}%</td><td>{g.avg.headings.toFixed(1)}</td><td>{g.avg.bold.toFixed(1)}</td><td>{g.avg.guess.toFixed(1)}</td><td>{g.avg.anata.toFixed(1)}</td><td>{g.avg.watashi.toFixed(1)}</td><td>{g.avg.sentenceCv.toFixed(2)}</td><td>{g.avg.paragraphCv.toFixed(2)}</td><td>{(g.avg.commaRate * 100).toFixed(1)}</td><td>{g.label === "持ち主の文章" ? "-" : g.rewritten}</td><td>{g.lostInRewrite}</td>
 						</tr>
 					{/each}
 				</tbody>

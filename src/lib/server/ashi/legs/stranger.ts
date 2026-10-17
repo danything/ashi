@@ -19,7 +19,7 @@ import {
 	type RawQuestion,
 	trimOpenQuestions,
 } from "./guard.ts";
-import { SWEEPING, sweepingSentences } from "./style.ts";
+import { carriedPhrases, SWEEPING, sweepingSentences } from "./style.ts";
 
 /**
  * よそ者との対話。内省のたびに、持ち主の地図を知らない別のモデルと短く話し、個性の問いの種にする。
@@ -117,6 +117,7 @@ export async function talkWithStranger(opts: {
 		accepted?: unknown;
 		about_self?: unknown;
 		pushed_back?: unknown;
+		retracted?: unknown;
 		spot_check?: unknown;
 	} = {};
 	const n = Math.max(1, opts.turns);
@@ -148,6 +149,7 @@ export async function talkWithStranger(opts: {
 			accepted?: unknown;
 			about_self?: unknown;
 			pushed_back?: unknown;
+			retracted?: unknown;
 			spot_check?: unknown;
 		}>({
 			task: last ? "dialogue-final" : "dialogue",
@@ -182,8 +184,28 @@ export async function talkWithStranger(opts: {
 	);
 	// 相手に押し返されたこと・さいころで選んだ文の事実も、どちらが正しいかを確かめる
 	const pushedBack = acceptClaims(final.pushed_back);
+	// 相手の言葉で引っ込めた主張と、きっかけの相手の主張(Ashi の改善案、2026-10-17)
+	const retracted = (Array.isArray(final.retracted) ? final.retracted : [])
+		.filter(
+			(r): r is { mine: string; because: string } =>
+				typeof r?.mine === "string" &&
+				typeof r?.because === "string" &&
+				r.mine.trim() !== "" &&
+				r.because.trim() !== "",
+		)
+		.slice(0, 3)
+		.map((r) => ({
+			mine: r.mine.trim().slice(0, 200),
+			because: r.because.trim().slice(0, 200),
+		}));
 	const spotClaim = text(final.spot_check).slice(0, 200);
-	if (raw.length || claims.length || pushedBack.length || spotClaim) {
+	if (
+		raw.length ||
+		claims.length ||
+		pushedBack.length ||
+		spotClaim ||
+		retracted.length
+	) {
 		const cfg = store.config();
 		const from = {
 			source: "stranger" as const,
@@ -231,6 +253,24 @@ export async function talkWithStranger(opts: {
 				),
 				"pushback",
 			);
+			for (const r of retracted) {
+				put(
+					claimQuestions(
+						[r.mine],
+						"",
+						`${field}の話し相手の言葉で引っ込めた、自分の主張`,
+					),
+					"retract",
+				);
+				put(
+					claimQuestions(
+						[r.because],
+						"",
+						`${field}の話し相手の言葉。これを受けて「${r.mine.slice(0, 40)}」を引っ込めた`,
+					),
+					"retract",
+				);
+			}
 			if (spotClaim)
 				put(
 					claimQuestions(
@@ -246,6 +286,24 @@ export async function talkWithStranger(opts: {
 	}
 	const accepted = acceptClaims(final.accepted);
 	const aboutSelf = acceptClaims(final.about_self);
+	// 自己記述と、直前 24 時間の別のよそ者との会話の自分の返事から、言い回しを持ち込んでいないか
+	const dayAgo = now.getTime() - 86400e3;
+	const carried = carriedPhrases(
+		turns.filter((t) => t.by === "ashi").map((t) => t.text),
+		[
+			{ label: "自己記述", text: store.self() },
+			...store
+				.recentDialogues(5)
+				.filter((d) => Date.parse(d.at) >= dayAgo)
+				.map((d) => ({
+					label: `${d.field}の会話(${d.at.slice(5, 16).replace("T", " ")})`,
+					text: d.turns
+						.filter((t) => t.by === "ashi")
+						.map((t) => t.text)
+						.join("\n"),
+				})),
+		],
+	);
 	const dialogue: Dialogue = {
 		at: now.toISOString(),
 		model: stranger.name,
@@ -256,6 +314,8 @@ export async function talkWithStranger(opts: {
 		...(accepted.length ? { accepted } : {}),
 		...(aboutSelf.length ? { aboutSelf } : {}),
 		...(pushedBack.length ? { pushedBack } : {}),
+		...(retracted.length ? { retracted } : {}),
+		...(carried.length ? { carried } : {}),
 		...(sweeping.length ? { sweeping } : {}),
 		...(spot ? { spot: { sentence: spot, claim: spotClaim } } : {}),
 		patterns: patternHits(turns, store.walk().selfPatterns ?? []),

@@ -98,6 +98,44 @@ export function sweepingSentences(texts: string[]): string[] {
 	return out.slice(0, 8);
 }
 
+/** 持ち込みを見る文字の並びの長さ */
+export const CARRY_N = 8;
+
+/**
+ * 返事に、前の文章(自己記述・直前のよそ者との会話の自分の返事)と同じ文字の並び(CARRY_N 字、漢字か
+ * カタカナを 2 字以上含むもの)が出たら拾う。最初の返事の型の言葉しか数えておらず、二つ目以降の返事や、
+ * 前の会話の言い回しの持ち込みに気づけなかった(Ashi の改善案、2026-10-12)。1 つの返事と出どころの組で 1 つ、
+ * 全部で 10 まで
+ */
+export function carriedPhrases(
+	replies: string[],
+	sources: { label: string; text: string }[],
+): { reply: number; phrase: string; from: string }[] {
+	const strong = (g: string) =>
+		(g.match(/[一-鿿゠-ヿ]/g) ?? []).length >= 2 &&
+		!/[\s。、!?!?「」()()]/.test(g);
+	const grams = sources.map((s) => {
+		const set = new Set<string>();
+		for (let i = 0; i + CARRY_N <= s.text.length; i++) {
+			const g = s.text.slice(i, i + CARRY_N);
+			if (strong(g)) set.add(g);
+		}
+		return { label: s.label, set };
+	});
+	const out: { reply: number; phrase: string; from: string }[] = [];
+	replies.forEach((r, i) => {
+		for (const g of grams) {
+			for (let k = 0; k + CARRY_N <= r.length; k++) {
+				const piece = r.slice(k, k + CARRY_N);
+				if (!g.set.has(piece)) continue;
+				out.push({ reply: i + 1, phrase: piece, from: g.label });
+				break;
+			}
+		}
+	});
+	return out.slice(0, 10);
+}
+
 /** 文に分ける(句点・感嘆・問い・改行) */
 const sentences = (t: string) =>
 	t
@@ -202,7 +240,24 @@ export interface StyleCount {
 	guess: number;
 	anata: number;
 	watashi: number;
+	/**
+	 * 文の長さ・段落の長さの変動係数(標準偏差 ÷ 平均)と、読点の率(1 文字あたり)。人と LLM の日本語で
+	 * 実際に差が出たのは、名指しの言い回しより、長さのばらつきの小ささと読点の多さだった
+	 * (Ashi のノート 2a8edb39 と改善案、2026-10-12)
+	 */
+	sentenceCv: number;
+	paragraphCv: number;
+	commaRate: number;
 }
+
+/** 変動係数。2 つ未満なら 0 */
+const cv = (xs: number[]) => {
+	if (xs.length < 2) return 0;
+	const m = xs.reduce((a, x) => a + x, 0) / xs.length;
+	if (!m) return 0;
+	const v = xs.reduce((a, x) => a + (x - m) ** 2, 0) / xs.length;
+	return Math.sqrt(v) / m;
+};
 
 export function countStyle(reply: string, phrases: string[]): StyleCount {
 	const plain = unquote(reply);
@@ -219,6 +274,16 @@ export function countStyle(reply: string, phrases: string[]): StyleCount {
 		guess: (reply.match(/[((]推測[))]/g) ?? []).length,
 		anata: t.anata,
 		watashi: t.watashi,
+		sentenceCv: cv(ss.map((x) => x.length)),
+		paragraphCv: cv(
+			reply
+				.split(/\n\s*\n/)
+				.map((x) => x.trim().length)
+				.filter((n) => n > 0),
+		),
+		commaRate: reply.length
+			? (reply.match(/[、,]/g) ?? []).length / reply.length
+			: 0,
 	};
 }
 
@@ -252,6 +317,8 @@ export const STYLE_SINCE = "2026-10-10T00:00:00.000Z";
 export function styleComparison(
 	chats: { at: string; reply: string; draft?: string; rewritten?: boolean }[],
 	phrases: string[],
+	/** 持ち主の文章(渡された材料・ブログ)。基準線として同じ値を並べる */
+	owner: string[] = [],
 ): {
 	label: string;
 	n: number;
@@ -262,6 +329,19 @@ export function styleComparison(
 	const groups = [
 		{ label: "直す前", xs: chats.filter((c) => c.at < STYLE_SINCE) },
 		{ label: "直した後", xs: chats.filter((c) => c.at >= STYLE_SINCE) },
+		...(owner.length
+			? [
+					{
+						label: "持ち主の文章",
+						xs: owner.map((reply) => ({
+							at: "",
+							reply,
+							rewritten: false,
+							draft: undefined as string | undefined,
+						})),
+					},
+				]
+			: []),
 	];
 	return groups.map(({ label, xs }) => {
 		const counts = xs.map((c) => countStyle(c.reply, phrases));
@@ -275,6 +355,9 @@ export function styleComparison(
 			"guess",
 			"anata",
 			"watashi",
+			"sentenceCv",
+			"paragraphCv",
+			"commaRate",
 		] as (keyof StyleCount)[])
 			avg[k] = counts.length
 				? counts.reduce((a, c) => a + Number(c[k]), 0) / counts.length

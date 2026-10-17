@@ -43,12 +43,14 @@ import {
 } from "./baseline.ts";
 import { raiseBlocker, resolveBlockers, webhookNotify } from "./blockers.ts";
 import {
+	conflictKey,
 	noteCitationConflicts,
 	trackConflicts,
 	unsettledConflicts,
 } from "./citations.ts";
 import { crawlRequested, feedStatus } from "./feeds.ts";
 import {
+	acceptGroups,
 	acceptIntentions,
 	acceptNewQuestions,
 	acceptPatterns,
@@ -61,10 +63,13 @@ import {
 	adviceFollowups,
 	allowance,
 	applyMerges,
+	applyReestimates,
 	blindComparison,
 	clampSleep,
 	closeByNote,
 	debtLedger,
+	groupMates,
+	latestNoteByQuestion,
 	markPromised,
 	missedPromises,
 	nextMidnight,
@@ -138,6 +143,25 @@ function markReplied(store: Store, id: string, now: Date): void {
 	store.updateQuestions((qs) =>
 		qs.map((q) => (q.id === id ? { ...q, repliedAt: now.toISOString() } : q)),
 	);
+}
+
+/**
+ * 歩いた確かめの問いの結果。checked に書いてあればそれ、訂正を書いたなら外れ、答えが出たなら合う、
+ * 見つからなかったなら読めなかった。どれでもなければ決めない
+ */
+export function mainVerifyResult(
+	q: Question,
+	output: Pick<ExploreAnswer, "checked" | "correction" | "answered" | "found">,
+): Question["verifyResult"] {
+	const own = (Array.isArray(output.checked) ? output.checked : []).find(
+		(c) => c?.id === q.id,
+	)?.result;
+	if (own === "holds" || own === "wrong" || own === "unreadable") return own;
+	if (typeof output.correction === "string" && output.correction.trim())
+		return "wrong";
+	if (output.answered === true) return "holds";
+	if (output.found === "none") return "unreadable";
+	return undefined;
 }
 
 /** 頭が知らせてきた「弾かれた」を、形を確かめて 1 歩 3 件まで */
@@ -420,9 +444,17 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 				selfWalks % cfg.selfBlindEvery === 0;
 			if (q.track === "self") store.saveWalk({ ...store.walk(), selfWalks });
 			// よそ者の会話から出た確かめの問いは、同じ分野の確かめの問いを束ねて 1 歩で確かめる
-			const siblings = verifySiblings(q, store.questions(), cfg.verifyBatch);
+			// 内省で一緒に歩く組にした問い。確かめの問いは checked で、ほかは also_answered で返させる
+			const mates = groupMates(q, store.walk().walkGroups, store.questions());
+			const siblings = [
+				...verifySiblings(q, store.questions(), cfg.verifyBatch),
+				...mates.filter((x) => x.verify),
+			].filter((x, i, xs) => xs.findIndex((y) => y.id === x.id) === i);
 			// 確かめの問いと近い、開いている問い。同じ資料で答えが出るなら一緒に
-			const related = relatedOpen(q, store.questions());
+			const related = [
+				...relatedOpen(q, store.questions()),
+				...mates.filter((x) => !x.verify),
+			].filter((x, i, xs) => xs.findIndex((y) => y.id === x.id) === i);
 			const { output, usage } = await head.think<ExploreAnswer>({
 				task: "explore",
 				system: blind ? system(core, BLIND_SELF, store.owner()) : sys(),
@@ -450,6 +482,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 					summary,
 					createdAt: now.toISOString(),
 					...(blind ? { blind: true } : {}),
+					...(depth.shallow ? { shallow: depth.shallow } : {}),
 				},
 				`# ${title}\n\n問い: ${q.text}\n\n${findings}\n${depth.text}`,
 			);
@@ -471,6 +504,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 							visits: x.visits + 1,
 							lastVisitedAt: now.toISOString(),
 							misses,
+							verifyResult: r,
 							status:
 								r === "unreadable"
 									? misses >= cfg.missesToPark
@@ -480,6 +514,10 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 						};
 					}
 					if (x.id !== q.id) return x;
+					// 確かめの問いの結果を残す(内省の借りの台帳で、外れた借りから書いた自己記述の行を見直させる)
+					const verifyResult = x.verify
+						? mainVerifyResult(q, output)
+						: undefined;
 					// 見つからなかった回数を数え、上限に達したら未測定の棚へ(同じ所をぐるぐる探さない)
 					const misses = (x.misses ?? 0) + (missed ? 1 : 0);
 					parked = output.answered !== true && misses >= cfg.missesToPark;
@@ -493,6 +531,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 						searchedWhere: [
 							...new Set([...(x.searchedWhere ?? []), ...searched]),
 						].slice(-20),
+						...(verifyResult ? { verifyResult } : {}),
 						status:
 							output.answered === true
 								? ("answered" as const)
@@ -595,6 +634,8 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 				...(uncorrected ? { uncorrected, correction } : {}),
 				reason: choice.reason,
 				score: choice.score,
+				// その歩みで休ませていたテーマ(歩かれなかった問いの理由に使う)
+				resting,
 				...(batch.size ? { batch: Object.fromEntries(batch) } : {}),
 				...(alsoAnswered.length ? { alsoAnswered } : {}),
 				noteId,
@@ -662,6 +703,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 			const conflicts = unsettledConflicts(
 				noteCitationConflicts(store),
 				store.questions(),
+				store.walk().settledConflicts,
 			);
 			trackConflicts(store, conflicts, now);
 			const { output, usage } = await head.think<ReflectAnswer>({
@@ -700,6 +742,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 						questions: store.questions(),
 						similar: similarPairs(store.questions()),
 						pull: ownerPull(store.questions(), ownerHandles(cfg)),
+						notes: latestNoteByQuestion(store.notes()),
 					},
 					{
 						dialogues: store.recentDialogues(3),
@@ -715,6 +758,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 									t.promised.filter((id) => !t.kept.includes(id)),
 									store.questions(),
 									restingThemes(w.recentThemes, cfg),
+									t.steps,
 								),
 							};
 						})(),
@@ -726,7 +770,12 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 							store.walk().baselineTotals ??
 							baselineTotalsFromLog(store.recentLog(100_000)),
 						citations: conflicts,
-						debts: debtLedger(store.questions(), now),
+						debts: debtLedger(store.questions(), now, 14, store.notes()),
+						shallowNotes: store
+							.notes()
+							.filter((n) => (n.shallow ?? 0) > 0)
+							.slice(-10)
+							.reverse(),
 					},
 				),
 				schema: REFLECT_SCHEMA,
@@ -830,6 +879,12 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 			let renamed = 0;
 			let renames = new Map<string, string>();
 			let closedByNote: { id: string; note: string }[] = [];
+			let reestimated: {
+				id: string;
+				from: number[];
+				to: number[];
+				why: string;
+			}[] = [];
 			store.updateQuestions((qs) => {
 				const r = applyMerges(qs, output.merges, output.themes);
 				merged = r.merged;
@@ -842,9 +897,30 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 					now,
 				);
 				closedByNote = c.closed;
-				return c.questions;
+				// 見立ての付け直し(作ったときの値のまま、ずれて残っていた)
+				const e = applyReestimates(c.questions, output.reestimate);
+				reestimated = e.changed;
+				return e.questions;
 			});
 			addBridgeIdeas(store, output.bridge_ideas, undefined, now);
+			// 著者の食い違いの決着(別の論文だった・どちらかの誤りをノートで確かめた)は、それ以後一覧から外す
+			const knownNotes = new Set(store.notes().map((n) => n.id));
+			const settled = { ...(store.walk().settledConflicts ?? {}) };
+			for (const x of Array.isArray(output.conflicts_settled)
+				? output.conflicts_settled
+				: []) {
+				if (
+					typeof x?.authors !== "string" ||
+					(x.kind !== "year" && x.kind !== "status") ||
+					!knownNotes.has(String(x.note_id))
+				)
+					continue;
+				settled[conflictKey(x)] = {
+					verdict: String(x.verdict ?? ""),
+					noteId: String(x.note_id),
+					at: now.toISOString(),
+				};
+			}
 			// 次の一歩は内省のたびに書き直す(古い意図を引きずらない)
 			// 付け替えたテーマは歩いた記録にも当てる。古い名前が残ると、同じテーマの歩みが 2 つの名前に
 			// 割れて、休ませる判定(themeWindowMax)がしばらく効かなかった(Ashi の指摘、2026-09-25)
@@ -853,6 +929,9 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 				...latest,
 				recentThemes: latest.recentThemes.map((t) => renames.get(t) ?? t),
 				lastReflectStep: w.steps,
+				// 一緒に歩く組は内省のたびに書き直す
+				walkGroups: acceptGroups(output.walk_together, store.questions()),
+				settledConflicts: settled,
 				intentions: normalizeIntentions(
 					acceptIntentions(output.next_steps),
 					store.notes(),
@@ -927,6 +1006,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 				proposed,
 				merged,
 				...(closedByNote.length ? { closedByNote } : {}),
+				...(reestimated.length ? { reestimated } : {}),
 				renamed,
 				posted,
 				replied,

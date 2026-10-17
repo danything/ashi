@@ -47,6 +47,12 @@ export const load: PageServerLoad = () => {
 		style: styleComparison(
 			store.recentChats(2000),
 			phraseLedger(store).map((p) => p.text),
+			// 持ち主の文章(渡された材料・ブログ)を基準線に
+			store
+				.sources()
+				.slice(-30)
+				.map((s) => (store.sourceBody(s.id) ?? "").slice(0, 8000))
+				.filter((t) => t.length > 200),
 		),
 	};
 };

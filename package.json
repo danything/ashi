@@ -12,7 +12,9 @@
 		"test": "bun test tests",
 		"check": "biome check --write --error-on-warnings && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --tsgo --fail-on-warnings"
 	},
-	"dependencies": {},
+	"dependencies": {
+		"hucre": "^1.2.0"
+	},
 	"devDependencies": {
 		"3d-force-graph": "^1.80.1",
 		"@anthropic-ai/sdk": "^0.135.0",

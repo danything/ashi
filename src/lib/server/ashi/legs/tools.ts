@@ -4,6 +4,12 @@ import type { Config } from "../config.ts";
 import type { Tool } from "../head/head.ts";
 import { localStamp, type Note, type Store } from "../state.ts";
 import { bigrams, jaccard } from "./guard.ts";
+import {
+	SHEET_MAX_BYTES,
+	type SheetKind,
+	sheetKind,
+	sheetToText,
+} from "./sheets.ts";
 
 /**
  * 頭に渡す道具。どれも読むだけで、外の世界にも状態ディレクトリにも書き込まない。
@@ -113,6 +119,8 @@ export interface GetResult {
 	body: string;
 	/** PDF のときだけ中身のバイト列(文字にするのは pdfToText) */
 	pdf?: Uint8Array;
+	/** xlsx・ods のときだけ中身のバイト列(要約にするのは legs/sheets.ts の sheetToText) */
+	sheet?: { kind: SheetKind; bytes: Uint8Array };
 }
 
 /** PDF は大きいので、文字の上限とは別に持つ */
@@ -156,7 +164,7 @@ export async function safeGet(
 			headers: {
 				"user-agent": "ashi (+https://github.com/danything/ashi)",
 				accept:
-					"text/*, application/json, application/xml, application/pdf, */*;q=0.5",
+					"text/*, application/json, application/xml, application/pdf, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, */*;q=0.5",
 				...headers,
 			},
 			signal: AbortSignal.timeout(cfg.fetch.timeoutMs),
@@ -169,6 +177,20 @@ export async function safeGet(
 			continue;
 		}
 		const type = res.headers.get("content-type") ?? "";
+		// 表計算のファイル(xlsx・ods)はバイト列のまま。上限はここと sheetToText で見る
+		const kind = sheetKind(type, url);
+		if (kind === "xlsx" || kind === "ods") {
+			const bytes = new Uint8Array(await res.arrayBuffer());
+			if (bytes.byteLength > SHEET_MAX_BYTES)
+				return { status: res.status, url, type, body: "" };
+			return {
+				status: res.status,
+				url,
+				type,
+				body: "",
+				sheet: { kind, bytes },
+			};
+		}
 		if (isPdf(type, url)) {
 			const pdf = new Uint8Array(await res.arrayBuffer());
 			if (pdf.byteLength > PDF_MAX_BYTES)
@@ -206,7 +228,7 @@ export function fetchUrlTool(
 	return {
 		name: "fetch_url",
 		description:
-			"公開されている web ページや PDF を GET で読み、本文の文字を返す。POST やフォームの送信はできない。長いページは途中で切れる。",
+			"公開されている web ページや PDF を GET で読み、本文の文字を返す。表計算のファイル(xlsx・ods・csv)は、シートごとに列名・先頭の行・列ごとの件数と平均の要約にして返す。POST やフォームの送信はできない。長いページは途中で切れる。",
 		inputSchema: {
 			type: "object",
 			properties: { url: { type: "string", description: "http(s) の URL" } },
@@ -227,6 +249,11 @@ export function fetchUrlTool(
 			else watch?.ok(r.url.hostname);
 			if (r.pdf)
 				return `${r.status} ${r.url}\n\n${(await pdfToText(r.pdf)).slice(0, cfg.fetch.maxBytes)}`;
+			// 表計算のファイルは、列のある表の要約にする(1 行に詰まった文字列では集計できなかった)
+			if (r.sheet)
+				return `${r.status} ${r.url}\n\n${await sheetToText(r.sheet.kind, r.sheet.bytes)}`;
+			if (r.body && sheetKind(r.type, r.url) === "csv")
+				return `${r.status} ${r.url}\n\n${await sheetToText("csv", r.body)}\n\n## 元の文字(先頭)\n${r.body.slice(0, 4000)}`;
 			if (!r.body) return `(${r.status} ${r.type}: 文字ではないので読まない)`;
 			const text = /html/.test(r.type) ? htmlToText(r.body) : r.body;
 			return `${r.status} ${r.url}\n\n${text}`;

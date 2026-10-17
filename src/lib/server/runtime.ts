@@ -133,7 +133,7 @@ export function startWalking(): void {
 	}
 	process.on("exit", lock.release);
 	const ac = new AbortController();
-	// adapter-node は SIGTERM で受付を閉じ、処理中の要求を待ってから sveltekit:shutdown を出す。
+	// adapter-bun は SIGTERM で受付を閉じ、処理中の要求を待ってから sveltekit:shutdown を出す。
 	// 歩みの休み(タイマー)と頭の CLI が残っているとプロセスが終わらず、Pod が
 	// terminationGracePeriodSeconds(30 秒)いっぱい待って殺される。そのぶんデプロイで画面が落ちていた。
 	// 歩みの途中で止めても、状態ファイルは差し替えで書くので壊れない(その 1 歩が無かったことになるだけ)

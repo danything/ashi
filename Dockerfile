@@ -28,4 +28,4 @@ USER bun
 COPY --from=builder --chown=bun:bun /usr/src/app/package.json ./package.json
 COPY --from=builder --chown=bun:bun /usr/src/app/build ./build
 VOLUME /data
-CMD ["bun", "build/index.js"]
+CMD ["bun", "./build"]

@@ -41,6 +41,23 @@ describe("themeStreak", () => {
 });
 
 describe("selectQuestion", () => {
+	test("2 回書いた問いの系統が 3 歩続けて出ていなければ、さいころを 1 歩譲る", () => {
+		const own = q({ track: "owner", interest: 1 });
+		const kept = q({ track: "self", interest: 0, promised: 2 });
+		const pick = (recent: ("owner" | "self")[]) =>
+			walked(
+				selectQuestion([own, kept], [], cfg, dice(0.1), new Date(), recent),
+			);
+		expect(pick(["owner", "owner", "owner"])).toMatchObject({
+			track: "self",
+			reason: "promised",
+		});
+		expect(pick(["owner", "owner", "owner"]).question.id).toBe(kept.id);
+		// 3 歩のうちに一度でも出ていれば、さいころのまま
+		expect(pick(["owner", "self", "owner"]).question.id).toBe(own.id);
+		expect(pick(["owner", "owner"]).question.id).toBe(own.id);
+	});
+
 	test("系統の中で点の高いものを選ぶ", () => {
 		const hi = q({ interest: 1, importance: 1 });
 		const lo = q({ interest: 0 });

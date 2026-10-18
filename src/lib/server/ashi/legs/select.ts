@@ -126,6 +126,9 @@ export const VERIFY_THEME = "確かめること";
  */
 export const VERIFY_WINDOW_MAX = 3;
 
+/** 2 回書かれた問いの系統がこの歩数続けてさいころで出なければ、1 歩だけ譲る */
+export const PROMISE_WAIT = 3;
+
 /** 問いを探しただけの歩みの印。テーマとしては数えない */
 export const SEEDING = "(問いを探す)";
 
@@ -163,12 +166,36 @@ export function selectQuestion(
 	>,
 	rng: () => number = Math.random,
 	now: Date = new Date(),
+	/** 直近の歩みの系統(新しい順、問い探しも含む) */
+	recentTracks: Track[] = [],
 ): Choice | SeedNeeded {
 	const avoid = restingThemes(recentThemes, cfg);
 	// 先に系統を決める。**その系統が空でも、もう一方には回さない。** 回すと、問いのある系統ばかり
 	// 歩いて割合(ownerShare)が効かず、空の系統はいつまでも育たない(2026-09-25、最初の歩みで先回りの
 	// 問いだけができ、個性がずっと 0 のままになりかけた)
-	const track: Track = rng() < cfg.ownerShare ? "owner" : "self";
+	const dice: Track = rng() < cfg.ownerShare ? "owner" : "self";
+	const other: Track = dice === "owner" ? "self" : "owner";
+	const promisedIn = (t: Track) =>
+		questions
+			.filter(
+				(q) => q.status === "open" && q.track === t && (q.promised ?? 0) >= 2,
+			)
+			.sort((a, b) => (b.promised ?? 0) - (a.promised ?? 0))[0];
+	// 次の一歩に 2 回書いた問いがもう一方の系統にあり、その系統が PROMISE_WAIT 歩続けて出ていなければ、
+	// さいころを 1 歩だけ譲る。系統の中でしか先に回さず、さいころが片側に寄った 5 歩で約束が
+	// 0/6 だった(Ashi の改善案、2026-10-17)。続けて出なかったときだけにして、割合はほぼ崩さない
+	const waited =
+		recentTracks.length >= PROMISE_WAIT &&
+		recentTracks.slice(0, PROMISE_WAIT).every((t) => t !== other);
+	const handover = !promisedIn(dice) && waited ? promisedIn(other) : undefined;
+	if (handover)
+		return {
+			question: handover,
+			score: score(handover),
+			track: other,
+			reason: "promised",
+		};
+	const track = dice;
 	const candidates = questions
 		.filter(
 			(q) =>
@@ -209,11 +236,7 @@ export function selectQuestion(
 		};
 	// 内省の次の一歩に 2 回続けて書かれた問いは、1 回必ず歩く(休ませているテーマでも。歩いたら印は消える)。
 	// 点数のままだと 3 回続けて書いても選ばれなかった(Ashi の改善案、2026-09-26)
-	const promised = questions
-		.filter(
-			(q) => q.status === "open" && q.track === track && (q.promised ?? 0) >= 2,
-		)
-		.sort((a, b) => (b.promised ?? 0) - (a.promised ?? 0))[0];
+	const promised = promisedIn(track);
 	if (promised)
 		return {
 			question: promised,

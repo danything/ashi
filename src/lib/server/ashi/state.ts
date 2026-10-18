@@ -228,6 +228,8 @@ export interface Walk {
 	steps: number;
 	/** 新しいものが先頭 */
 	recentThemes: string[];
+	/** 直近の歩みの系統(新しい順、問い探しも含む)。約束の問いにさいころを譲るかを見る */
+	recentTracks?: Track[];
 	lastReflectStep: number;
 	/** 持ち主の地図を最後に書き直した歩数と、そのとき読んだ材料の数(文章 + 対話) */
 	lastProfileStep: number;

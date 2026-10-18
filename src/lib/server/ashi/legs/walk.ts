@@ -371,7 +371,14 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 		const questions = store.questions();
 		const pick =
 			left > 0
-				? selectQuestion(questions, walk.recentThemes, cfg, rng, now)
+				? selectQuestion(
+						questions,
+						walk.recentThemes,
+						cfg,
+						rng,
+						now,
+						walk.recentTracks ?? [],
+					)
 				: null;
 		const choice = pick && "question" in pick ? pick : null;
 		const resting = restingThemes(walk.recentThemes, cfg);
@@ -420,6 +427,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 				...store.walk(),
 				steps: walk.steps + 1,
 				recentThemes: [SEEDING, ...walk.recentThemes].slice(0, 20),
+				recentTracks: [track, ...(walk.recentTracks ?? [])].slice(0, 20),
 				crawlRequests: crawlIds(output.crawl),
 			});
 			store.log("seeded", { track, added, usd: usage.costUsd });
@@ -575,6 +583,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 				...store.walk(),
 				steps: walk.steps + 1,
 				recentThemes: [q.theme, ...walk.recentThemes].slice(0, 20),
+				recentTracks: [q.track, ...(walk.recentTracks ?? [])].slice(0, 20),
 				crawlRequests: crawlIds(output.crawl),
 			});
 			// 頭が歩いていて弾かれたと知らせてきたもの。画面の「弾かれたこと」には出すが、通知はしない

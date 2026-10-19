@@ -79,6 +79,24 @@ describe("表計算のファイルを読む", () => {
 		expect(out).toContain("## 元の文字(先頭)");
 	});
 
+	test("論文の共有サイトの 403 は弾かれたことに積まず、公開版を探す道に戻す", async () => {
+		const blocked: string[] = [];
+		const out = await fetchUrlTool(
+			cfg,
+			{
+				fetch: (async () =>
+					new Response("no", {
+						status: 403,
+						headers: { "content-type": "text/html" },
+					})) as unknown as typeof fetch,
+				resolve,
+			},
+			{ blocked: (h) => blocked.push(h), ok: () => {} },
+		).run({ url: "https://www.researchgate.net/publication/1" });
+		expect(out).toContain("find_papers");
+		expect(blocked).toEqual([]);
+	});
+
 	test("種類は content-type か拡張子で見分ける", () => {
 		expect(sheetKind(XLSX, new URL("https://x.example/f"))).toBe("xlsx");
 		expect(

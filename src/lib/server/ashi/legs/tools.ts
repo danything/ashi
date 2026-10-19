@@ -214,6 +214,9 @@ export async function safeGet(
 	throw new Error("転送が多すぎる");
 }
 
+/** ロボットを締め出す論文の共有サイト。弾かれても「弾かれたこと」に積まない */
+export const WALLED = /(^|\.)(researchgate\.net|academia\.edu)$/;
+
 /** fetch_url の結果を足に知らせる口(弾かれたら持ち主に知らせ、通ったら片づける) */
 export interface FetchWatch {
 	blocked(host: string, status: number | "private"): void;
@@ -245,6 +248,11 @@ export function fetchUrlTool(
 				if (e instanceof PrivateNetworkError) watch?.blocked("", "private");
 				throw e;
 			}
+			// 論文の共有サイトは、ロボットにはいつも 403 を返し、Wayback にも写しがほとんど無い。持ち主にも
+			// 手の打ちようが無いので「弾かれた」に積まず、公開版を探す道に戻す(2026-10-18 の researchgate が
+			// 片づかないまま残った)
+			if (r.status >= 400 && WALLED.test(r.url.hostname))
+				return `${r.status} ${r.url}\n\n(${r.url.hostname} はロボットに読ませない。論文なら、題か DOI で find_papers を引いて公開版(PMC・リポジトリ・著者版)を read_paper で読む)`;
 			if (r.status >= 400) watch?.blocked(r.url.hostname, r.status);
 			else watch?.ok(r.url.hostname);
 			if (r.pdf)

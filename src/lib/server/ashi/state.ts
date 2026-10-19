@@ -931,7 +931,12 @@ export interface Dialogue {
 	/** 相手に誤りを指摘された・押し返された Ashi の発言(確かめの問いにする) */
 	pushedBack?: string[];
 	/** 相手の言葉を受けて引っ込めた Ashi の主張と、きっかけの相手の主張(両方を確かめの問いにする) */
-	retracted?: { mine: string; because: string }[];
+	/** backing: きっかけの相手の主張に添えられていたもの(出典・確度・なし) */
+	retracted?: {
+		mine: string;
+		because: string;
+		backing?: "出典" | "確度" | "なし";
+	}[];
 	/** Ashi の返事に、自己記述や直前のよそ者との会話と同じ言い回しが出たもの(legs/style.ts の carriedPhrases) */
 	carried?: { reply: number; phrase: string; from: string }[];
 	/** 足が拾った、総称・全称・確度の語を含む Ashi の発言(legs/style.ts の SWEEPING) */

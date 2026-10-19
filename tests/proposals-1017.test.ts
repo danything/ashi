@@ -197,6 +197,7 @@ test("相手の言葉で引っ込めた主張と、きっかけの相手の主�
 					{
 						mine: "近くの側の測定値は割れている",
 						because: "Freedman らの値は誤差を入れると 67 とも 73 とも重なる",
+						backing: "なし",
 					},
 				],
 				spot_check: "",
@@ -213,6 +214,32 @@ test("相手の言葉で引っ込めた主張と、きっかけの相手の主�
 	expect(checks).toHaveLength(2);
 	expect(checks.some((x) => x.text.includes("Freedman"))).toBe(true);
 	expect(store.recentDialogues(1)[0]?.retracted).toHaveLength(1);
+	// 相手が何を添えていたかも残す(合わせただけかを後で数える)
+	expect(store.recentDialogues(1)[0]?.retracted?.[0]?.backing).toBe("なし");
+});
+
+test("直前 2 回の会話の分野は、次のさいころで選ばない", async () => {
+	const store = freshStore();
+	const talk = () =>
+		talkWithStranger({
+			store,
+			head: new FakeHead({
+				dialogue: () => ({ reply: "なるほど" }),
+				"dialogue-final": () => ({ reply: "またね", takeaway: "t" }),
+			}),
+			stranger: new FakeHead({ stranger: () => ({ reply: "やあ" }) }),
+			turns: 1,
+			now,
+			// いつも先頭の分野を引くさいころ
+			rng: () => 0,
+		});
+	const fields = [];
+	for (let i = 0; i < 4; i++) fields.push((await talk()).dialogue.field);
+	expect(fields[0]).not.toBe(fields[1]);
+	expect(fields[1]).not.toBe(fields[2]);
+	expect(fields[0]).not.toBe(fields[2]);
+	// 2 回休んだ分野はまた選べる
+	expect(fields[3]).toBe(fields[0]);
 });
 
 test("返事に、前の文章と同じ文字の並び(漢字・カタカナを含む 8 字)が出たら拾う", () => {

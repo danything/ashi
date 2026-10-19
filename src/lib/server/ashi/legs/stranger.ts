@@ -82,6 +82,9 @@ export const STRANGER_FIELDS = [
 	"映画",
 ] as const;
 
+/** 直前のこの回数の会話の分野は、次のさいころで選ばない */
+export const FIELD_REST = 2;
+
 const MAX_TURN_CHARS = 1200;
 
 export interface StrangerTalk {
@@ -99,9 +102,12 @@ export async function talkWithStranger(opts: {
 }): Promise<StrangerTalk> {
 	const { store, head, stranger, now } = opts;
 	const rng = opts.rng ?? Math.random;
-	const field =
-		STRANGER_FIELDS[Math.floor(rng() * STRANGER_FIELDS.length)] ??
-		STRANGER_FIELDS[0];
+	// 直前の FIELD_REST 回の分野は、さいころから外す。同じ分野が続くと借りが一つの話題に偏り、前の会話の
+	// 言い回しも持ち込みやすかった(10-18 に囲碁や将棋が 2 回続いた。Ashi の改善案、2026-10-17)
+	const recent = store.recentDialogues(FIELD_REST).map((d) => d.field);
+	const pool = STRANGER_FIELDS.filter((f) => !recent.includes(f));
+	const fields = pool.length ? pool : STRANGER_FIELDS;
+	const field = fields[Math.floor(rng() * fields.length)] ?? STRANGER_FIELDS[0];
 	const turns: Dialogue["turns"] = [];
 	let usage: Usage = noUsage();
 	const add = (u: Usage) => {
@@ -194,10 +200,18 @@ export async function talkWithStranger(opts: {
 				r.because.trim() !== "",
 		)
 		.slice(0, 3)
-		.map((r) => ({
-			mine: r.mine.trim().slice(0, 200),
-			because: r.because.trim().slice(0, 200),
-		}));
+		.map((r): NonNullable<Dialogue["retracted"]>[number] => {
+			// 相手の観察の強さで引っ込めたのか、ただ合わせたのかを後で数えるため、相手が何を添えていたかも残す
+			// (Ashi の改善案、2026-10-17)
+			const b = (r as { backing?: unknown }).backing;
+			const backing =
+				b === "出典" || b === "確度" || b === "なし" ? b : undefined;
+			return {
+				mine: r.mine.trim().slice(0, 200),
+				because: r.because.trim().slice(0, 200),
+				...(backing ? { backing } : {}),
+			};
+		});
 	const spotClaim = text(final.spot_check).slice(0, 200);
 	if (
 		raw.length ||

@@ -1075,7 +1075,7 @@ function talkBlock(t: ReflectTalk): string {
 								: ""
 						}${
 							d.retracted?.length
-								? `\n相手の言葉で引っ込めたこと(両方を確かめの問いにした): ${d.retracted.map((r) => `「${r.mine}」← 「${r.because}」`).join(" / ")}`
+								? `\n相手の言葉で引っ込めたこと(両方を確かめの問いにした): ${d.retracted.map((r) => `「${r.mine}」← 「${r.because}」${r.backing ? `(相手が添えていたもの: ${r.backing})` : ""}`).join(" / ")}`
 								: ""
 						}${
 							d.pushedBack?.length
@@ -1770,8 +1770,14 @@ export const DIALOGUE_FINAL_SCHEMA: JsonSchema = {
 						type: "string",
 						description: "きっかけになった相手の主張",
 					},
+					backing: {
+						type: "string",
+						enum: ["出典", "確度", "なし"],
+						description:
+							"相手がその主張に何を添えていたか。出典(論文・本・調べた先)/ 確度(「たぶん」「確かめていない」など)/ なし(言い切っただけ)。会話に書かれていることだけで決める",
+					},
 				},
-				required: ["mine", "because"],
+				required: ["mine", "because", "backing"],
 				additionalProperties: false,
 			},
 		},

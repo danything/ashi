@@ -29,7 +29,7 @@
 		"svelte-check": "^4.7.7",
 		"three": "^0.186.1",
 		"typescript": "~6.0.3",
-		"unpdf": "^1.9.0",
+		"unpdf": "^1.9.1",
 		"vite": "^8.3.4"
 	},
 	"imports": {

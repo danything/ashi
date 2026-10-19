@@ -42,7 +42,6 @@ const badge = (href: string) =>
 {:else}
 	<div class="site">
 		<header class="site-header">
-			<div class="band"></div>
 			<nav class="page-container bar">
 				<a class="logo" href="/"><Logo />Ashi</a>
 				<div class="grow"></div>
@@ -98,25 +97,28 @@ const badge = (href: string) =>
 		min-height: 100vh;
 		flex-direction: column;
 	}
+	/* ヘッダーは地と同じ色で、下の線も色の帯も引かない(持ち主の指摘、2026-10-19) */
 	.site-header {
 		position: sticky;
 		top: 0;
 		z-index: 30;
-		border-bottom: 1px solid var(--ui-base-300);
 		background: var(--ui-header-bg);
-		backdrop-filter: blur(8px);
-	}
-	/* 色の帯はヘッダーの中に(外に置くと帯の分だけ余計にスクロールする) */
-	.band {
-		height: 0.2rem;
-		background: linear-gradient(to right, var(--pico-primary-background), var(--ui-accent), var(--pico-primary-background));
+		backdrop-filter: saturate(1.4) blur(12px);
 	}
 	.bar {
 		display: flex;
 		align-items: center;
 		gap: 0.25rem;
 		min-height: var(--ui-header-h);
-		padding: 0.25rem 1rem;
+		padding: 0.5rem 1.25rem;
+	}
+	.nav-wide :global(a.button.ghost) {
+		border-radius: 999px;
+		color: var(--ui-muted);
+	}
+	.nav-wide :global(a.button.ghost[aria-current="page"]) {
+		background: var(--ui-base-200);
+		color: var(--pico-color);
 	}
 	.logo {
 		display: flex;
@@ -174,6 +176,8 @@ const badge = (href: string) =>
 		align-items: center;
 		justify-content: center;
 		gap: 0.5rem;
+		margin: 0.25rem 1.25rem 0;
+		border-radius: 0.75rem;
 		background: var(--ui-warn-bg);
 		padding: 0.55rem 1rem;
 		color: var(--ui-warn);
@@ -190,6 +194,6 @@ const badge = (href: string) =>
 	}
 	.site-main {
 		flex: 1 1 auto;
-		padding: 0.75rem 1rem var(--main-pad-bottom);
+		padding: 1rem 1.25rem var(--main-pad-bottom);
 	}
 </style>

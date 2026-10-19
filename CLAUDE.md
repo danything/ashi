@@ -126,6 +126,8 @@ bun run build      # 画面と CLI(build/cli.js)
 
 文言は日本語。見出しに括弧で説明を付けない(補足は文に開く)。
 
+地は 1 色(ページ・ヘッダー・カードが同じ `--ui-bg`)で、ヘッダーとの区切りの線も引かない。カードは細い線(`--ui-line`)で分ける。一覧は 1 項目ずつのカードにする(`.panel > .rows` の `li`、一覧だけを包む面は `.panel.list` か `.rows` を直に持つ面で、面そのものは線も地も持たない)。カードや枠の中でスクロールさせない(持ち主の指摘、2026-10-19)。
+
 ## デプロイ
 
 main に入ると `docker-publish.yml` がイメージを焼き、`deploy/deployment.yaml` のタグを差し替える PR を作って自分でマージする。ArgoCD が `deploy/argocd.yaml` を拾って as.doany.io に出す。

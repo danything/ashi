@@ -116,7 +116,7 @@ const EVENTS: Record<string, string> = {
 		</div>
 	</div>
 
-	<!-- 3 つを並べ、枠ごとにスクロールする(足どりが下に長く伸びていた) -->
+	<!-- 3 つを並べる。枠の中ではスクロールせず、1 件ずつのカードにする -->
 	<div class="panes" style="--cols: 3">
 		<section class="pane">
 			<div class="pane-head">
@@ -214,7 +214,11 @@ const EVENTS: Record<string, string> = {
 	.small-value {
 		font-size: 1.1rem;
 	}
+	/* 1 件ずつのカード */
 	.timeline {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
 		margin: 0;
 		padding: 0;
 		list-style: none;
@@ -224,15 +228,17 @@ const EVENTS: Record<string, string> = {
 		display: flex;
 		gap: 0.75rem;
 		align-items: baseline;
-		padding: 0.35rem 0 0.35rem 1rem;
+		border: 1px solid var(--ui-line);
+		border-radius: 0.75rem;
+		padding: 0.6rem 0.9rem 0.6rem 1.75rem;
 		font-size: 0.9rem;
 		list-style: none;
 	}
 	.timeline li::before {
 		content: "";
 		position: absolute;
-		top: 0.85rem;
-		left: 0;
+		top: 1.05rem;
+		left: 0.85rem;
 		width: 0.45rem;
 		height: 0.45rem;
 		border-radius: 999px;

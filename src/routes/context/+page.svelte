@@ -55,7 +55,7 @@ const BRIDGES_SHOWN = 6;
 			{/if}
 		</section>
 
-		<section class="panel">
+		<section class="panel list">
 			<div class="panel-head">
 				<h2>よそ者との対話</h2>
 				<span class="tag">{data.stranger.enabled ? `内省の前に ${data.stranger.model} と ${data.stranger.turns} 往復` : "止めている"}</span>

@@ -141,7 +141,7 @@ let posting = $state(false);
 		<span class="pane-name">会話</span>
 		<span class="count">{data.conversations.length} 件</span>
 	</div>
-	<section class="panel">
+	<section class="panel list">
 		{#if data.conversations.length}
 			<div class="stack tight">
 				{#each data.conversations as c (c.id)}
@@ -188,8 +188,9 @@ let posting = $state(false);
 		display: flex;
 		flex-direction: column;
 		gap: 0.4rem;
-		border-left: 3px solid var(--ui-base-300);
-		padding: 0.25rem 0 0.25rem 0.75rem;
+		border: 1px solid var(--ui-line);
+		border-radius: 0.75rem;
+		padding: 0.75rem 0.9rem;
 	}
 	.unrelated p {
 		margin: 0.25rem 0 0;

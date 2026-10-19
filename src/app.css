@@ -24,12 +24,16 @@
 	--main-pad-bottom: 1.5rem;
 }
 
-/* ---- 色。明るいほう ---- */
+/*
+ * ---- 色。地は 1 色にそろえる(ページ・ヘッダー・カードを同じ地にして、カードは細い線で分ける。
+ * 灰色の地に白いカードと半透明のヘッダーで、色が 3 つあった。持ち主の指摘、2026-10-19) ----
+ */
 :root:not([data-theme="dark"]) {
-	--ui-surface: #fff;
-	--ui-bg: #f6f7f9;
-	--ui-base-200: #eef1f5;
-	--ui-base-300: #dde2ea;
+	--ui-surface: #fcfcfb;
+	--ui-bg: #fcfcfb;
+	--ui-line: #e7e8ea;
+	--ui-base-200: #f0f1f2;
+	--ui-base-300: #d9dce1;
 	--ui-muted: #5d6778;
 	--ui-accent: #5f8f3e;
 	--ui-accent-bg: #edf4e6;
@@ -41,15 +45,17 @@
 	--ui-err-bg: #fbeae9;
 	--ui-info: #1d5fb8;
 	--ui-info-bg: #e7effb;
-	--ui-shadow: 0 1px 2px rgb(20 26 40 / 0.04), 0 2px 8px rgb(20 26 40 / 0.04);
-	--ui-header-bg: rgb(255 255 255 / 0.88);
+	--ui-shadow: 0 1px 2px rgb(20 26 40 / 0.04), 0 4px 16px rgb(20 26 40 / 0.05);
+	--ui-header-bg: rgb(252 252 251 / 0.85);
+	--pico-background-color: var(--ui-bg);
 }
 /* 暗いほう。地を沈めて、札は明暗で持ち替える(固定の色だと暗いほうで沈む) */
 @media (prefers-color-scheme: dark) {
 	:root:not([data-theme="light"]) {
-		--ui-surface: #1a1f28;
-		--ui-bg: #13171e;
-		--ui-base-200: #222834;
+		--ui-surface: #15181d;
+		--ui-bg: #15181d;
+		--ui-line: #262b33;
+		--ui-base-200: #20252d;
 		--ui-base-300: #313949;
 		--ui-muted: #a2abbd;
 		--ui-accent: #9ccc76;
@@ -62,14 +68,16 @@
 		--ui-err-bg: #341a19;
 		--ui-info: #93c5fd;
 		--ui-info-bg: #16233f;
-		--ui-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
-		--ui-header-bg: rgb(19 23 30 / 0.88);
+		--ui-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 16px rgb(0 0 0 / 0.25);
+		--ui-header-bg: rgb(21 24 29 / 0.85);
+		--pico-background-color: var(--ui-bg);
 	}
 }
 [data-theme="dark"] {
-	--ui-surface: #1a1f28;
-	--ui-bg: #13171e;
-	--ui-base-200: #222834;
+	--ui-surface: #15181d;
+	--ui-bg: #15181d;
+	--ui-line: #262b33;
+	--ui-base-200: #20252d;
 	--ui-base-300: #313949;
 	--ui-muted: #a2abbd;
 	--ui-accent: #9ccc76;
@@ -82,8 +90,9 @@
 	--ui-err-bg: #341a19;
 	--ui-info: #93c5fd;
 	--ui-info-bg: #16233f;
-	--ui-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
-	--ui-header-bg: rgb(19 23 30 / 0.88);
+	--ui-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 16px rgb(0 0 0 / 0.25);
+	--ui-header-bg: rgb(21 24 29 / 0.85);
+	--pico-background-color: var(--ui-bg);
 }
 
 html {
@@ -267,15 +276,15 @@ a.button.big {
 }
 
 /*
- * 並べて見比べる枠(ペイン)。広い画面では、ページの高さを画面ぴったりにしてページ自体は動かさず、
- * 枠の中だけをスクロールする(ページと枠の 2 本のスクロールが出ていた。持ち主の指摘、2026-09-25)。
- * 狭い画面では縦に積んで、ページだけがスクロールする。列の数は --cols(既定 2)。
- * 画面のタイトルや説明は置かない(縦を枠に使う)。枠の上に要るのは操作の細い 1 行(.pane-head)だけ
+ * 並べて見比べる枠(ペイン)。広い画面では列に並べ、狭い画面では縦に積む。列の数は --cols(既定 2)。
+ * 枠の中ではスクロールさせず、ページだけがスクロールする(カードの中でスクロールするのをやめた。
+ * 持ち主の指摘、2026-10-19)。枠の上に要るのは操作の細い 1 行(.pane-head)だけ
  */
 .panes {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr);
-	gap: 1rem;
+	gap: 1.75rem;
+	align-items: start;
 }
 .pane {
 	display: flex;
@@ -285,22 +294,7 @@ a.button.big {
 }
 @media (min-width: 1100px) {
 	.panes {
-		flex: 1 1 0;
-		min-height: 0;
 		grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr));
-		grid-template-rows: minmax(0, 1fr);
-	}
-	.panes > .pane {
-		min-height: 0;
-		overflow-y: auto;
-		overscroll-behavior: contain;
-		/* 影が切れないように少し内側に余白 */
-		padding: 0.15rem 0.35rem 0.75rem;
-		scrollbar-width: thin;
-	}
-	/* 面そのものを枠にしたときは、面の余白のまま */
-	.panes > .panel.pane {
-		padding: 1rem 1.1rem;
 	}
 }
 /*
@@ -317,8 +311,9 @@ a.button.big {
 }
 .pane-name {
 	flex: none;
-	font-size: 0.95rem;
+	font-size: 1.05rem;
 	font-weight: 700;
+	letter-spacing: 0.01em;
 }
 .pane-head .count {
 	flex: none;
@@ -343,16 +338,24 @@ a.button.big {
 
 /* ---- 面 ---- */
 .panel {
-	border: 1px solid var(--ui-base-300);
-	border-radius: 1rem;
+	border: 1px solid var(--ui-line);
+	border-radius: 0.9rem;
 	background: var(--ui-surface);
-	box-shadow: var(--ui-shadow);
-	padding: 1rem 1.1rem;
+	padding: 1rem 1.15rem;
+}
+/*
+ * 並べた項目を包む面は、面にしない。中の 1 項目ずつをカードにする(1 枚のカードの中に一覧を
+ * 詰めていた。持ち主の指摘、2026-10-19)
+ */
+.panel.list,
+.panel:has(> :is(.rows, .timeline)) {
+	border: 0;
+	background: none;
+	padding: 0;
 }
 .panel.soft {
 	border-color: transparent;
 	background: var(--ui-base-200);
-	box-shadow: none;
 }
 /* 見出しの付いた面。見出しの行と中身の間に線 */
 .panel > .panel-head {
@@ -389,12 +392,38 @@ a.button.big {
 .rows > li:last-child {
 	padding-bottom: 0;
 }
+/* 面に直に並べた項目は、線で区切らず 1 項目ずつのカードにする */
+.panel > .rows {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+.panel > .rows > li,
+.panel > .rows > li:first-child,
+.panel > .rows > li:last-child {
+	border: 1px solid var(--ui-line);
+	border-radius: 0.75rem;
+	background: var(--ui-surface);
+	padding: 0.7rem 0.9rem;
+	transition:
+		border-color 0.15s,
+		box-shadow 0.15s;
+}
+.panel > .rows > li:hover {
+	border-color: var(--ui-base-300);
+	box-shadow: var(--ui-shadow);
+}
 /* 何も無いとき */
 .empty {
 	padding: 1.25rem 0.5rem;
 	color: var(--ui-muted);
 	font-size: 0.9rem;
 	text-align: center;
+}
+/* 何も無いと言うだけの面は、点線の枠に */
+.panel:has(> .empty:only-child) {
+	border-style: dashed;
+	background: none;
 }
 
 /* ---- 数字の札(いまの画面) ---- */
@@ -574,8 +603,8 @@ thead th {
 
 /* ---- 折りたたみ ---- */
 details.fold {
-	border: 1px solid var(--ui-base-300);
-	border-radius: 1rem;
+	border: 1px solid var(--ui-line);
+	border-radius: 0.9rem;
 	background: var(--ui-surface);
 	padding: 0.75rem 1rem;
 }
@@ -629,27 +658,4 @@ details.fold[open] > summary {
 	overflow: hidden;
 	clip: rect(0 0 0 0);
 	white-space: nowrap;
-}
-
-/*
- * 枠を並べた画面は、広い画面ではページの高さを画面ぴったりにする(スクロールは枠の中だけ)。
- * 並べていない画面(話す・ノート 1 件など)は今までどおりページがスクロールする
- */
-@media (min-width: 1100px) {
-	div.site:has(.panes) {
-		height: 100vh;
-		overflow: hidden;
-	}
-	main.site-main:has(.panes) {
-		display: flex;
-		min-height: 0;
-		flex-direction: column;
-		gap: 0.75rem;
-		overflow: hidden;
-		padding-block: 0.75rem;
-	}
-	main.site-main:has(.panes) > .stack:has(.panes) {
-		flex: 1 1 0;
-		min-height: 0;
-	}
 }

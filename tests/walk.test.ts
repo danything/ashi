@@ -294,7 +294,7 @@ describe("chat", () => {
 		expect(store.budget(localDay(now)).spentUsd).toBeCloseTo(0.01);
 	});
 
-	test("予算が無ければ断る", async () => {
+	test("1 日の予算を使い切っていても話せる(1 通の上限は 1 歩と同じ)", async () => {
 		const store = freshStore();
 		store.saveBudget({
 			day: localDay(now),
@@ -302,11 +302,17 @@ describe("chat", () => {
 			inputTokens: 0,
 			outputTokens: 0,
 		});
-		const head = new FakeHead({});
+		const head = new FakeHead({ chat: () => ({ reply: "いるよ。" }) });
+		const r = await chat({ store, head, tools: [], now: at }, "p", [], "やあ");
+		expect(r.reply).toBe("いるよ。");
+		expect(head.calls[0]?.maxCostUsd).toBe(store.config().budget.stepUsd);
+	});
+
+	test("空の発言は断る", async () => {
+		const store = freshStore();
 		await expect(
-			chat({ store, head, tools: [], now: at }, "p", [], "やあ"),
+			chat({ store, head: new FakeHead({}), tools: [], now: at }, "p", [], " "),
 		).rejects.toBeInstanceOf(ChatRefused);
-		expect(head.calls).toHaveLength(0);
 	});
 });
 

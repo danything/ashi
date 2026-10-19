@@ -27,7 +27,6 @@ import {
 	acceptNewQuestions,
 	acceptProposals,
 	addStances,
-	allowance,
 	claimQuestions,
 	markedClaims,
 	mergeClaims,
@@ -45,7 +44,7 @@ import { crawlIds } from "./walk.ts";
 /**
  * 持ち主との対話。何を学んだかを聞く、調べ物を頼む。
  * 持ち主の発言は chat.jsonl に残り、持ち主の地図の材料になる(walk.ts の profile)。
- * 予算は歩みと同じ財布から出す。
+ * 予算は歩みと同じ財布から出すが、1 日の上限に達していても話せる(1 通の上限は stepUsd)。
  */
 
 export class ChatRefused extends Error {}
@@ -89,11 +88,9 @@ export async function chat(
 	const cfg = store.config();
 	const text = message.trim().slice(0, MAX_CHARS);
 	if (!text) throw new ChatRefused("何か書いてください");
-	const left = allowance(store.budget(today), cfg);
-	if (left <= 0)
-		throw new ChatRefused(
-			"今日の予算を使い切りました。明日また話しかけてください",
-		);
+	// 持ち主と話すのは、1 日の予算を使い切っていても止めない(持ち主の希望、2026-10-19)。1 通にかける
+	// 上限だけは 1 歩と同じにする。使った分は同じ財布に積むので、その日の歩みはそのぶん早く止まる
+	const left = cfg.budget.stepUsd;
 
 	const turns = history
 		.slice(-MAX_TURNS)

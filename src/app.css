@@ -547,6 +547,14 @@ a.button.big {
 }
 
 /* ---- 入力 ---- */
+/*
+ * 入力欄のすぐ後の補足(small)。Pico は入力欄の下の余白を前提に負の上マージンで引き上げるが、
+ * ここでは入力欄の下の余白を外しているので、補足が欄に食い込んでいた(2026-10-19)
+ */
+:is(input, select, textarea, fieldset, .grid) + small {
+	margin-top: 0.5rem;
+	margin-bottom: 0;
+}
 .field {
 	display: flex;
 	flex-direction: column;

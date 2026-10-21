@@ -6,7 +6,7 @@ on:
     # Merging the bot's own image-bump PR only touches deploy/, so ignoring it
     # here stops the build -> bump PR -> merge -> build loop.
     paths-ignore:
-      - 'deploy/**'
+      - "deploy/**"
   workflow_dispatch:
 
 # Merging several PRs at once used to start a run per merge, and they all raced

@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+
 import { chat } from "../src/lib/server/ashi/legs/chat.ts";
 import { blankNote, noteFindings } from "../src/lib/server/ashi/legs/guard.ts";
 import { selectQuestion } from "../src/lib/server/ashi/legs/select.ts";

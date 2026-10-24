@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
+
 import { normalizeConfig } from "../src/lib/server/ashi/config.ts";
 import {
   latestBaseline,
@@ -22,8 +23,8 @@ import {
 } from "../src/lib/server/ashi/legs/guard.ts";
 import { selectQuestion } from "../src/lib/server/ashi/legs/select.ts";
 import {
-  STRANGER_FIELDS,
   spotSentence,
+  STRANGER_FIELDS,
   talkWithStranger,
 } from "../src/lib/server/ashi/legs/stranger.ts";
 import { step } from "../src/lib/server/ashi/legs/walk.ts";

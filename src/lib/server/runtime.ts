@@ -1,4 +1,5 @@
 import { resolve } from "node:path";
+
 import type { Config } from "./ashi/config.ts";
 import { stopAllClaudeCode } from "./ashi/head/claude-code.ts";
 import type { Head, ThinkRequest, Tool } from "./ashi/head/head.ts";
@@ -14,13 +15,13 @@ import { refreshNews } from "./ashi/legs/news.ts";
 import { paperTools } from "./ashi/legs/papers.ts";
 import { fetchUrlTool, noteTools } from "./ashi/legs/tools.ts";
 import { Walker } from "./ashi/legs/walk.ts";
-import { XError } from "./ashi/legs/x.ts";
 import { CLEANUP_EVERY_MS, runCleanup } from "./ashi/legs/x-cleanup.ts";
 import {
   acceptStreamEvent,
   ensureSubscriptions,
   readStream,
 } from "./ashi/legs/x-stream.ts";
+import { XError } from "./ashi/legs/x.ts";
 import { Store } from "./ashi/state.ts";
 
 /**

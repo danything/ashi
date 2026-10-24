@@ -1,4 +1,5 @@
 import { error, redirect } from "@sveltejs/kit";
+
 import {
   authConfigured,
   LOGIN_COOKIE,
@@ -6,6 +7,7 @@ import {
   seal,
   startLogin,
 } from "#lib/server/auth.ts";
+
 import type { RequestHandler } from "./$types";
 
 export const GET: RequestHandler = ({ url, cookies }) => {

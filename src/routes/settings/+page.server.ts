@@ -1,4 +1,5 @@
 import { fail } from "@sveltejs/kit";
+
 import {
   applySettingsForm,
   FEED_KINDS,
@@ -14,6 +15,7 @@ import {
 } from "#lib/server/ashi/legs/style.ts";
 import { localDay } from "#lib/server/ashi/state.ts";
 import { saveConfig, store } from "#lib/server/runtime.ts";
+
 import type { Actions, PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = () => {

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
+
 import type { Tool } from "../src/lib/server/ashi/head/head.ts";
-import { ChatRefused, chat } from "../src/lib/server/ashi/legs/chat.ts";
+import { chat, ChatRefused } from "../src/lib/server/ashi/legs/chat.ts";
 import { step } from "../src/lib/server/ashi/legs/walk.ts";
 import { localDay, newId } from "../src/lib/server/ashi/state.ts";
 import { explore, FakeHead, freshStore, q } from "./helpers.ts";

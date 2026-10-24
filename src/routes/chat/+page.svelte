@@ -1,9 +1,10 @@
 <script lang="ts">
+  import { afterNavigate, refreshAll } from "$app/navigation";
   import { tick, untrack } from "svelte";
+
   import Icon from "#lib/components/Icon.svelte";
   import Logo from "#lib/components/Logo.svelte";
   import { when } from "#lib/format.ts";
-  import { afterNavigate, refreshAll } from "$app/navigation";
 
   let { data } = $props();
 

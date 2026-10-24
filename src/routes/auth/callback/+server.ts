@@ -1,4 +1,5 @@
 import { error, redirect } from "@sveltejs/kit";
+
 import {
   AuthError,
   finishLogin,
@@ -8,6 +9,7 @@ import {
   sessionToken,
   unseal,
 } from "#lib/server/auth.ts";
+
 import type { RequestHandler } from "./$types";
 
 export const GET: RequestHandler = async ({ url, cookies }) => {

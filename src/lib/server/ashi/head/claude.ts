@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+
 import {
   addUsage,
   type Blockage,
@@ -6,9 +7,9 @@ import {
   HeadAccessError,
   HeadError,
   noUsage,
+  taskUsage,
   type ThinkRequest,
   type ThinkResult,
-  taskUsage,
   type Usage,
 } from "./head.ts";
 

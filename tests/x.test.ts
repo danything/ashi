@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+
 import { step } from "../src/lib/server/ashi/legs/walk.ts";
 import {
   canPost,

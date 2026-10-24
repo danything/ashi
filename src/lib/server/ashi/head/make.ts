@@ -1,8 +1,9 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
+
 import type { Config } from "../config.ts";
-import { ClaudeHead } from "./claude.ts";
 import { ClaudeCodeHead } from "./claude-code.ts";
+import { ClaudeHead } from "./claude.ts";
 import type { Head } from "./head.ts";
 
 /**

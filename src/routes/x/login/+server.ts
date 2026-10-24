@@ -1,6 +1,8 @@
 import { error, redirect } from "@sveltejs/kit";
+
 import { xAuthorizeUrl, xConfigured } from "#lib/server/ashi/legs/x.ts";
 import { seal } from "#lib/server/auth.ts";
+
 import type { RequestHandler } from "./$types";
 
 /** Ashi の X アカウント(bot)をつなぐ。持ち主がログインした状態で、X には bot のアカウントで入る */

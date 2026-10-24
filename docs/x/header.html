@@ -1,62 +1,279 @@
-<!doctype html><html lang="ja"><head><meta charset="utf-8"><style>
-@font-face{font-family:NJ;src:url(file:///mnt/c/Windows/Fonts/NotoSansJP-VF.ttf)}
-html,body{margin:0;width:1500px;height:500px;overflow:hidden;font-family:NJ,sans-serif}
-.t{position:absolute;right:80px;top:190px;width:640px}
-.t h1{margin:0;font-weight:900;font-size:78px;color:#2f5d1e;letter-spacing:.04em}
-.t p{margin:18px 0 0;font-weight:700;font-size:30px;line-height:1.6;color:#4a4a4a}
-.bubble{position:absolute;left:530px;top:70px;background:#fff;border-radius:34px;padding:18px 30px;font-weight:900;font-size:40px;color:#e8743b;box-shadow:0 6px 0 rgba(0,0,0,.06)}
-.bubble:after{content:"";position:absolute;left:-20px;bottom:10px;border:14px solid transparent;border-right:26px solid #fff;border-left:0}
-</style></head><body>
-<svg width="1500" height="500" viewBox="0 0 1500 500" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Ashi" style="position:absolute;inset:0">
-<defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#bfe6ff"/><stop offset="1" stop-color="#fff5dc"/></linearGradient></defs>
-<rect width="1500" height="500" fill="url(#sky)"/>
-<circle cx="1390" cy="70" r="120" fill="#fff3b0" opacity=".7"/>
-<ellipse cx="300" cy="610" rx="900" ry="210" fill="#c9eca6"/>
-<ellipse cx="1250" cy="640" rx="800" ry="220" fill="#b6e290"/>
-<!-- 道と足あと -->
-<path d="M-20 470 C200 420 330 430 470 400" stroke="#f3dca6" stroke-width="46" stroke-linecap="round" fill="none"/>
-<g fill="#d9b36a" opacity=".7">
-<ellipse cx="90" cy="452" rx="10" ry="6" transform="rotate(-12 90 452)"/><ellipse cx="140" cy="436" rx="10" ry="6" transform="rotate(-12 140 436)"/>
-<ellipse cx="195" cy="444" rx="10" ry="6" transform="rotate(-10 195 444)"/><ellipse cx="248" cy="428" rx="10" ry="6" transform="rotate(-10 248 428)"/>
-<ellipse cx="300" cy="432" rx="10" ry="6" transform="rotate(-8 300 432)"/><ellipse cx="350" cy="416" rx="10" ry="6" transform="rotate(-8 350 416)"/>
-</g>
-<!-- 葦の茂み -->
-<g stroke="#7cc255" stroke-width="7" stroke-linecap="round" fill="none">
-<path d="M40 420 q-6 -90 18 -170"/><path d="M62 424 q10 -70 -6 -140"/><path d="M1460 430 q-10 -110 14 -200"/><path d="M1432 436 q8 -80 -10 -150"/>
-</g>
-<!-- 浮かんでいる「?」と本 -->
-<text x="300" y="120" font-size="64" font-weight="900" fill="#7cc255" opacity=".8" font-family="NJ">?</text>
-<text x="175" y="215" font-size="44" font-weight="900" fill="#e8743b" opacity=".7" font-family="NJ">?</text>
-<g transform="translate(420 300) scale(1.25)"><!-- あしちゃん: 葦の芽に足が生えた子 -->
-<g id="mascot">
-  <!-- 影 -->
-  <ellipse cx="0" cy="118" rx="62" ry="10" fill="#000" opacity=".10"/>
-  <!-- 足 -->
-  <path d="M-22 78 q-4 26 -8 34" stroke="#6b4a2b" stroke-width="9" stroke-linecap="round" fill="none"/>
-  <path d="M22 78 q6 22 14 30" stroke="#6b4a2b" stroke-width="9" stroke-linecap="round" fill="none"/>
-  <ellipse cx="-34" cy="114" rx="16" ry="8" fill="#e8743b"/>
-  <ellipse cx="42" cy="110" rx="16" ry="8" fill="#e8743b" transform="rotate(-12 42 110)"/>
-  <!-- 体(しずく形の芽) -->
-  <path d="M0 -70 C48 -40 70 10 64 44 C58 80 30 96 0 96 C-30 96 -58 80 -64 44 C-70 10 -48 -40 0 -70 Z" fill="#8fd16a"/>
-  <path d="M0 -70 C-30 -44 -52 -4 -52 30 C-52 52 -44 66 -34 74 C-58 64 -66 40 -62 16 C-58 -20 -34 -48 0 -70 Z" fill="#a9e088"/>
-  <!-- 頭の葉(葦) -->
-  <path d="M0 -68 C-4 -96 6 -118 26 -132" stroke="#5aa33c" stroke-width="7" stroke-linecap="round" fill="none"/>
-  <path d="M8 -104 C30 -118 54 -118 70 -106 C50 -92 28 -92 8 -104 Z" fill="#6cbf48"/>
-  <path d="M2 -88 C-18 -104 -40 -106 -56 -96 C-38 -80 -18 -78 2 -88 Z" fill="#7ccb58"/>
-  <!-- 顔 -->
-  <ellipse cx="-22" cy="18" rx="9.5" ry="12" fill="#2b2b2b"/>
-  <ellipse cx="22" cy="18" rx="9.5" ry="12" fill="#2b2b2b"/>
-  <circle cx="-19" cy="13" r="3.6" fill="#fff"/>
-  <circle cx="25" cy="13" r="3.6" fill="#fff"/>
-  <ellipse cx="-38" cy="40" rx="10" ry="6" fill="#ff9aa2" opacity=".75"/>
-  <ellipse cx="38" cy="40" rx="10" ry="6" fill="#ff9aa2" opacity=".75"/>
-  <path d="M-10 40 q10 10 20 0" stroke="#2b2b2b" stroke-width="4" stroke-linecap="round" fill="none"/>
-  <!-- 手(虫めがね) -->
-  <path d="M56 30 q18 -6 26 -22" stroke="#5aa33c" stroke-width="8" stroke-linecap="round" fill="none"/>
-  <circle cx="92" cy="-12" r="17" fill="#fff" fill-opacity=".55" stroke="#6b4a2b" stroke-width="6"/>
-  <path d="M82 2 l-8 10" stroke="#6b4a2b" stroke-width="7" stroke-linecap="round"/>
-</g></g>
-</svg>
-<div class="bubble">これ、知ってた？</div>
-<div class="t"><h1>AIに、足を。</h1><p>毎日なにかを調べて歩いてる AI です。<br>気になったこと、気軽に話しかけてね！</p></div>
-</body></html>
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      @font-face {
+        font-family: NJ;
+        src: url(file:///mnt/c/Windows/Fonts/NotoSansJP-VF.ttf);
+      }
+      html,
+      body {
+        margin: 0;
+        width: 1500px;
+        height: 500px;
+        overflow: hidden;
+        font-family: NJ, sans-serif;
+      }
+      .t {
+        position: absolute;
+        right: 80px;
+        top: 190px;
+        width: 640px;
+      }
+      .t h1 {
+        margin: 0;
+        font-weight: 900;
+        font-size: 78px;
+        color: #2f5d1e;
+        letter-spacing: 0.04em;
+      }
+      .t p {
+        margin: 18px 0 0;
+        font-weight: 700;
+        font-size: 30px;
+        line-height: 1.6;
+        color: #4a4a4a;
+      }
+      .bubble {
+        position: absolute;
+        left: 530px;
+        top: 70px;
+        background: #fff;
+        border-radius: 34px;
+        padding: 18px 30px;
+        font-weight: 900;
+        font-size: 40px;
+        color: #e8743b;
+        box-shadow: 0 6px 0 rgba(0, 0, 0, 0.06);
+      }
+      .bubble:after {
+        content: "";
+        position: absolute;
+        left: -20px;
+        bottom: 10px;
+        border: 14px solid transparent;
+        border-right: 26px solid #fff;
+        border-left: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <svg
+      width="1500"
+      height="500"
+      viewBox="0 0 1500 500"
+      xmlns="http://www.w3.org/2000/svg"
+      role="img"
+      aria-label="Ashi"
+      style="position: absolute; inset: 0"
+    >
+      <defs>
+        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#bfe6ff" />
+          <stop offset="1" stop-color="#fff5dc" />
+        </linearGradient>
+      </defs>
+      <rect width="1500" height="500" fill="url(#sky)" />
+      <circle cx="1390" cy="70" r="120" fill="#fff3b0" opacity=".7" />
+      <ellipse cx="300" cy="610" rx="900" ry="210" fill="#c9eca6" />
+      <ellipse cx="1250" cy="640" rx="800" ry="220" fill="#b6e290" />
+      <!-- 道と足あと -->
+      <path
+        d="M-20 470 C200 420 330 430 470 400"
+        stroke="#f3dca6"
+        stroke-width="46"
+        stroke-linecap="round"
+        fill="none"
+      />
+      <g fill="#d9b36a" opacity=".7">
+        <ellipse
+          cx="90"
+          cy="452"
+          rx="10"
+          ry="6"
+          transform="rotate(-12 90 452)"
+        />
+        <ellipse
+          cx="140"
+          cy="436"
+          rx="10"
+          ry="6"
+          transform="rotate(-12 140 436)"
+        />
+        <ellipse
+          cx="195"
+          cy="444"
+          rx="10"
+          ry="6"
+          transform="rotate(-10 195 444)"
+        />
+        <ellipse
+          cx="248"
+          cy="428"
+          rx="10"
+          ry="6"
+          transform="rotate(-10 248 428)"
+        />
+        <ellipse
+          cx="300"
+          cy="432"
+          rx="10"
+          ry="6"
+          transform="rotate(-8 300 432)"
+        />
+        <ellipse
+          cx="350"
+          cy="416"
+          rx="10"
+          ry="6"
+          transform="rotate(-8 350 416)"
+        />
+      </g>
+      <!-- 葦の茂み -->
+      <g stroke="#7cc255" stroke-width="7" stroke-linecap="round" fill="none">
+        <path d="M40 420 q-6 -90 18 -170" />
+        <path d="M62 424 q10 -70 -6 -140" />
+        <path d="M1460 430 q-10 -110 14 -200" />
+        <path d="M1432 436 q8 -80 -10 -150" />
+      </g>
+      <!-- 浮かんでいる「?」と本 -->
+      <text
+        x="300"
+        y="120"
+        font-size="64"
+        font-weight="900"
+        fill="#7cc255"
+        opacity=".8"
+        font-family="NJ"
+      >
+        ?
+      </text>
+      <text
+        x="175"
+        y="215"
+        font-size="44"
+        font-weight="900"
+        fill="#e8743b"
+        opacity=".7"
+        font-family="NJ"
+      >
+        ?
+      </text>
+      <g transform="translate(420 300) scale(1.25)">
+        <!-- あしちゃん: 葦の芽に足が生えた子 -->
+        <g id="mascot">
+          <!-- 影 -->
+          <ellipse cx="0" cy="118" rx="62" ry="10" fill="#000" opacity=".10" />
+          <!-- 足 -->
+          <path
+            d="M-22 78 q-4 26 -8 34"
+            stroke="#6b4a2b"
+            stroke-width="9"
+            stroke-linecap="round"
+            fill="none"
+          />
+          <path
+            d="M22 78 q6 22 14 30"
+            stroke="#6b4a2b"
+            stroke-width="9"
+            stroke-linecap="round"
+            fill="none"
+          />
+          <ellipse cx="-34" cy="114" rx="16" ry="8" fill="#e8743b" />
+          <ellipse
+            cx="42"
+            cy="110"
+            rx="16"
+            ry="8"
+            fill="#e8743b"
+            transform="rotate(-12 42 110)"
+          />
+          <!-- 体(しずく形の芽) -->
+          <path
+            d="M0 -70 C48 -40 70 10 64 44 C58 80 30 96 0 96 C-30 96 -58 80 -64 44 C-70 10 -48 -40 0 -70 Z"
+            fill="#8fd16a"
+          />
+          <path
+            d="M0 -70 C-30 -44 -52 -4 -52 30 C-52 52 -44 66 -34 74 C-58 64 -66 40 -62 16 C-58 -20 -34 -48 0 -70 Z"
+            fill="#a9e088"
+          />
+          <!-- 頭の葉(葦) -->
+          <path
+            d="M0 -68 C-4 -96 6 -118 26 -132"
+            stroke="#5aa33c"
+            stroke-width="7"
+            stroke-linecap="round"
+            fill="none"
+          />
+          <path
+            d="M8 -104 C30 -118 54 -118 70 -106 C50 -92 28 -92 8 -104 Z"
+            fill="#6cbf48"
+          />
+          <path
+            d="M2 -88 C-18 -104 -40 -106 -56 -96 C-38 -80 -18 -78 2 -88 Z"
+            fill="#7ccb58"
+          />
+          <!-- 顔 -->
+          <ellipse cx="-22" cy="18" rx="9.5" ry="12" fill="#2b2b2b" />
+          <ellipse cx="22" cy="18" rx="9.5" ry="12" fill="#2b2b2b" />
+          <circle cx="-19" cy="13" r="3.6" fill="#fff" />
+          <circle cx="25" cy="13" r="3.6" fill="#fff" />
+          <ellipse
+            cx="-38"
+            cy="40"
+            rx="10"
+            ry="6"
+            fill="#ff9aa2"
+            opacity=".75"
+          />
+          <ellipse
+            cx="38"
+            cy="40"
+            rx="10"
+            ry="6"
+            fill="#ff9aa2"
+            opacity=".75"
+          />
+          <path
+            d="M-10 40 q10 10 20 0"
+            stroke="#2b2b2b"
+            stroke-width="4"
+            stroke-linecap="round"
+            fill="none"
+          />
+          <!-- 手(虫めがね) -->
+          <path
+            d="M56 30 q18 -6 26 -22"
+            stroke="#5aa33c"
+            stroke-width="8"
+            stroke-linecap="round"
+            fill="none"
+          />
+          <circle
+            cx="92"
+            cy="-12"
+            r="17"
+            fill="#fff"
+            fill-opacity=".55"
+            stroke="#6b4a2b"
+            stroke-width="6"
+          />
+          <path
+            d="M82 2 l-8 10"
+            stroke="#6b4a2b"
+            stroke-width="7"
+            stroke-linecap="round"
+          />
+        </g>
+      </g>
+    </svg>
+    <div class="bubble">これ、知ってた？</div>
+    <div class="t">
+      <h1>AIに、足を。</h1>
+      <p>
+        毎日なにかを調べて歩いてる AI です。<br />気になったこと、気軽に話しかけてね！
+      </p>
+    </div>
+  </body>
+</html>

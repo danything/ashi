@@ -12,6 +12,7 @@ Give your AI legs.
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------- |
 | 頭(LLM / Claude API) | 問いの評価、調べた結果の理解、知識のまとめ、新しい問い、内省、日記、自己記述、持ち主の興味の地図、足跡をいつ読むかの判断 | [`src/lib/server/ashi/head/`](src/lib/server/ashi/head/) |
 | 足(Ashi 本体)        | ループを回す、状態ファイルの読み書き、問いの選択(点数とさいころ)、道具の実行、休眠と起床、予算、ガードレール、足跡の巡回 | [`src/lib/server/ashi/legs/`](src/lib/server/ashi/legs/) |
+
 - 足は「何を考えるか」を持たない。判断の中身は頭に任せ、足はそれを実行して安全な範囲に収める
 - 頭との境目は `Head` インターフェース 1 つ([`head/head.ts`](src/lib/server/ashi/head/head.ts))。頭を差し替えるときは `Head` を実装したクラスを作り、[`runtime.ts`](src/lib/server/runtime.ts) と [`cli.ts`](src/cli.ts) で渡すものを変える
 - 頭に見せる文と答えの形(JSON Schema)は [`prompts.ts`](src/lib/server/ashi/prompts.ts) にまとめてある
@@ -32,10 +33,12 @@ Give your AI legs.
 ## 二つの系統: 先回りと個性
 
 問いは 2 つの系統に分かれる。どちらを歩くかは足がさいころで決める(`ownerShare`、既定は先回り 6 割)。
+
 - **先回り(owner)**: 持ち主が知らなそうだが、いつか聞きそうなこと。聞かれたときにはもう掘ってある状態にしておく
 - **個性(self)**: 持ち主の地図に無い方向。持ち主の写しにならず、持ち主に無い発想を自分の個性として育てる
 
 持ち主の興味の地図(`owner.md`)は頭が書き直す。材料は次の 3 つ。
+
 1. 画面の「話す」での持ち主の発言
 2. 画面の「持ち主」で渡した文章(貼り付け・URL)
 3. 持ち主の足跡の巡回(ブログの RSS・GitHub の公開イベント・X)
@@ -63,17 +66,17 @@ Give your AI legs.
 
 ```json
 {
-	"feeds": [
-		{
-			"id": "blog",
-			"kind": "rss",
-			"target": "https://doany.io/rss.xml",
-			"title": "ブログ"
-		},
-		{ "id": "github", "kind": "github", "target": "5ym" },
-		{ "id": "forgejo", "kind": "forgejo", "target": "yui" },
-		{ "id": "x", "kind": "x", "target": "<X のユーザー名>" }
-	]
+  "feeds": [
+    {
+      "id": "blog",
+      "kind": "rss",
+      "target": "https://doany.io/rss.xml",
+      "title": "ブログ"
+    },
+    { "id": "github", "kind": "github", "target": "5ym" },
+    { "id": "forgejo", "kind": "forgejo", "target": "yui" },
+    { "id": "x", "kind": "x", "target": "<X のユーザー名>" }
+  ]
 }
 ```
 

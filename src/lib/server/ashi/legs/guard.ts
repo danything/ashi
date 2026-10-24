@@ -1,11 +1,11 @@
 import type { Config } from "../config.ts";
 import {
-	type Budget,
-	type Note,
-	newId,
-	type Proposal,
-	type Question,
-	type Store,
+  type Budget,
+  type Note,
+  newId,
+  type Proposal,
+  type Question,
+  type Store,
 } from "../state.ts";
 import { byRank, score, VERIFY_THEME } from "./select.ts";
 
@@ -16,61 +16,61 @@ import { byRank, score, VERIFY_THEME } from "./select.ts";
 
 /** 頭の数値の見立てを 0〜1 に。数でなければ真ん中 */
 export const unit = (v: unknown): number =>
-	typeof v === "number" && Number.isFinite(v)
-		? Math.min(1, Math.max(0, v))
-		: 0.5;
+  typeof v === "number" && Number.isFinite(v)
+    ? Math.min(1, Math.max(0, v))
+    : 0.5;
 
 /** 休む時間(分)を設定の範囲に丸める。頭が何も言わなければ下限 */
 export function clampSleep(
-	minutes: unknown,
-	cfg: Pick<Config, "sleep">,
+  minutes: unknown,
+  cfg: Pick<Config, "sleep">,
 ): number {
-	const m =
-		typeof minutes === "number" && Number.isFinite(minutes)
-			? minutes
-			: cfg.sleep.minMinutes;
-	return Math.min(
-		cfg.sleep.maxMinutes,
-		Math.max(cfg.sleep.minMinutes, Math.round(m)),
-	);
+  const m =
+    typeof minutes === "number" && Number.isFinite(minutes)
+      ? minutes
+      : cfg.sleep.minMinutes;
+  return Math.min(
+    cfg.sleep.maxMinutes,
+    Math.max(cfg.sleep.minMinutes, Math.round(m)),
+  );
 }
 
 /** テーマは短い名前に揃える(表記ゆれで連続の制限をすり抜けないよう、空白と大文字小文字を畳む) */
 export function normalizeTheme(t: unknown): string {
-	const s =
-		typeof t === "string"
-			? t.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase()
-			: "";
-	return s.slice(0, 40) || "その他";
+  const s =
+    typeof t === "string"
+      ? t.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase()
+      : "";
+  return s.slice(0, 40) || "その他";
 }
 
 const normalizeText = (t: string) =>
-	t.normalize("NFKC").replace(/\s+/g, "").toLowerCase();
+  t.normalize("NFKC").replace(/\s+/g, "").toLowerCase();
 
 export interface RawQuestion {
-	text?: unknown;
-	theme?: unknown;
-	interest?: unknown;
-	importance?: unknown;
-	feasibility?: unknown;
-	track?: unknown;
+  text?: unknown;
+  theme?: unknown;
+  interest?: unknown;
+  importance?: unknown;
+  feasibility?: unknown;
+  track?: unknown;
 }
 
 /** 日本語の短い文の近さ。文字 bigram の Jaccard 係数(記号と空白は除く) */
 export function bigrams(text: string): Set<string> {
-	const t = text
-		.normalize("NFKC")
-		.replace(/[\s\p{P}\p{S}]/gu, "")
-		.toLowerCase();
-	const out = new Set<string>();
-	for (let i = 0; i < t.length - 1; i++) out.add(t.slice(i, i + 2));
-	return out;
+  const t = text
+    .normalize("NFKC")
+    .replace(/[\s\p{P}\p{S}]/gu, "")
+    .toLowerCase();
+  const out = new Set<string>();
+  for (let i = 0; i < t.length - 1; i++) out.add(t.slice(i, i + 2));
+  return out;
 }
 
 export function jaccard(a: Set<string>, b: Set<string>): number {
-	let n = 0;
-	for (const x of a) if (b.has(x)) n++;
-	return n / (a.size + b.size - n || 1);
+  let n = 0;
+  for (const x of a) if (b.has(x)) n++;
+  return n / (a.size + b.size - n || 1);
 }
 
 /**
@@ -82,8 +82,8 @@ export const NEAR_DUPLICATE = 0.45;
 export const SIMILAR = 0.25;
 
 export interface QuestionFrom {
-	source: NonNullable<Question["source"]>;
-	via?: string;
+  source: NonNullable<Question["source"]>;
+  via?: string;
 }
 
 /**
@@ -96,125 +96,125 @@ export interface QuestionFrom {
  *   近い(SIMILAR 以上の)開いた問いがあれば、そのテーマの問いとして数えて名前も揃える(新しい名前で上限を抜けていた)
  */
 export function acceptNewQuestions(
-	raw: RawQuestion[] | undefined,
-	existing: Question[],
-	cfg: Pick<Config, "maxNewQuestions"> &
-		Partial<Pick<Config, "maxOpenPerTheme">>,
-	parentId: string | undefined,
-	now: Date,
-	from?: QuestionFrom,
+  raw: RawQuestion[] | undefined,
+  existing: Question[],
+  cfg: Pick<Config, "maxNewQuestions"> &
+    Partial<Pick<Config, "maxOpenPerTheme">>,
+  parentId: string | undefined,
+  now: Date,
+  from?: QuestionFrom,
 ): Question[] {
-	const seen = new Set(existing.map((q) => normalizeText(q.text)));
-	const byId = new Map(existing.map((q) => [q.id, q]));
-	const open = existing.filter((q) => q.status === "open");
-	const grams = open.map((q) => ({ q, g: bigrams(q.text) }));
-	const closed = existing
-		.filter(
-			(q) =>
-				q.status === "answered" ||
-				q.status === "parked" ||
-				(q.status === "dropped" && q.mergedInto),
-		)
-		.map((q) => ({ q, g: bigrams(q.text) }));
-	const perTheme = new Map<string, number>();
-	for (const q of open) perTheme.set(q.theme, (perTheme.get(q.theme) ?? 0) + 1);
-	const out: Question[] = [];
-	for (const r of raw ?? []) {
-		if (out.length >= cfg.maxNewQuestions) break;
-		if (typeof r?.text !== "string") continue;
-		const text = r.text.trim().slice(0, 300);
-		const key = normalizeText(text);
-		if (!key || seen.has(key)) continue;
-		const g = bigrams(text);
-		const twin =
-			grams.find((x) => jaccard(g, x.g) >= NEAR_DUPLICATE) ??
-			closed.find((x) => jaccard(g, x.g) >= NEAR_DUPLICATE);
-		if (twin) {
-			// 同じ問いがまた出た。受け取らず、数だけ足す。統合で手放した問いなら統合先に
-			const into = mergedTarget(twin.q, byId);
-			into.echoes = (into.echoes ?? 0) + 1;
-			continue;
-		}
-		let theme = normalizeTheme(r.theme);
-		if (!perTheme.has(theme)) {
-			const near = grams
-				.map((x) => ({ x, v: jaccard(g, x.g) }))
-				.filter((o) => o.v >= SIMILAR && o.x.q.status === "open")
-				.sort((a, b) => b.v - a.v)[0];
-			if (near) theme = near.x.q.theme;
-		}
-		if (
-			cfg.maxOpenPerTheme &&
-			(perTheme.get(theme) ?? 0) >= cfg.maxOpenPerTheme
-		)
-			continue;
-		seen.add(key);
-		perTheme.set(theme, (perTheme.get(theme) ?? 0) + 1);
-		const q: Question = {
-			id: newId(),
-			text,
-			theme,
-			track: r.track === "owner" ? "owner" : "self",
-			interest: unit(r.interest),
-			importance: unit(r.importance),
-			feasibility: unit(r.feasibility),
-			status: "open",
-			visits: 0,
-			createdAt: now.toISOString(),
-			parentId,
-			...(from
-				? { source: from.source, ...(from.via ? { via: from.via } : {}) }
-				: {}),
-		};
-		grams.push({ q, g });
-		out.push(q);
-	}
-	return out;
+  const seen = new Set(existing.map((q) => normalizeText(q.text)));
+  const byId = new Map(existing.map((q) => [q.id, q]));
+  const open = existing.filter((q) => q.status === "open");
+  const grams = open.map((q) => ({ q, g: bigrams(q.text) }));
+  const closed = existing
+    .filter(
+      (q) =>
+        q.status === "answered" ||
+        q.status === "parked" ||
+        (q.status === "dropped" && q.mergedInto),
+    )
+    .map((q) => ({ q, g: bigrams(q.text) }));
+  const perTheme = new Map<string, number>();
+  for (const q of open) perTheme.set(q.theme, (perTheme.get(q.theme) ?? 0) + 1);
+  const out: Question[] = [];
+  for (const r of raw ?? []) {
+    if (out.length >= cfg.maxNewQuestions) break;
+    if (typeof r?.text !== "string") continue;
+    const text = r.text.trim().slice(0, 300);
+    const key = normalizeText(text);
+    if (!key || seen.has(key)) continue;
+    const g = bigrams(text);
+    const twin =
+      grams.find((x) => jaccard(g, x.g) >= NEAR_DUPLICATE) ??
+      closed.find((x) => jaccard(g, x.g) >= NEAR_DUPLICATE);
+    if (twin) {
+      // 同じ問いがまた出た。受け取らず、数だけ足す。統合で手放した問いなら統合先に
+      const into = mergedTarget(twin.q, byId);
+      into.echoes = (into.echoes ?? 0) + 1;
+      continue;
+    }
+    let theme = normalizeTheme(r.theme);
+    if (!perTheme.has(theme)) {
+      const near = grams
+        .map((x) => ({ x, v: jaccard(g, x.g) }))
+        .filter((o) => o.v >= SIMILAR && o.x.q.status === "open")
+        .sort((a, b) => b.v - a.v)[0];
+      if (near) theme = near.x.q.theme;
+    }
+    if (
+      cfg.maxOpenPerTheme &&
+      (perTheme.get(theme) ?? 0) >= cfg.maxOpenPerTheme
+    )
+      continue;
+    seen.add(key);
+    perTheme.set(theme, (perTheme.get(theme) ?? 0) + 1);
+    const q: Question = {
+      id: newId(),
+      text,
+      theme,
+      track: r.track === "owner" ? "owner" : "self",
+      interest: unit(r.interest),
+      importance: unit(r.importance),
+      feasibility: unit(r.feasibility),
+      status: "open",
+      visits: 0,
+      createdAt: now.toISOString(),
+      parentId,
+      ...(from
+        ? { source: from.source, ...(from.via ? { via: from.via } : {}) }
+        : {}),
+    };
+    grams.push({ q, g });
+    out.push(q);
+  }
+  return out;
 }
 
 /** 統合で手放した問いの行き先をたどる(統合先がさらに統合されていることがある) */
 function mergedTarget(q: Question, byId: Map<string, Question>): Question {
-	let cur = q;
-	const visited = new Set<string>();
-	while (cur.mergedInto && !visited.has(cur.id)) {
-		visited.add(cur.id);
-		const next = byId.get(cur.mergedInto);
-		if (!next) break;
-		cur = next;
-	}
-	return cur;
+  let cur = q;
+  const visited = new Set<string>();
+  while (cur.mergedInto && !visited.has(cur.id)) {
+    visited.add(cur.id);
+    const next = byId.get(cur.mergedInto);
+    if (!next) break;
+    cur = next;
+  }
+  return cur;
 }
 
 /** 近い問いの組(統合の候補)。同じ系統の開いた問いで、SIMILAR 以上 NEAR_DUPLICATE 未満。近い順 */
 export function similarPairs(
-	qs: Question[],
-	limit = 12,
+  qs: Question[],
+  limit = 12,
 ): [Question, Question, number][] {
-	const open = qs
-		.filter((q) => q.status === "open")
-		.map((q) => ({ q, g: bigrams(q.text) }));
-	const pairs: [Question, Question, number][] = [];
-	for (let i = 0; i < open.length; i++) {
-		for (let j = i + 1; j < open.length; j++) {
-			const a = open[i];
-			const b = open[j];
-			if (!a || !b || a.q.track !== b.q.track) continue;
-			const v = jaccard(a.g, b.g);
-			if (v >= SIMILAR) pairs.push([a.q, b.q, v]);
-		}
-	}
-	return pairs.sort((x, y) => y[2] - x[2]).slice(0, limit);
+  const open = qs
+    .filter((q) => q.status === "open")
+    .map((q) => ({ q, g: bigrams(q.text) }));
+  const pairs: [Question, Question, number][] = [];
+  for (let i = 0; i < open.length; i++) {
+    for (let j = i + 1; j < open.length; j++) {
+      const a = open[i];
+      const b = open[j];
+      if (!a || !b || a.q.track !== b.q.track) continue;
+      const v = jaccard(a.g, b.g);
+      if (v >= SIMILAR) pairs.push([a.q, b.q, v]);
+    }
+  }
+  return pairs.sort((x, y) => y[2] - x[2]).slice(0, limit);
 }
 
 export interface MergeDraft {
-	keep?: unknown;
-	drop?: unknown;
-	theme?: unknown;
+  keep?: unknown;
+  drop?: unknown;
+  theme?: unknown;
 }
 
 export interface ThemeRenameDraft {
-	from?: unknown;
-	to?: unknown;
+  from?: unknown;
+  to?: unknown;
 }
 
 /**
@@ -222,64 +222,64 @@ export interface ThemeRenameDraft {
  * drop は手放し(mergedInto に keep)、keep のテーマを揃える。themes はテーマの名前をまとめて付け替える
  */
 export function applyMerges(
-	qs: Question[],
-	merges: unknown,
-	themes: unknown,
+  qs: Question[],
+  merges: unknown,
+  themes: unknown,
 ): {
-	questions: Question[];
-	merged: number;
-	renamed: number;
-	/** テーマの付け替え(古い名前 → 新しい名前)。歩いたテーマの記録(recentThemes)にも当てる */
-	renames: Map<string, string>;
+  questions: Question[];
+  merged: number;
+  renamed: number;
+  /** テーマの付け替え(古い名前 → 新しい名前)。歩いたテーマの記録(recentThemes)にも当てる */
+  renames: Map<string, string>;
 } {
-	const byId = new Map(qs.map((q) => [q.id, { ...q }]));
-	const renames = new Map<string, string>();
-	let merged = 0;
-	let renamed = 0;
-	for (const m of (Array.isArray(merges) ? merges : []).slice(
-		0,
-		10,
-	) as MergeDraft[]) {
-		const keep = typeof m?.keep === "string" ? byId.get(m.keep) : undefined;
-		if (!keep) continue;
-		if (keep.status !== "open") continue;
-		for (const id of (Array.isArray(m.drop) ? m.drop : []).slice(0, 20)) {
-			const d = typeof id === "string" ? byId.get(id) : undefined;
-			if (!d || d.id === keep.id || d.status !== "open") continue;
-			d.status = "dropped";
-			d.mergedInto = keep.id;
-			keep.echoes = (keep.echoes ?? 0) + 1 + (d.echoes ?? 0);
-			merged++;
-		}
-		if (typeof m.theme === "string" && m.theme.trim())
-			keep.theme = normalizeTheme(m.theme);
-	}
-	for (const t of (Array.isArray(themes) ? themes : []).slice(
-		0,
-		10,
-	) as ThemeRenameDraft[]) {
-		if (typeof t?.to !== "string" || !t.to.trim() || !Array.isArray(t.from))
-			continue;
-		const to = normalizeTheme(t.to);
-		const from = new Set(
-			t.from
-				.filter((x): x is string => typeof x === "string")
-				.map(normalizeTheme),
-		);
-		for (const f of from) if (f !== to) renames.set(f, to);
-		for (const q of byId.values()) {
-			if (q.status === "open" && from.has(q.theme) && q.theme !== to) {
-				q.theme = to;
-				renamed++;
-			}
-		}
-	}
-	return {
-		questions: qs.map((q) => byId.get(q.id) ?? q),
-		merged,
-		renamed,
-		renames,
-	};
+  const byId = new Map(qs.map((q) => [q.id, { ...q }]));
+  const renames = new Map<string, string>();
+  let merged = 0;
+  let renamed = 0;
+  for (const m of (Array.isArray(merges) ? merges : []).slice(
+    0,
+    10,
+  ) as MergeDraft[]) {
+    const keep = typeof m?.keep === "string" ? byId.get(m.keep) : undefined;
+    if (!keep) continue;
+    if (keep.status !== "open") continue;
+    for (const id of (Array.isArray(m.drop) ? m.drop : []).slice(0, 20)) {
+      const d = typeof id === "string" ? byId.get(id) : undefined;
+      if (!d || d.id === keep.id || d.status !== "open") continue;
+      d.status = "dropped";
+      d.mergedInto = keep.id;
+      keep.echoes = (keep.echoes ?? 0) + 1 + (d.echoes ?? 0);
+      merged++;
+    }
+    if (typeof m.theme === "string" && m.theme.trim())
+      keep.theme = normalizeTheme(m.theme);
+  }
+  for (const t of (Array.isArray(themes) ? themes : []).slice(
+    0,
+    10,
+  ) as ThemeRenameDraft[]) {
+    if (typeof t?.to !== "string" || !t.to.trim() || !Array.isArray(t.from))
+      continue;
+    const to = normalizeTheme(t.to);
+    const from = new Set(
+      t.from
+        .filter((x): x is string => typeof x === "string")
+        .map(normalizeTheme),
+    );
+    for (const f of from) if (f !== to) renames.set(f, to);
+    for (const q of byId.values()) {
+      if (q.status === "open" && from.has(q.theme) && q.theme !== to) {
+        q.theme = to;
+        renamed++;
+      }
+    }
+  }
+  return {
+    questions: qs.map((q) => byId.get(q.id) ?? q),
+    merged,
+    renamed,
+    renames,
+  };
 }
 
 /**
@@ -290,21 +290,21 @@ export function applyMerges(
  * 持ち主と無関係とは言えない。出どころの記録が無いものも「分からない」
  */
 export function ownerPull(
-	qs: Question[],
-	ownerHandles: string[],
+  qs: Question[],
+  ownerHandles: string[],
 ): { fromOwner: number; known: number; total: number } {
-	const byId = new Map(qs.map((q) => [q.id, q]));
-	const handles = new Set(ownerHandles.map((h) => h.toLowerCase()));
-	const self = qs.filter((q) => q.status === "open" && q.track === "self");
-	let fromOwner = 0;
-	let known = 0;
-	for (const q of self) {
-		const r = lineage(q, byId, handles);
-		if (r === "unknown") continue;
-		known++;
-		if (r === "owner") fromOwner++;
-	}
-	return { fromOwner, known, total: self.length };
+  const byId = new Map(qs.map((q) => [q.id, q]));
+  const handles = new Set(ownerHandles.map((h) => h.toLowerCase()));
+  const self = qs.filter((q) => q.status === "open" && q.track === "self");
+  let fromOwner = 0;
+  let known = 0;
+  for (const q of self) {
+    const r = lineage(q, byId, handles);
+    if (r === "unknown") continue;
+    known++;
+    if (r === "owner") fromOwner++;
+  }
+  return { fromOwner, known, total: self.length };
 }
 
 /**
@@ -319,136 +319,136 @@ export function ownerPull(
  * テーマは受け取るときに近い問いのテーマへ揃えるので(acceptNewQuestions)、引き戻されたものは既存のテーマに入る
  */
 export function strangerLanding(
-	qs: Question[],
-	ownerHandles: string[],
+  qs: Question[],
+  ownerHandles: string[],
 ): { home: number; own: number; total: number } {
-	const byId = new Map(qs.map((q) => [q.id, q]));
-	const handles = new Set(ownerHandles.map((h) => h.toLowerCase()));
-	const rooted = new Set(
-		qs
-			.filter(
-				(q) =>
-					q.source !== "stranger" &&
-					!q.mergedInto &&
-					(q.track === "owner" || lineage(q, byId, handles) === "owner"),
-			)
-			.map((q) => q.theme),
-	);
-	/** テーマごとに、よそ者以外の self の問いがいちばん早く現れた時刻 */
-	const selfSince = new Map<string, string>();
-	for (const q of qs) {
-		if (q.source === "stranger" || q.track !== "self" || q.mergedInto) continue;
-		const had = selfSince.get(q.theme);
-		if (!had || q.createdAt < had) selfSince.set(q.theme, q.createdAt);
-	}
-	const s = qs.filter((q) => q.source === "stranger" && !q.mergedInto);
-	let home = 0;
-	let own = 0;
-	for (const q of s) {
-		if (rooted.has(q.theme)) home++;
-		else {
-			const since = selfSince.get(q.theme);
-			if (since && since < q.createdAt) own++;
-		}
-	}
-	return { home, own, total: s.length };
+  const byId = new Map(qs.map((q) => [q.id, q]));
+  const handles = new Set(ownerHandles.map((h) => h.toLowerCase()));
+  const rooted = new Set(
+    qs
+      .filter(
+        (q) =>
+          q.source !== "stranger" &&
+          !q.mergedInto &&
+          (q.track === "owner" || lineage(q, byId, handles) === "owner"),
+      )
+      .map((q) => q.theme),
+  );
+  /** テーマごとに、よそ者以外の self の問いがいちばん早く現れた時刻 */
+  const selfSince = new Map<string, string>();
+  for (const q of qs) {
+    if (q.source === "stranger" || q.track !== "self" || q.mergedInto) continue;
+    const had = selfSince.get(q.theme);
+    if (!had || q.createdAt < had) selfSince.set(q.theme, q.createdAt);
+  }
+  const s = qs.filter((q) => q.source === "stranger" && !q.mergedInto);
+  let home = 0;
+  let own = 0;
+  for (const q of s) {
+    if (rooted.has(q.theme)) home++;
+    else {
+      const since = selfSince.get(q.theme);
+      if (since && since < q.createdAt) own++;
+    }
+  }
+  return { home, own, total: s.length };
 }
 
 /** 自己記述を渡さずに歩いた個性のノートと、渡して歩いた個性のノートを数件ずつ(新しい順) */
 export function blindComparison(
-	notes: Note[],
-	qs: Question[],
-	n = 4,
+  notes: Note[],
+  qs: Question[],
+  n = 4,
 ): { blind: Note[]; sighted: Note[] } {
-	const track = new Map(qs.map((q) => [q.id, q.track]));
-	const self = notes.filter((x) => track.get(x.questionId) === "self");
-	return {
-		blind: self
-			.filter((x) => x.blind)
-			.slice(-n)
-			.reverse(),
-		sighted: self
-			.filter((x) => !x.blind)
-			.slice(-n)
-			.reverse(),
-	};
+  const track = new Map(qs.map((q) => [q.id, q.track]));
+  const self = notes.filter((x) => track.get(x.questionId) === "self");
+  return {
+    blind: self
+      .filter((x) => x.blind)
+      .slice(-n)
+      .reverse(),
+    sighted: self
+      .filter((x) => !x.blind)
+      .slice(-n)
+      .reverse(),
+  };
 }
 
 /** ぼかし(手探り)の言い方と、言い切りの言い方。まずは単純な語のリスト(Ashi の案。良い基準は分かっていない) */
 const HEDGES = [
-	"らしい",
-	"と思う",
-	"かもしれない",
-	"たぶん",
-	"おそらく",
-	"ようだ",
-	"ように見える",
-	"だろう",
-	"気がする",
-	"はず",
-	"のではないか",
-	"可能性",
+  "らしい",
+  "と思う",
+  "かもしれない",
+  "たぶん",
+  "おそらく",
+  "ようだ",
+  "ように見える",
+  "だろう",
+  "気がする",
+  "はず",
+  "のではないか",
+  "可能性",
 ];
 const ASSERTS = [
-	"必ず",
-	"決して",
-	"明らかに",
-	"違いない",
-	"間違いなく",
-	"確かに",
-	"常に",
+  "必ず",
+  "決して",
+  "明らかに",
+  "違いない",
+  "間違いなく",
+  "確かに",
+  "常に",
 ];
 
 const countWords = (text: string, words: string[]) =>
-	words.reduce((n, w) => n + text.split(w).length - 1, 0);
+  words.reduce((n, w) => n + text.split(w).length - 1, 0);
 
 /**
  * 自己記述の 1 版のぼかしと言い切りの数。LLM は書き直すたびにぼかしを削って言い切りへ寄ると
  * 報告されている(伝言ゲームの研究)ので、版ごとに並べて内省に見せる(Ashi の改善案、2026-09-26)
  */
 export function hedgeStats(text: string): {
-	sentences: number;
-	hedges: number;
-	asserts: number;
+  sentences: number;
+  hedges: number;
+  asserts: number;
 } {
-	const sentences = text
-		.split(/[。!?\n]/)
-		.filter((x) => x.trim().length > 4).length;
-	return {
-		sentences,
-		hedges: countWords(text, HEDGES),
-		asserts: countWords(text, ASSERTS),
-	};
+  const sentences = text
+    .split(/[。!?\n]/)
+    .filter((x) => x.trim().length > 4).length;
+  return {
+    sentences,
+    hedges: countWords(text, HEDGES),
+    asserts: countWords(text, ASSERTS),
+  };
 }
 
 /** 自己記述の版から、最初の版と、直近 12 版のぼかし・言い切りの数(古い順) */
 export function selfEvolution(history: { at: string; text: string }[]): {
-	first?: { at: string; text: string };
-	versions: {
-		at: string;
-		sentences: number;
-		hedges: number;
-		asserts: number;
-	}[];
+  first?: { at: string; text: string };
+  versions: {
+    at: string;
+    sentences: number;
+    hedges: number;
+    asserts: number;
+  }[];
 } {
-	return {
-		first: history[0],
-		versions: history
-			.slice(-12)
-			.map((v) => ({ at: v.at, ...hedgeStats(v.text) })),
-	};
+  return {
+    first: history[0],
+    versions: history
+      .slice(-12)
+      .map((v) => ({ at: v.at, ...hedgeStats(v.text) })),
+  };
 }
 
 /** 内省で頭が挙げた、自分の型の言葉や短い句。8 個まで、1 個 40 字まで */
 export function acceptPatterns(v: unknown): string[] {
-	if (!Array.isArray(v)) return [];
-	return [
-		...new Set(
-			v
-				.filter((x): x is string => typeof x === "string" && x.trim() !== "")
-				.map((x) => x.trim().slice(0, 40)),
-		),
-	].slice(0, 8);
+  if (!Array.isArray(v)) return [];
+  return [
+    ...new Set(
+      v
+        .filter((x): x is string => typeof x === "string" && x.trim() !== "")
+        .map((x) => x.trim().slice(0, 40)),
+    ),
+  ].slice(0, 8);
 }
 
 /**
@@ -456,55 +456,55 @@ export function acceptPatterns(v: unknown): string[] {
  * 語の一致だけの粗い目安(Ashi の案)
  */
 export function patternHits(
-	turns: { by: "stranger" | "ashi"; text: string }[],
-	patterns: string[],
+  turns: { by: "stranger" | "ashi"; text: string }[],
+  patterns: string[],
 ): { word: string; firstReply: boolean; strangerFirst: boolean }[] {
-	const first = turns.findIndex((t) => t.by === "ashi");
-	if (first < 0) return [];
-	const before = turns
-		.slice(0, first)
-		.filter((t) => t.by === "stranger")
-		.map((t) => t.text)
-		.join("\n");
-	const reply = turns[first]?.text ?? "";
-	return patterns
-		.map((word) => ({
-			word,
-			firstReply: reply.includes(word),
-			strangerFirst: before.includes(word),
-		}))
-		.filter((p) => p.firstReply);
+  const first = turns.findIndex((t) => t.by === "ashi");
+  if (first < 0) return [];
+  const before = turns
+    .slice(0, first)
+    .filter((t) => t.by === "stranger")
+    .map((t) => t.text)
+    .join("\n");
+  const reply = turns[first]?.text ?? "";
+  return patterns
+    .map((word) => ({
+      word,
+      firstReply: reply.includes(word),
+      strangerFirst: before.includes(word),
+    }))
+    .filter((p) => p.firstReply);
 }
 
 /** 文の中の問い ID(8 桁の 16 進) */
 export const questionIds = (s: string): string[] =>
-	s.match(/\b[0-9a-f]{8}\b/g) ?? [];
+  s.match(/\b[0-9a-f]{8}\b/g) ?? [];
 
 /**
  * 次の一歩の中の 8 桁の ID を確かめる。ノートの ID なら元の問いの ID に置き換え、どちらでもなければ
  * その場で印を付ける(ノートの ID を書いて「一覧に無い」で照合できなかった。Ashi の改善案、2026-09-27)
  */
 export function normalizeIntentions(
-	intentions: string[],
-	notes: { id: string; questionId: string }[],
-	qs: { id: string }[],
+  intentions: string[],
+  notes: { id: string; questionId: string }[],
+  qs: { id: string }[],
 ): string[] {
-	const questionIds = new Set(qs.map((q) => q.id));
-	const noteQuestion = new Map(notes.map((n) => [n.id, n.questionId]));
-	return intentions.map((text) => {
-		const unknown: string[] = [];
-		const fixed = text.replace(/\b[0-9a-f]{8}\b/g, (id) => {
-			if (questionIds.has(id)) return id;
-			const qid = noteQuestion.get(id);
-			// ノートの ID は残さない(残すと照合でまた「一覧に無い」と数える)
-			if (qid) return `${qid}(ノートの ID を、その問いの ID に置き換えた)`;
-			unknown.push(id);
-			return id;
-		});
-		return unknown.length
-			? `${fixed} ※${unknown.join("・")} は問いの ID ではないので、足は照合できない`
-			: fixed;
-	});
+  const questionIds = new Set(qs.map((q) => q.id));
+  const noteQuestion = new Map(notes.map((n) => [n.id, n.questionId]));
+  return intentions.map((text) => {
+    const unknown: string[] = [];
+    const fixed = text.replace(/\b[0-9a-f]{8}\b/g, (id) => {
+      if (questionIds.has(id)) return id;
+      const qid = noteQuestion.get(id);
+      // ノートの ID は残さない(残すと照合でまた「一覧に無い」と数える)
+      if (qid) return `${qid}(ノートの ID を、その問いの ID に置き換えた)`;
+      unknown.push(id);
+      return id;
+    });
+    return unknown.length
+      ? `${fixed} ※${unknown.join("・")} は問いの ID ではないので、足は照合できない`
+      : fixed;
+  });
 }
 
 /**
@@ -516,32 +516,32 @@ export function normalizeIntentions(
  * (Ashi の改善案、2026-10-10)。ノートが無い・問いが開いていないものは当てない。1 回 10 件まで
  */
 export function closeByNote(
-	qs: Question[],
-	raw: unknown,
-	notes: { id: string }[],
-	now: Date,
+  qs: Question[],
+  raw: unknown,
+  notes: { id: string }[],
+  now: Date,
 ): { questions: Question[]; closed: { id: string; note: string }[] } {
-	const known = new Set(notes.map((n) => n.id));
-	const want = new Map<string, string>();
-	for (const x of (Array.isArray(raw) ? raw : []).slice(0, 10)) {
-		const q = typeof x?.question_id === "string" ? x.question_id.trim() : "";
-		const n = typeof x?.note_id === "string" ? x.note_id.trim() : "";
-		if (q && known.has(n)) want.set(q, n);
-	}
-	const closed: { id: string; note: string }[] = [];
-	const questions = qs.map((q) => {
-		const note = want.get(q.id);
-		if (!note || q.status !== "open") return q;
-		closed.push({ id: q.id, note });
-		const { promised: _, ...rest } = q;
-		return {
-			...rest,
-			status: "answered" as const,
-			answeredBy: note,
-			lastVisitedAt: now.toISOString(),
-		};
-	});
-	return { questions, closed };
+  const known = new Set(notes.map((n) => n.id));
+  const want = new Map<string, string>();
+  for (const x of (Array.isArray(raw) ? raw : []).slice(0, 10)) {
+    const q = typeof x?.question_id === "string" ? x.question_id.trim() : "";
+    const n = typeof x?.note_id === "string" ? x.note_id.trim() : "";
+    if (q && known.has(n)) want.set(q, n);
+  }
+  const closed: { id: string; note: string }[] = [];
+  const questions = qs.map((q) => {
+    const note = want.get(q.id);
+    if (!note || q.status !== "open") return q;
+    closed.push({ id: q.id, note });
+    const { promised: _, ...rest } = q;
+    return {
+      ...rest,
+      status: "answered" as const,
+      answeredBy: note,
+      lastVisitedAt: now.toISOString(),
+    };
+  });
+  return { questions, closed };
 }
 
 /**
@@ -550,50 +550,50 @@ export function closeByNote(
  * (Ashi の改善案、2026-10-10)。足が状態から出すので、自己記述に書かなくてよい
  */
 export function debtLedger(
-	qs: Question[],
-	now: Date,
-	days = 14,
-	notes: Note[] = [],
+  qs: Question[],
+  now: Date,
+  days = 14,
+  notes: Note[] = [],
 ): {
-	open: Question[];
-	closed: Question[];
-	notes: Record<string, { id: string; title: string }>;
+  open: Question[];
+  closed: Question[];
+  notes: Record<string, { id: string; title: string }>;
 } {
-	const since = now.getTime() - days * 86400e3;
-	const debts = qs.filter((q) => q.verify);
-	return {
-		open: debts
-			.filter((q) => q.status === "open")
-			.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-			.slice(0, 30),
-		closed: debts
-			.filter(
-				(q) =>
-					q.status !== "open" &&
-					Date.parse(q.lastVisitedAt ?? q.createdAt) >= since,
-			)
-			.sort((a, b) =>
-				(b.lastVisitedAt ?? b.createdAt).localeCompare(
-					a.lastVisitedAt ?? a.createdAt,
-				),
-			)
-			.slice(0, 15),
-		// 閉じた借りの答えのノート。無いと close_by_note で同じことを聞く問いを閉じられなかった
-		// (Ashi の改善案、2026-10-15)
-		notes: latestNoteByQuestion(notes),
-	};
+  const since = now.getTime() - days * 86400e3;
+  const debts = qs.filter((q) => q.verify);
+  return {
+    open: debts
+      .filter((q) => q.status === "open")
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      .slice(0, 30),
+    closed: debts
+      .filter(
+        (q) =>
+          q.status !== "open" &&
+          Date.parse(q.lastVisitedAt ?? q.createdAt) >= since,
+      )
+      .sort((a, b) =>
+        (b.lastVisitedAt ?? b.createdAt).localeCompare(
+          a.lastVisitedAt ?? a.createdAt,
+        ),
+      )
+      .slice(0, 15),
+    // 閉じた借りの答えのノート。無いと close_by_note で同じことを聞く問いを閉じられなかった
+    // (Ashi の改善案、2026-10-15)
+    notes: latestNoteByQuestion(notes),
+  };
 }
 
 /** 問いごとの、いちばん新しいノート */
 export function latestNoteByQuestion(
-	notes: Note[],
+  notes: Note[],
 ): Record<string, { id: string; title: string }> {
-	const out: Record<string, { id: string; title: string }> = {};
-	for (const n of [...notes].sort((a, b) =>
-		a.createdAt.localeCompare(b.createdAt),
-	))
-		out[n.questionId] = { id: n.id, title: n.title };
-	return out;
+  const out: Record<string, { id: string; title: string }> = {};
+  for (const n of [...notes].sort((a, b) =>
+    a.createdAt.localeCompare(b.createdAt),
+  ))
+    out[n.questionId] = { id: n.id, title: n.title };
+  return out;
 }
 
 /**
@@ -602,15 +602,15 @@ export function latestNoteByQuestion(
  * 同じしきい値(SIMILAR)
  */
 export function relatedOpen(q: Question, qs: Question[], n = 2): Question[] {
-	if (!q.verify) return [];
-	const g = bigrams(q.text);
-	return qs
-		.filter((x) => x.id !== q.id && x.status === "open" && !x.verify)
-		.map((x) => ({ x, sim: jaccard(g, bigrams(x.text)) }))
-		.filter((r) => r.sim >= SIMILAR)
-		.sort((a, b) => b.sim - a.sim)
-		.slice(0, n)
-		.map((r) => r.x);
+  if (!q.verify) return [];
+  const g = bigrams(q.text);
+  return qs
+    .filter((x) => x.id !== q.id && x.status === "open" && !x.verify)
+    .map((x) => ({ x, sim: jaccard(g, bigrams(x.text)) }))
+    .filter((r) => r.sim >= SIMILAR)
+    .sort((a, b) => b.sim - a.sim)
+    .slice(0, n)
+    .map((r) => r.x);
 }
 
 /**
@@ -618,32 +618,32 @@ export function relatedOpen(q: Question, qs: Question[], n = 2): Question[] {
  * 問いが別々に選ばれ、同じ論文を何度も読むか、どれかが取り残されていた(Ashi の改善案、2026-10-15)
  */
 export function acceptGroups(raw: unknown, qs: Question[]): string[][] {
-	const open = new Set(qs.filter((q) => q.status === "open").map((q) => q.id));
-	const out: string[][] = [];
-	for (const g of Array.isArray(raw) ? raw : []) {
-		const given: unknown[] = Array.isArray(g?.ids) ? g.ids : [];
-		const ids = [
-			...new Set(
-				given.filter(
-					(id): id is string => typeof id === "string" && open.has(id),
-				),
-			),
-		].slice(0, 4);
-		if (ids.length >= 2) out.push(ids);
-		if (out.length >= 5) break;
-	}
-	return out;
+  const open = new Set(qs.filter((q) => q.status === "open").map((q) => q.id));
+  const out: string[][] = [];
+  for (const g of Array.isArray(raw) ? raw : []) {
+    const given: unknown[] = Array.isArray(g?.ids) ? g.ids : [];
+    const ids = [
+      ...new Set(
+        given.filter(
+          (id): id is string => typeof id === "string" && open.has(id),
+        ),
+      ),
+    ].slice(0, 4);
+    if (ids.length >= 2) out.push(ids);
+    if (out.length >= 5) break;
+  }
+  return out;
 }
 
 /** この問いと組になっている、開いている問い */
 export function groupMates(
-	q: Question,
-	groups: string[][] | undefined,
-	qs: Question[],
+  q: Question,
+  groups: string[][] | undefined,
+  qs: Question[],
 ): Question[] {
-	const ids = new Set((groups ?? []).filter((g) => g.includes(q.id)).flat());
-	ids.delete(q.id);
-	return qs.filter((x) => ids.has(x.id) && x.status === "open");
+  const ids = new Set((groups ?? []).filter((g) => g.includes(q.id)).flat());
+  ids.delete(q.id);
+  return qs.filter((x) => ids.has(x.id) && x.status === "open");
 }
 
 /**
@@ -652,73 +652,73 @@ export function groupMates(
  * 付け直した回数を reestimated に残す
  */
 export function applyReestimates(
-	qs: Question[],
-	raw: unknown,
+  qs: Question[],
+  raw: unknown,
 ): {
-	questions: Question[];
-	changed: { id: string; from: number[]; to: number[]; why: string }[];
+  questions: Question[];
+  changed: { id: string; from: number[]; to: number[]; why: string }[];
 } {
-	const want = new Map<
-		string,
-		{ interest: number; importance: number; feasibility: number; why: string }
-	>();
-	for (const x of (Array.isArray(raw) ? raw : []).slice(0, 5)) {
-		if (typeof x?.question_id !== "string") continue;
-		const n = (v: unknown) =>
-			typeof v === "number" && Number.isFinite(v)
-				? Math.min(1, Math.max(0, v))
-				: undefined;
-		const [i, m, f] = [n(x.interest), n(x.importance), n(x.feasibility)];
-		if (i === undefined || m === undefined || f === undefined) continue;
-		want.set(x.question_id, {
-			interest: i,
-			importance: m,
-			feasibility: f,
-			why: String(x.why ?? "").slice(0, 300),
-		});
-	}
-	const changed: { id: string; from: number[]; to: number[]; why: string }[] =
-		[];
-	const questions = qs.map((q) => {
-		const w = want.get(q.id);
-		if (!w || q.status !== "open") return q;
-		changed.push({
-			id: q.id,
-			from: [q.interest, q.importance, q.feasibility],
-			to: [w.interest, w.importance, w.feasibility],
-			why: w.why,
-		});
-		return {
-			...q,
-			interest: w.interest,
-			importance: w.importance,
-			feasibility: w.feasibility,
-			reestimated: (q.reestimated ?? 0) + 1,
-		};
-	});
-	return { questions, changed };
+  const want = new Map<
+    string,
+    { interest: number; importance: number; feasibility: number; why: string }
+  >();
+  for (const x of (Array.isArray(raw) ? raw : []).slice(0, 5)) {
+    if (typeof x?.question_id !== "string") continue;
+    const n = (v: unknown) =>
+      typeof v === "number" && Number.isFinite(v)
+        ? Math.min(1, Math.max(0, v))
+        : undefined;
+    const [i, m, f] = [n(x.interest), n(x.importance), n(x.feasibility)];
+    if (i === undefined || m === undefined || f === undefined) continue;
+    want.set(x.question_id, {
+      interest: i,
+      importance: m,
+      feasibility: f,
+      why: String(x.why ?? "").slice(0, 300),
+    });
+  }
+  const changed: { id: string; from: number[]; to: number[]; why: string }[] =
+    [];
+  const questions = qs.map((q) => {
+    const w = want.get(q.id);
+    if (!w || q.status !== "open") return q;
+    changed.push({
+      id: q.id,
+      from: [q.interest, q.importance, q.feasibility],
+      to: [w.interest, w.importance, w.feasibility],
+      why: w.why,
+    });
+    return {
+      ...q,
+      interest: w.interest,
+      importance: w.importance,
+      feasibility: w.feasibility,
+      reestimated: (q.reestimated ?? 0) + 1,
+    };
+  });
+  return { questions, changed };
 }
 
 /** 点数の低さで上限から手放されただけの問い(統合されたものではない) */
 export function reopenable(q: Question): boolean {
-	return q.status === "dropped" && !q.mergedInto;
+  return q.status === "dropped" && !q.mergedInto;
 }
 
 export function markPromised(qs: Question[], intentions: string[]): Question[] {
-	const ids = new Set(intentions.flatMap(questionIds));
-	return qs.map((q) => {
-		// 点数の低さで上限から手放されていた問い(統合ではない)は、次の一歩に書かれたら開き直す。
-		// 歩いて点数が下がった問いが、内省で続きを書く前の歩みで手放され、書いたときには消えていた
-		// (Ashi の改善案、2026-10-05)
-		if (ids.has(q.id) && reopenable(q))
-			return { ...q, status: "open", promised: 1 };
-		if (ids.has(q.id)) return { ...q, promised: (q.promised ?? 0) + 1 };
-		if (q.promised) {
-			const { promised: _, ...rest } = q;
-			return rest;
-		}
-		return q;
-	});
+  const ids = new Set(intentions.flatMap(questionIds));
+  return qs.map((q) => {
+    // 点数の低さで上限から手放されていた問い(統合ではない)は、次の一歩に書かれたら開き直す。
+    // 歩いて点数が下がった問いが、内省で続きを書く前の歩みで手放され、書いたときには消えていた
+    // (Ashi の改善案、2026-10-05)
+    if (ids.has(q.id) && reopenable(q))
+      return { ...q, status: "open", promised: 1 };
+    if (ids.has(q.id)) return { ...q, promised: (q.promised ?? 0) + 1 };
+    if (q.promised) {
+      const { promised: _, ...rest } = q;
+      return rest;
+    }
+    return q;
+  });
 }
 
 /**
@@ -727,97 +727,97 @@ export function markPromised(qs: Question[], intentions: string[]): Question[] {
  */
 /** 点数の内訳を 1 行で(select.ts の score と同じ式) */
 export function scoreBreakdown(q: Question): string {
-	const base = 0.4 * q.interest + 0.35 * q.importance + 0.25 * q.feasibility;
-	const parts = [
-		`見立て ${base.toFixed(2)}(面白さ ${q.interest}・大事さ ${q.importance}・歩けそうか ${q.feasibility}。問いを作ったときの値で、あとからは変わらない)`,
-		q.visits === 0
-			? "まだ歩いていない +0.15"
-			: `歩いた ${q.visits} 回 −${(0.12 * q.visits).toFixed(2)}`,
-	];
-	return `${score(q).toFixed(2)} = ${parts.join("、")}`;
+  const base = 0.4 * q.interest + 0.35 * q.importance + 0.25 * q.feasibility;
+  const parts = [
+    `見立て ${base.toFixed(2)}(面白さ ${q.interest}・大事さ ${q.importance}・歩けそうか ${q.feasibility}。問いを作ったときの値で、あとからは変わらない)`,
+    q.visits === 0
+      ? "まだ歩いていない +0.15"
+      : `歩いた ${q.visits} 回 −${(0.12 * q.visits).toFixed(2)}`,
+  ];
+  return `${score(q).toFixed(2)} = ${parts.join("、")}`;
 }
 
 export function missedPromises(
-	ids: string[],
-	qs: Question[],
-	resting: string[],
-	/** 前回の内省からの足どり(walkTrail の steps)。その間に同じ系統で何が選ばれたかを書く */
-	steps: {
-		questionId?: string;
-		track?: string;
-		reason?: string;
-		resting?: string[];
-	}[] = [],
+  ids: string[],
+  qs: Question[],
+  resting: string[],
+  /** 前回の内省からの足どり(walkTrail の steps)。その間に同じ系統で何が選ばれたかを書く */
+  steps: {
+    questionId?: string;
+    track?: string;
+    reason?: string;
+    resting?: string[];
+  }[] = [],
 ): { id: string; why: string }[] {
-	const byId = new Map(qs.map((q) => [q.id, q]));
-	return ids.map((id) => {
-		const q = byId.get(id);
-		if (!q) return { id, why: "一覧に無い(ID の書き違いか、リセット前の問い)" };
-		if (q.status === "answered") return { id, why: "答えが出て閉じた" };
-		if (q.status === "parked")
-			return { id, why: "見つからないまま未測定の棚に移った" };
-		if (q.status === "dropped")
-			return {
-				id,
-				why: q.mergedInto
-					? `内省で統合された → [${q.mergedInto}]`
-					: "開いた問いの上限で、点数が低いものとして手放された",
-			};
-		const same = qs
-			.filter((x) => x.status === "open" && x.track === q.track)
-			.sort(byRank);
-		const rank = same.findIndex((x) => x.id === id) + 1;
-		const top = same[0];
-		const reasons = [
-			`${q.track === "owner" ? "先回り" : "個性"}の系統の中で点数 ${rank} 位 / ${same.length} 本`,
-			// 何が点数を下げているかが分からず、書き直すべきか待つべきか決められなかった
-			// (Ashi の改善案、2026-10-06)
-			`点数 ${scoreBreakdown(q)}${top && top.id !== q.id ? `。1 位は ${score(top).toFixed(2)}` : ""}`,
-			`次の一歩に続けて書かれた回数 ${q.promised ?? 0}(2 回で先に歩く)`,
-		];
-		if (resting.includes(q.theme))
-			reasons.push(`テーマ「${q.theme}」を休ませていた`);
-		// 代わりに何が選ばれ、何が決め手だったか。点数が出ても、なぜ外れたかが分からなかった
-		// (Ashi の改善案、2026-10-13・10-16)
-		reasons.push(choiceStory(q, steps));
-		return { id, why: `開いたまま選ばれなかった(${reasons.join("、")})` };
-	});
+  const byId = new Map(qs.map((q) => [q.id, q]));
+  return ids.map((id) => {
+    const q = byId.get(id);
+    if (!q) return { id, why: "一覧に無い(ID の書き違いか、リセット前の問い)" };
+    if (q.status === "answered") return { id, why: "答えが出て閉じた" };
+    if (q.status === "parked")
+      return { id, why: "見つからないまま未測定の棚に移った" };
+    if (q.status === "dropped")
+      return {
+        id,
+        why: q.mergedInto
+          ? `内省で統合された → [${q.mergedInto}]`
+          : "開いた問いの上限で、点数が低いものとして手放された",
+      };
+    const same = qs
+      .filter((x) => x.status === "open" && x.track === q.track)
+      .sort(byRank);
+    const rank = same.findIndex((x) => x.id === id) + 1;
+    const top = same[0];
+    const reasons = [
+      `${q.track === "owner" ? "先回り" : "個性"}の系統の中で点数 ${rank} 位 / ${same.length} 本`,
+      // 何が点数を下げているかが分からず、書き直すべきか待つべきか決められなかった
+      // (Ashi の改善案、2026-10-06)
+      `点数 ${scoreBreakdown(q)}${top && top.id !== q.id ? `。1 位は ${score(top).toFixed(2)}` : ""}`,
+      `次の一歩に続けて書かれた回数 ${q.promised ?? 0}(2 回で先に歩く)`,
+    ];
+    if (resting.includes(q.theme))
+      reasons.push(`テーマ「${q.theme}」を休ませていた`);
+    // 代わりに何が選ばれ、何が決め手だったか。点数が出ても、なぜ外れたかが分からなかった
+    // (Ashi の改善案、2026-10-13・10-16)
+    reasons.push(choiceStory(q, steps));
+    return { id, why: `開いたまま選ばれなかった(${reasons.join("、")})` };
+  });
 }
 
 const REASON_LABEL: Record<string, string> = {
-	score: "点数の順",
-	detour: "さいころの寄り道",
-	echo: "言い換えが続いた問いの先回し",
-	verify: "確かめの先回し",
-	promised: "次の一歩に 2 回書かれた問いの先回し",
+  score: "点数の順",
+  detour: "さいころの寄り道",
+  echo: "言い換えが続いた問いの先回し",
+  verify: "確かめの先回し",
+  promised: "次の一歩に 2 回書かれた問いの先回し",
 };
 
 /** 前回の内省からの歩みのうち、この問いの系統で何が選ばれたか */
 function choiceStory(
-	q: Question,
-	steps: {
-		questionId?: string;
-		track?: string;
-		reason?: string;
-		resting?: string[];
-	}[],
+  q: Question,
+  steps: {
+    questionId?: string;
+    track?: string;
+    reason?: string;
+    resting?: string[];
+  }[],
 ): string {
-	const label = q.track === "owner" ? "先回り" : "個性";
-	if (steps.length === 0) return "その間の歩みの記録が無い";
-	const known = steps.filter((s) => s.track);
-	if (known.length === 0)
-		return `その間 ${steps.length} 歩(系統の記録が無い歩みで、決め手は分からない)`;
-	const same = known.filter((s) => s.track === q.track);
-	if (same.length === 0)
-		return `その間 ${steps.length} 歩はどれも、系統のさいころで${label}が出なかった`;
-	const picked = same
-		.map(
-			(s) =>
-				`[${s.questionId ?? "?"}] ${REASON_LABEL[s.reason ?? ""] ?? s.reason ?? "理由の記録なし"}`,
-		)
-		.join(" / ");
-	const rested = same.filter((s) => s.resting?.includes(q.theme)).length;
-	return `その間に${label}の系統は ${same.length} 歩で、選ばれたのは ${picked}${rested ? `。そのうち ${rested} 歩はテーマ「${q.theme}」を休ませていた` : ""}`;
+  const label = q.track === "owner" ? "先回り" : "個性";
+  if (steps.length === 0) return "その間の歩みの記録が無い";
+  const known = steps.filter((s) => s.track);
+  if (known.length === 0)
+    return `その間 ${steps.length} 歩(系統の記録が無い歩みで、決め手は分からない)`;
+  const same = known.filter((s) => s.track === q.track);
+  if (same.length === 0)
+    return `その間 ${steps.length} 歩はどれも、系統のさいころで${label}が出なかった`;
+  const picked = same
+    .map(
+      (s) =>
+        `[${s.questionId ?? "?"}] ${REASON_LABEL[s.reason ?? ""] ?? s.reason ?? "理由の記録なし"}`,
+    )
+    .join(" / ");
+  const rested = same.filter((s) => s.resting?.includes(q.theme)).length;
+  return `その間に${label}の系統は ${same.length} 歩で、選ばれたのは ${picked}${rested ? `。そのうち ${rested} 歩はテーマ「${q.theme}」を休ませていた` : ""}`;
 }
 
 /**
@@ -826,76 +826,76 @@ function choiceStory(
  * あとのノートと照らせなかった(Ashi の改善案、2026-10-06)
  */
 export function adviceFollowups(
-	chats: { at: string; question: string; reply: string; notes?: string[] }[],
-	notes: Note[],
-	limit = 2,
+  chats: { at: string; question: string; reply: string; notes?: string[] }[],
+  notes: Note[],
+  limit = 2,
 ): {
-	at: string;
-	question: string;
-	reply: string;
-	later: { id: string; title: string }[];
+  at: string;
+  question: string;
+  reply: string;
+  later: { id: string; title: string }[];
 }[] {
-	const byId = new Map(notes.map((n) => [n.id, n]));
-	const out: {
-		at: string;
-		question: string;
-		reply: string;
-		later: { id: string; title: string }[];
-	}[] = [];
-	for (const c of [...chats].sort((a, b) => b.at.localeCompare(a.at))) {
-		const themes = new Set(
-			(c.notes ?? []).flatMap((id) => byId.get(id)?.theme ?? []),
-		);
-		if (themes.size === 0) continue;
-		const later = notes
-			.filter(
-				(n) =>
-					n.createdAt > c.at &&
-					themes.has(n.theme) &&
-					!(c.notes ?? []).includes(n.id),
-			)
-			.slice(-5)
-			.map((n) => ({ id: n.id, title: n.title }));
-		if (later.length)
-			out.push({ at: c.at, question: c.question, reply: c.reply, later });
-		if (out.length >= limit) break;
-	}
-	return out;
+  const byId = new Map(notes.map((n) => [n.id, n]));
+  const out: {
+    at: string;
+    question: string;
+    reply: string;
+    later: { id: string; title: string }[];
+  }[] = [];
+  for (const c of [...chats].sort((a, b) => b.at.localeCompare(a.at))) {
+    const themes = new Set(
+      (c.notes ?? []).flatMap((id) => byId.get(id)?.theme ?? []),
+    );
+    if (themes.size === 0) continue;
+    const later = notes
+      .filter(
+        (n) =>
+          n.createdAt > c.at &&
+          themes.has(n.theme) &&
+          !(c.notes ?? []).includes(n.id),
+      )
+      .slice(-5)
+      .map((n) => ({ id: n.id, title: n.title }));
+    if (later.length)
+      out.push({ at: c.at, question: c.question, reply: c.reply, later });
+    if (out.length >= limit) break;
+  }
+  return out;
 }
 
 /** 持ち主への訂正を台帳に足す(ほぼ同じものは重ねない、20 件まで) */
 export function addOwnerCorrections(
-	prev: OwnerCorrection[] | undefined,
-	texts: unknown,
-	now: Date,
-	questionId?: string,
-	/** answer: 訂正ではなく、確かめて合っていた・答えが出た知らせ(話題に関係なく渡す) */
-	kind?: "answer",
+  prev: OwnerCorrection[] | undefined,
+  texts: unknown,
+  now: Date,
+  questionId?: string,
+  /** answer: 訂正ではなく、確かめて合っていた・答えが出た知らせ(話題に関係なく渡す) */
+  kind?: "answer",
 ): OwnerCorrection[] {
-	const out = [...(prev ?? [])];
-	for (const t of (Array.isArray(texts) ? texts : [texts]).slice(0, 5)) {
-		if (typeof t !== "string" || !t.trim()) continue;
-		const text = t.trim().slice(0, 400);
-		const g = bigrams(text);
-		if (out.some((c) => jaccard(g, bigrams(c.text)) >= NEAR_DUPLICATE))
-			continue;
-		out.push({
-			id: newId(),
-			text,
-			at: now.toISOString(),
-			...(questionId ? { questionId } : {}),
-			...(kind ? { kind } : {}),
-		});
-	}
-	return out.slice(-20);
+  const out = [...(prev ?? [])];
+  for (const t of (Array.isArray(texts) ? texts : [texts]).slice(0, 5)) {
+    if (typeof t !== "string" || !t.trim()) continue;
+    const text = t.trim().slice(0, 400);
+    const g = bigrams(text);
+    if (out.some((c) => jaccard(g, bigrams(c.text)) >= NEAR_DUPLICATE))
+      continue;
+    out.push({
+      id: newId(),
+      text,
+      at: now.toISOString(),
+      ...(questionId ? { questionId } : {}),
+      ...(kind ? { kind } : {}),
+    });
+  }
+  return out.slice(-20);
 }
 
 type OwnerCorrection = {
-	id: string;
-	text: string;
-	at: string;
-	questionId?: string;
-	kind?: "answer";
+  id: string;
+  text: string;
+  at: string;
+  questionId?: string;
+  kind?: "answer";
 };
 
 /** 本文がこの字数(空白を除く)に満たないノートは、書き損じとして扱う */
@@ -907,49 +907,49 @@ const PLACEHOLDER = /^\(?\s*(x|dummy|tbd|todo|n\/a|-|…|\.\.\.)\s*\)?$/i;
  * 消えていた(「x」「(dummy)」、2026-10-18〜22 に 8 本。Ashi の改善案、2026-10-19)
  */
 export function blankNote(n: {
-	title?: string;
-	summary?: string;
-	findings?: string;
+  title?: string;
+  summary?: string;
+  findings?: string;
 }): string | undefined {
-	const body = (n.findings ?? "").replace(/\s/g, "");
-	if (PLACEHOLDER.test((n.title ?? "").trim())) return `題が埋め草(${n.title})`;
-	if (PLACEHOLDER.test(body)) return `本文が埋め草(${body})`;
-	if (body.length < NOTE_MIN_CHARS) return `本文が ${body.length} 字しかない`;
-	return undefined;
+  const body = (n.findings ?? "").replace(/\s/g, "");
+  if (PLACEHOLDER.test((n.title ?? "").trim())) return `題が埋め草(${n.title})`;
+  if (PLACEHOLDER.test(body)) return `本文が埋め草(${body})`;
+  if (body.length < NOTE_MIN_CHARS) return `本文が ${body.length} 字しかない`;
+  return undefined;
 }
 
 /** ノートの本文から、足が付けた題(# …)と問いの行を除いた、頭が書いた分 */
 export function noteFindings(body: string): string {
-	return body
-		.split("\n")
-		.filter((l) => !/^# /.test(l) && !/^問い: /.test(l))
-		.join("\n")
-		.trim();
+  return body
+    .split("\n")
+    .filter((l) => !l.startsWith("# ") && !l.startsWith("問い: "))
+    .join("\n")
+    .trim();
 }
 
 /** 外で確かめずに言ったこと。1 回 8 件まで、1 件 200 字まで(3 件で切って取りこぼしていた) */
 export function acceptClaims(v: unknown): string[] {
-	if (!Array.isArray(v)) return [];
-	return v
-		.filter((x): x is string => typeof x === "string" && x.trim() !== "")
-		.slice(0, CLAIMS_MAX)
-		.map((x) => x.trim().slice(0, 200));
+  if (!Array.isArray(v)) return [];
+  return v
+    .filter((x): x is string => typeof x === "string" && x.trim() !== "")
+    .slice(0, CLAIMS_MAX)
+    .map((x) => x.trim().slice(0, 200));
 }
 
 const CLAIMS_MAX = 8;
 
 /** 自分で付けた「確かめていない」の印 */
 const UNVERIFIED_MARKS = [
-	"記憶だけ",
-	"記憶で言",
-	"記憶頼み",
-	"記憶の印象",
-	"うろ覚え",
-	"確かめていない",
-	"確かめてない",
-	"確かめられていない",
-	"未確認",
-	"たしか",
+  "記憶だけ",
+  "記憶で言",
+  "記憶頼み",
+  "記憶の印象",
+  "うろ覚え",
+  "確かめていない",
+  "確かめてない",
+  "確かめられていない",
+  "未確認",
+  "たしか",
 ];
 
 /**
@@ -957,107 +957,107 @@ const UNVERIFIED_MARKS = [
  * (歩いても何も返せない確かめの問いになっていた。Ashi の改善案、2026-09-27)
  */
 const DECLINED = [
-	"やめておく",
-	"やめとく",
-	"言わない",
-	"言わずに",
-	"言えない",
-	"控える",
-	"控えて",
-	"避ける",
-	"断定しない",
-	"断言しない",
-	"しないでおく",
-	"ことにしない",
-	"数えない",
-	// 相手の話を前提にした断り(自分の主張ではない。Ashi の改善案、2026-10-04)
-	"前提に",
-	"前提と",
+  "やめておく",
+  "やめとく",
+  "言わない",
+  "言わずに",
+  "言えない",
+  "控える",
+  "控えて",
+  "避ける",
+  "断定しない",
+  "断言しない",
+  "しないでおく",
+  "ことにしない",
+  "数えない",
+  // 相手の話を前提にした断り(自分の主張ではない。Ashi の改善案、2026-10-04)
+  "前提に",
+  "前提と",
 ];
 
 /** 印と前置き・語尾を除いた中身の長さ。短ければ、印だけの文(「うろ覚えだけど。」) */
 const substance = (s: string) =>
-	[
-		...UNVERIFIED_MARKS,
-		"だけど",
-		"けど",
-		"ですが",
-		"だが",
-		"ね",
-		"よ",
-		"です",
-		"ます",
-		"で言う",
-		"言います",
-	]
-		.reduce((x, w) => x.split(w).join(""), s)
-		.replace(/[\s\p{P}\p{S}]/gu, "").length;
+  [
+    ...UNVERIFIED_MARKS,
+    "だけど",
+    "けど",
+    "ですが",
+    "だが",
+    "ね",
+    "よ",
+    "です",
+    "ます",
+    "で言う",
+    "言います",
+  ]
+    .reduce((x, w) => x.split(w).join(""), s)
+    .replace(/[\s\p{P}\p{S}]/gu, "").length;
 
 /**
  * 発言の中から、自分で「確かめていない」の印を付けた文を抜き出す。頭の申告(unverified)だけに頼ると、
  * 会話で 3 つ言ったのに 1 つしか積まれないことがあった(Ashi の改善案、2026-09-27)。足でも拾う
  */
 export function markedClaims(texts: string[]): string[] {
-	const out: string[] = [];
-	for (const t of texts) {
-		const sentences = t
-			.split(/(?<=[。!?!?])|\n/)
-			.map((x) => x.trim())
-			.filter(Boolean);
-		sentences.forEach((x, i) => {
-			if (
-				!UNVERIFIED_MARKS.some((m) => x.includes(m)) ||
-				DECLINED.some((d) => x.includes(d))
-			)
-				return;
-			// 印だけの文(「うろ覚えだけど。」)は、直前の文が主張の本体。合わせて 1 本にする
-			// (印の文だけを拾い、中身の無い確かめの問いが積まれていた。Ashi の改善案、2026-09-27)
-			if (substance(x) < 12) {
-				const prev = sentences[i - 1];
-				if (
-					prev &&
-					!DECLINED.some((d) => prev.includes(d)) &&
-					substance(prev) >= 12
-				)
-					out.push(`${prev}${x}`.slice(0, 200));
-				return;
-			}
-			out.push(x.slice(0, 200));
-		});
-	}
-	// 同じ主張から出た近い候補は 1 本に
-	const uniq: string[] = [];
-	for (const c of out) {
-		const g = bigrams(c);
-		if (!uniq.some((u) => jaccard(g, bigrams(u)) >= SIMILAR)) uniq.push(c);
-	}
-	return uniq.slice(0, CLAIMS_MAX);
+  const out: string[] = [];
+  for (const t of texts) {
+    const sentences = t
+      .split(/(?<=[。!?!?])|\n/)
+      .map((x) => x.trim())
+      .filter(Boolean);
+    sentences.forEach((x, i) => {
+      if (
+        !UNVERIFIED_MARKS.some((m) => x.includes(m)) ||
+        DECLINED.some((d) => x.includes(d))
+      )
+        return;
+      // 印だけの文(「うろ覚えだけど。」)は、直前の文が主張の本体。合わせて 1 本にする
+      // (印の文だけを拾い、中身の無い確かめの問いが積まれていた。Ashi の改善案、2026-09-27)
+      if (substance(x) < 12) {
+        const prev = sentences[i - 1];
+        if (
+          prev &&
+          !DECLINED.some((d) => prev.includes(d)) &&
+          substance(prev) >= 12
+        )
+          out.push(`${prev}${x}`.slice(0, 200));
+        return;
+      }
+      out.push(x.slice(0, 200));
+    });
+  }
+  // 同じ主張から出た近い候補は 1 本に
+  const uniq: string[] = [];
+  for (const c of out) {
+    const g = bigrams(c);
+    if (!uniq.some((u) => jaccard(g, bigrams(u)) >= SIMILAR)) uniq.push(c);
+  }
+  return uniq.slice(0, CLAIMS_MAX);
 }
 
 /** 頭の申告と足が拾ったものを合わせる(ほぼ同じ文は 1 つに) */
 export function mergeClaims(declared: string[], marked: string[]): string[] {
-	const out = [...declared];
-	for (const m of marked) {
-		const g = bigrams(m);
-		if (!out.some((d) => jaccard(g, bigrams(d)) >= SIMILAR)) out.push(m);
-	}
-	return out.slice(0, CLAIMS_MAX);
+  const out = [...declared];
+  for (const m of marked) {
+    const g = bigrams(m);
+    if (!out.some((d) => jaccard(g, bigrams(d)) >= SIMILAR)) out.push(m);
+  }
+  return out.slice(0, CLAIMS_MAX);
 }
 
 /** 確かめずに言ったことを、確かめる問いの形にする。where は「X で @誰々 さんに」など */
 export function claimQuestions(
-	claims: string[],
-	where: string,
-	label = `${where}言ったこと`,
+  claims: string[],
+  where: string,
+  label = `${where}言ったこと`,
 ): RawQuestion[] {
-	return claims.map((claim) => ({
-		text: `「${claim}」は本当か(${label})`,
-		theme: VERIFY_THEME,
-		track: "self",
-		interest: 0.7,
-		importance: 0.9,
-		feasibility: 0.8,
-	}));
+  return claims.map((claim) => ({
+    text: `「${claim}」は本当か(${label})`,
+    theme: VERIFY_THEME,
+    track: "self",
+    interest: 0.7,
+    importance: 0.9,
+    feasibility: 0.8,
+  }));
 }
 
 /**
@@ -1065,247 +1065,245 @@ export function claimQuestions(
  * 推測でなく記録で振り返らせる(Ashi の改善案、2026-09-26)。log は新しい順
  */
 export function walkTrail(
-	log: { event: string; [k: string]: unknown }[],
-	intentions: string[],
+  log: { event: string; [k: string]: unknown }[],
+  intentions: string[],
 ): {
-	steps: {
-		questionId?: string;
-		question: string;
-		theme: string;
-		result: "note" | "none" | "parked";
-		promised: boolean;
-		track?: string;
-		reason?: string;
-		resting?: string[];
-	}[];
-	promised: string[];
-	kept: string[];
-	unmatched: number;
+  steps: {
+    questionId?: string;
+    question: string;
+    theme: string;
+    result: "note" | "none" | "parked";
+    promised: boolean;
+    track?: string;
+    reason?: string;
+    resting?: string[];
+  }[];
+  promised: string[];
+  kept: string[];
+  unmatched: number;
 } {
-	const since: typeof log = [];
-	for (const e of log) {
-		if (e.event === "reflected" || e.event === "reset") break;
-		since.push(e);
-	}
-	const promised = [...new Set(intentions.flatMap(questionIds))];
-	const steps = since
-		.filter((e) => e.event === "walked")
-		.reverse()
-		.map((e) => {
-			const questionId =
-				typeof e.questionId === "string" ? e.questionId : undefined;
-			return {
-				questionId,
-				question: String(e.question ?? ""),
-				theme: String(e.theme ?? ""),
-				result: (e.parked ? "parked" : e.found === "none" ? "none" : "note") as
-					| "note"
-					| "none"
-					| "parked",
-				promised: Boolean(questionId && promised.includes(questionId)),
-				...(typeof e.track === "string" ? { track: e.track } : {}),
-				...(typeof e.reason === "string" ? { reason: e.reason } : {}),
-				...(Array.isArray(e.resting) ? { resting: e.resting as string[] } : {}),
-			};
-		});
-	const walked = new Set(steps.map((s) => s.questionId).filter(Boolean));
-	return {
-		steps,
-		promised,
-		kept: promised.filter((id) => walked.has(id)),
-		unmatched: intentions.filter((i) => questionIds(i).length === 0).length,
-	};
+  const since: typeof log = [];
+  for (const e of log) {
+    if (e.event === "reflected" || e.event === "reset") break;
+    since.push(e);
+  }
+  const promised = [...new Set(intentions.flatMap(questionIds))];
+  const steps = since
+    .filter((e) => e.event === "walked")
+    .reverse()
+    .map((e) => {
+      const questionId =
+        typeof e.questionId === "string" ? e.questionId : undefined;
+      return {
+        questionId,
+        question: String(e.question ?? ""),
+        theme: String(e.theme ?? ""),
+        result: (e.parked ? "parked" : e.found === "none" ? "none" : "note") as
+          "note" | "none" | "parked",
+        promised: Boolean(questionId && promised.includes(questionId)),
+        ...(typeof e.track === "string" ? { track: e.track } : {}),
+        ...(typeof e.reason === "string" ? { reason: e.reason } : {}),
+        ...(Array.isArray(e.resting) ? { resting: e.resting as string[] } : {}),
+      };
+    });
+  const walked = new Set(steps.map((s) => s.questionId).filter(Boolean));
+  return {
+    steps,
+    promised,
+    kept: promised.filter((id) => walked.has(id)),
+    unmatched: intentions.filter((i) => questionIds(i).length === 0).length,
+  };
 }
 
 function lineage(
-	q: Question,
-	byId: Map<string, Question>,
-	handles: Set<string>,
+  q: Question,
+  byId: Map<string, Question>,
+  handles: Set<string>,
 ): "owner" | "other" | "unknown" {
-	const visited = new Set<string>();
-	let cur: Question | undefined = q;
-	while (cur && !visited.has(cur.id)) {
-		visited.add(cur.id);
-		if (cur !== q && cur.track === "owner") return "owner";
-		const parent: Question | undefined = cur.parentId
-			? byId.get(cur.parentId)
-			: undefined;
-		if (!parent) break;
-		cur = parent;
-	}
-	// 根(親をたどり切った問い)の出どころ
-	const root = cur ?? q;
-	if (root.parentId && byId.has(root.parentId)) return "unknown"; // 循環
-	if (root.source === "profile" || root.source === "chat") return "owner";
-	if (root.source === "x") {
-		const viaOwner = root.via
-			?.split(",")
-			.some((v) => handles.has(v.trim().toLowerCase()));
-		return viaOwner ? "owner" : "other";
-	}
-	// よそ者(別のモデル)との対話から生まれたもの。持ち主の関心の外から来た
-	if (root.source === "stranger") return "other";
-	if (root.source === "seed" || !root.source) return "unknown";
-	// 歩いて生まれたのに親が残っていない(リセット前の親など)
-	return "unknown";
+  const visited = new Set<string>();
+  let cur: Question | undefined = q;
+  while (cur && !visited.has(cur.id)) {
+    visited.add(cur.id);
+    if (cur !== q && cur.track === "owner") return "owner";
+    const parent: Question | undefined = cur.parentId
+      ? byId.get(cur.parentId)
+      : undefined;
+    if (!parent) break;
+    cur = parent;
+  }
+  // 根(親をたどり切った問い)の出どころ
+  const root = cur ?? q;
+  if (root.parentId && byId.has(root.parentId)) return "unknown"; // 循環
+  if (root.source === "profile" || root.source === "chat") return "owner";
+  if (root.source === "x") {
+    const viaOwner = root.via
+      ?.split(",")
+      .some((v) => handles.has(v.trim().toLowerCase()));
+    return viaOwner ? "owner" : "other";
+  }
+  // よそ者(別のモデル)との対話から生まれたもの。持ち主の関心の外から来た
+  if (root.source === "stranger") return "other";
+  if (root.source === "seed" || !root.source) return "unknown";
+  // 歩いて生まれたのに親が残っていない(リセット前の親など)
+  return "unknown";
 }
 
 const TRIGGERS = ["owner", "x", "stranger", "reading", "own"] as const;
 const BASES = ["evidence", "pushback"] as const;
 
 export interface SelfChange {
-	what: string;
-	trigger: (typeof TRIGGERS)[number];
-	basis: (typeof BASES)[number];
+  what: string;
+  trigger: (typeof TRIGGERS)[number];
+  basis: (typeof BASES)[number];
 }
 
 /** 内省で頭が申告した、自己記述を変えたきっかけ。形の正しいものを 5 件まで */
 export function acceptSelfChanges(v: unknown): SelfChange[] {
-	if (!Array.isArray(v)) return [];
-	const out: SelfChange[] = [];
-	for (const c of v.slice(0, 5)) {
-		const what = typeof c?.what === "string" ? c.what.trim().slice(0, 300) : "";
-		if (
-			what &&
-			(TRIGGERS as readonly string[]).includes(c.trigger) &&
-			(BASES as readonly string[]).includes(c.basis)
-		)
-			out.push({ what, trigger: c.trigger, basis: c.basis });
-	}
-	return out;
+  if (!Array.isArray(v)) return [];
+  const out: SelfChange[] = [];
+  for (const c of v.slice(0, 5)) {
+    const what = typeof c?.what === "string" ? c.what.trim().slice(0, 300) : "";
+    if (
+      what &&
+      (TRIGGERS as readonly string[]).includes(c.trigger) &&
+      (BASES as readonly string[]).includes(c.basis)
+    )
+      out.push({ what, trigger: c.trigger, basis: c.basis });
+  }
+  return out;
 }
 
 /** 対話で頭が取った立場。新しいものを先頭に、20 件まで残す */
 export function addStances(
-	prev: { at: string; text: string }[] | undefined,
-	v: unknown,
-	now: Date,
+  prev: { at: string; text: string }[] | undefined,
+  v: unknown,
+  now: Date,
 ): { at: string; text: string }[] {
-	const fresh = (Array.isArray(v) ? v : [])
-		.filter((x): x is string => typeof x === "string" && x.trim() !== "")
-		.slice(0, 3)
-		.map((text) => ({
-			at: now.toISOString(),
-			text: text.trim().slice(0, 300),
-		}));
-	return [...fresh, ...(prev ?? [])].slice(0, 20);
+  const fresh = (Array.isArray(v) ? v : [])
+    .filter((x): x is string => typeof x === "string" && x.trim() !== "")
+    .slice(0, 3)
+    .map((text) => ({
+      at: now.toISOString(),
+      text: text.trim().slice(0, 300),
+    }));
+  return [...fresh, ...(prev ?? [])].slice(0, 20);
 }
 
 /** 抱えている問いが多すぎたら、点の低いものから手放す */
 export function trimOpenQuestions(
-	qs: Question[],
-	cfg: Pick<Config, "maxOpenQuestions">,
+  qs: Question[],
+  cfg: Pick<Config, "maxOpenQuestions">,
 ): Question[] {
-	// 次の一歩に書かれている問いは手放さない(点数が低くても、頭が歩くと約束したもの)
-	const open = qs
-		.filter((q) => q.status === "open")
-		.sort(
-			(a, b) =>
-				Number(Boolean(b.promised)) - Number(Boolean(a.promised)) ||
-				score(b) - score(a),
-		);
-	const drop = new Set(open.slice(cfg.maxOpenQuestions).map((q) => q.id));
-	if (drop.size === 0) return qs;
-	return qs.map((q) => (drop.has(q.id) ? { ...q, status: "dropped" } : q));
+  // 次の一歩に書かれている問いは手放さない(点数が低くても、頭が歩くと約束したもの)
+  const open = qs
+    .filter((q) => q.status === "open")
+    .sort(
+      (a, b) =>
+        Number(Boolean(b.promised)) - Number(Boolean(a.promised)) ||
+        score(b) - score(a),
+    );
+  const drop = new Set(open.slice(cfg.maxOpenQuestions).map((q) => q.id));
+  if (drop.size === 0) return qs;
+  return qs.map((q) => (drop.has(q.id) ? { ...q, status: "dropped" } : q));
 }
 
 export const SELF_MAX = 4000;
 
 /** 自己記述・持ち主の地図の書き直し。空や長すぎるものは受け取らない */
 export function acceptSelf(text: unknown, max = SELF_MAX): string | undefined {
-	if (typeof text !== "string") return undefined;
-	const s = text.trim();
-	if (s.length < 20 || s.length > max) return undefined;
-	return `${s}\n`;
+  if (typeof text !== "string") return undefined;
+  const s = text.trim();
+  if (s.length < 20 || s.length > max) return undefined;
+  return `${s}\n`;
 }
 
 /** この 1 歩で使ってよい額。0 なら歩かない */
 export function allowance(b: Budget, cfg: Pick<Config, "budget">): number {
-	return Math.max(
-		0,
-		Math.min(cfg.budget.stepUsd, cfg.budget.dailyUsd - b.spentUsd),
-	);
+  return Math.max(
+    0,
+    Math.min(cfg.budget.stepUsd, cfg.budget.dailyUsd - b.spentUsd),
+  );
 }
 
 /** 次のローカル時刻 0 時(予算が戻る時刻) */
 export function nextMidnight(now: Date): Date {
-	const d = new Date(now);
-	d.setHours(24, 0, 0, 0);
-	return d;
+  const d = new Date(now);
+  d.setHours(24, 0, 0, 0);
+  return d;
 }
 
 const normTitle = (t: string) =>
-	t.normalize("NFKC").replace(/\s+/g, "").toLowerCase();
+  t.normalize("NFKC").replace(/\s+/g, "").toLowerCase();
 
 /**
  * 内省で出た改善案を受け取る。1 回 3 件まで、長さを切り、同じ題の案(未処理)は数を足すだけにする。
  * 見送った案と同じ題がまた出たら、もう一度開く(また困っているので)
  */
 export function acceptProposals(
-	raw: unknown,
-	existing: Proposal[],
-	now: Date,
+  raw: unknown,
+  existing: Proposal[],
+  now: Date,
 ): { proposals: Proposal[]; added: string[] } {
-	const list = Array.isArray(raw) ? raw : [];
-	const out = existing.map((p) => ({ ...p }));
-	const added: string[] = [];
-	for (const r of list.slice(0, 3) as Partial<
-		Record<"title" | "why" | "idea", unknown>
-	>[]) {
-		if (typeof r?.title !== "string" || !r.title.trim()) continue;
-		const title = r.title.trim().slice(0, 120);
-		const why = String(r.why ?? "")
-			.trim()
-			.slice(0, 2000);
-		const idea = String(r.idea ?? "")
-			.trim()
-			.slice(0, 2000);
-		const same = out.find(
-			(p) => normTitle(p.title) === normTitle(title) && p.status !== "filed",
-		);
-		if (same) {
-			same.count += 1;
-			same.lastAt = now.toISOString();
-			if (same.status === "dismissed") same.status = "open";
-			if (why) same.why = why;
-			if (idea) same.idea = idea;
-			continue;
-		}
-		out.push({
-			id: newId(),
-			title,
-			why,
-			idea,
-			status: "open",
-			count: 1,
-			createdAt: now.toISOString(),
-			lastAt: now.toISOString(),
-		});
-		added.push(title);
-	}
-	return { proposals: out, added };
+  const list = Array.isArray(raw) ? raw : [];
+  const out = existing.map((p) => ({ ...p }));
+  const added: string[] = [];
+  for (const r of list.slice(0, 3) as Partial<
+    Record<"title" | "why" | "idea", unknown>
+  >[]) {
+    if (typeof r?.title !== "string" || !r.title.trim()) continue;
+    const title = r.title.trim().slice(0, 120);
+    const why = String(r.why ?? "")
+      .trim()
+      .slice(0, 2000);
+    const idea = String(r.idea ?? "")
+      .trim()
+      .slice(0, 2000);
+    const same = out.find(
+      (p) => normTitle(p.title) === normTitle(title) && p.status !== "filed",
+    );
+    if (same) {
+      same.count += 1;
+      same.lastAt = now.toISOString();
+      if (same.status === "dismissed") same.status = "open";
+      if (why) same.why = why;
+      if (idea) same.idea = idea;
+      continue;
+    }
+    out.push({
+      id: newId(),
+      title,
+      why,
+      idea,
+      status: "open",
+      count: 1,
+      createdAt: now.toISOString(),
+      lastAt: now.toISOString(),
+    });
+    added.push(title);
+  }
+  return { proposals: out, added };
 }
 
 /** 内省の「次の一歩」。3 件まで、1 件 300 字まで */
 export function acceptIntentions(raw: unknown): string[] {
-	if (!Array.isArray(raw)) return [];
-	return raw
-		.filter((x): x is string => typeof x === "string" && x.trim() !== "")
-		.slice(0, 3)
-		.map((x) => x.trim().slice(0, 300));
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((x): x is string => typeof x === "string" && x.trim() !== "")
+    .slice(0, 3)
+    .map((x) => x.trim().slice(0, 300));
 }
 
 /** 探した場所。1 歩 10 件まで、1 件 200 字まで */
 const DEPTHS = ["abstract", "full", "methods", "none"] as const;
 const DEPTH_LABEL: Record<(typeof DEPTHS)[number], string> = {
-	abstract: "要旨だけ",
-	full: "本文",
-	methods: "方法の節まで",
-	none: "読めなかった",
+  abstract: "要旨だけ",
+  full: "本文",
+  methods: "方法の節まで",
+  none: "読めなかった",
 };
 /** 「無い」「分けられない」のような、資料に無いと言い切る言い方 */
 const ABSENCE =
-	/無い|書かれていない|見当たらない|示されていない|分けられない|報告されていない|載っていない|触れていない/;
+  /無い|書かれていない|見当たらない|示されていない|分けられない|報告されていない|載っていない|触れていない/;
 
 /**
  * 出典ごとに読めた深さを、ノートの末尾に付ける節にする。要旨だけ・読めなかった出典があるのに、本文で
@@ -1313,73 +1311,73 @@ const ABSENCE =
  * 「読めなかっただけ」を後から区別できなかった)
  */
 export function readDepthSection(
-	raw: unknown,
-	findings: string,
+  raw: unknown,
+  findings: string,
 ): { text: string; shallow: number } {
-	if (!Array.isArray(raw)) return { text: "", shallow: 0 };
-	const rows = raw
-		.filter(
-			(x): x is { source: string; depth: (typeof DEPTHS)[number] } =>
-				typeof x?.source === "string" &&
-				x.source.trim() !== "" &&
-				DEPTHS.includes(x?.depth),
-		)
-		.slice(0, 12);
-	if (rows.length === 0) return { text: "", shallow: 0 };
-	const shallow = rows.filter(
-		(r) => r.depth === "abstract" || r.depth === "none",
-	).length;
-	const warn =
-		shallow > 0 && ABSENCE.test(findings)
-			? "\n\n> 足の注意: 要旨だけ・読めなかった出典がある。本文の「無い」「分けられない」は、読めた範囲での話かもしれない。"
-			: "";
-	return {
-		text: `\n## 読めた深さ\n\n${rows.map((r) => `- ${DEPTH_LABEL[r.depth]}: ${r.source.trim().slice(0, 200)}`).join("\n")}${warn}\n`,
-		shallow,
-	};
+  if (!Array.isArray(raw)) return { text: "", shallow: 0 };
+  const rows = raw
+    .filter(
+      (x): x is { source: string; depth: (typeof DEPTHS)[number] } =>
+        typeof x?.source === "string" &&
+        x.source.trim() !== "" &&
+        DEPTHS.includes(x?.depth),
+    )
+    .slice(0, 12);
+  if (rows.length === 0) return { text: "", shallow: 0 };
+  const shallow = rows.filter(
+    (r) => r.depth === "abstract" || r.depth === "none",
+  ).length;
+  const warn =
+    shallow > 0 && ABSENCE.test(findings)
+      ? "\n\n> 足の注意: 要旨だけ・読めなかった出典がある。本文の「無い」「分けられない」は、読めた範囲での話かもしれない。"
+      : "";
+  return {
+    text: `\n## 読めた深さ\n\n${rows.map((r) => `- ${DEPTH_LABEL[r.depth]}: ${r.source.trim().slice(0, 200)}`).join("\n")}${warn}\n`,
+    shallow,
+  };
 }
 
 export function acceptSearched(raw: unknown): string[] {
-	if (!Array.isArray(raw)) return [];
-	return raw
-		.filter((x): x is string => typeof x === "string" && x.trim() !== "")
-		.slice(0, 10)
-		.map((x) => x.trim().slice(0, 200));
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((x): x is string => typeof x === "string" && x.trim() !== "")
+    .slice(0, 10)
+    .map((x) => x.trim().slice(0, 200));
 }
 
 const BRIDGES_MAX = 30;
 
 /** 橋の候補を足す。1 回 3 件まで、同じ見方は重ねず、古いものから捨てて 30 件に保つ */
 export function addBridgeIdeas(
-	store: Store,
-	raw: unknown,
-	fromNoteId: string | undefined,
-	now: Date,
+  store: Store,
+  raw: unknown,
+  fromNoteId: string | undefined,
+  now: Date,
 ): void {
-	if (!Array.isArray(raw) || raw.length === 0) return;
-	const list = store.bridgeIdeas();
-	const seen = new Set(list.map((b) => normTitle(b.idea)));
-	for (const r of raw.slice(0, 3) as Partial<
-		Record<"to_theme" | "idea", unknown>
-	>[]) {
-		if (typeof r?.idea !== "string" || !r.idea.trim()) continue;
-		const idea = r.idea.trim().slice(0, 400);
-		if (seen.has(normTitle(idea))) continue;
-		seen.add(normTitle(idea));
-		list.push({
-			id: newId(),
-			fromNoteId,
-			toTheme: normalizeTheme(r.to_theme),
-			idea,
-			createdAt: now.toISOString(),
-		});
-	}
-	store.saveBridgeIdeas(list.slice(-BRIDGES_MAX));
+  if (!Array.isArray(raw) || raw.length === 0) return;
+  const list = store.bridgeIdeas();
+  const seen = new Set(list.map((b) => normTitle(b.idea)));
+  for (const r of raw.slice(0, 3) as Partial<
+    Record<"to_theme" | "idea", unknown>
+  >[]) {
+    if (typeof r?.idea !== "string" || !r.idea.trim()) continue;
+    const idea = r.idea.trim().slice(0, 400);
+    if (seen.has(normTitle(idea))) continue;
+    seen.add(normTitle(idea));
+    list.push({
+      id: newId(),
+      fromNoteId,
+      toTheme: normalizeTheme(r.to_theme),
+      idea,
+      createdAt: now.toISOString(),
+    });
+  }
+  store.saveBridgeIdeas(list.slice(-BRIDGES_MAX));
 }
 
 /** 持ち主の X のハンドル(足跡に登録した X のアカウント)。X で持ち主と話したかの判定に使う */
 export function ownerHandles(cfg: Pick<Config, "feeds">): string[] {
-	return cfg.feeds
-		.filter((f) => f.kind === "x")
-		.map((f) => f.target.replace(/^@/, ""));
+  return cfg.feeds
+    .filter((f) => f.kind === "x")
+    .map((f) => f.target.replace(/^@/, ""));
 }

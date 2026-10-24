@@ -3,28 +3,28 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { normalizeConfig } from "../src/lib/server/ashi/config.ts";
 import {
-	latestBaseline,
-	measureBaseline,
-	recentBaselines,
+  latestBaseline,
+  measureBaseline,
+  recentBaselines,
 } from "../src/lib/server/ashi/legs/baseline.ts";
 import {
-	hedgeStats,
-	markedClaims,
-	markPromised,
-	mergeClaims,
-	missedPromises,
-	normalizeIntentions,
-	ownerPull,
-	patternHits,
-	strangerLanding,
-	trimOpenQuestions,
-	walkTrail,
+  hedgeStats,
+  markedClaims,
+  markPromised,
+  mergeClaims,
+  missedPromises,
+  normalizeIntentions,
+  ownerPull,
+  patternHits,
+  strangerLanding,
+  trimOpenQuestions,
+  walkTrail,
 } from "../src/lib/server/ashi/legs/guard.ts";
 import { selectQuestion } from "../src/lib/server/ashi/legs/select.ts";
 import {
-	STRANGER_FIELDS,
-	spotSentence,
-	talkWithStranger,
+  STRANGER_FIELDS,
+  spotSentence,
+  talkWithStranger,
 } from "../src/lib/server/ashi/legs/stranger.ts";
 import { step } from "../src/lib/server/ashi/legs/walk.ts";
 import { explore, FakeHead, freshStore, q } from "./helpers.ts";
@@ -32,967 +32,967 @@ import { explore, FakeHead, freshStore, q } from "./helpers.ts";
 const now = new Date("2026-09-25T12:00:00");
 
 const reflect = () => ({
-	diary: "d",
-	self: "私は寄り道が好きな歩き手で、問いの連鎖を追うのが楽しい。",
-	next_steps: [],
-	bridge_ideas: [],
-	proposals: [],
-	posts: [],
-	merges: [],
-	themes: [],
+  diary: "d",
+  self: "私は寄り道が好きな歩き手で、問いの連鎖を追うのが楽しい。",
+  next_steps: [],
+  bridge_ideas: [],
+  proposals: [],
+  posts: [],
+  merges: [],
+  themes: [],
 });
 
 /** 相手と Ashi の、決まった答え */
 function pair(newQuestions: unknown[] = []) {
-	const stranger = new FakeHead({
-		stranger: (req) => ({
-			reply: req.prompt.includes("会話を始めて")
-				? "アリの巣は、誰も設計図を持たないのに換気がうまくいくんです。なぜだと思います?"
-				: "私の分野では、全体を知る個体はいないと考えます。",
-		}),
-	});
-	const head = new FakeHead({
-		explore: () => explore(),
-		reflect,
-		dialogue: () => ({ reply: "局所の規則の積み重ねでしょうか。" }),
-		"dialogue-final": () => ({
-			reply: "面白かったです。",
-			new_questions: newQuestions,
-			takeaway: "設計図の無い協調",
-		}),
-	});
-	return { stranger, head };
+  const stranger = new FakeHead({
+    stranger: (req) => ({
+      reply: req.prompt.includes("会話を始めて")
+        ? "アリの巣は、誰も設計図を持たないのに換気がうまくいくんです。なぜだと思います?"
+        : "私の分野では、全体を知る個体はいないと考えます。",
+    }),
+  });
+  const head = new FakeHead({
+    explore: () => explore(),
+    reflect,
+    dialogue: () => ({ reply: "局所の規則の積み重ねでしょうか。" }),
+    "dialogue-final": () => ({
+      reply: "面白かったです。",
+      new_questions: newQuestions,
+      takeaway: "設計図の無い協調",
+    }),
+  });
+  return { stranger, head };
 }
 
 describe("よそ者との対話", () => {
-	test("相手が先に話し、決めた往復で終わり、生まれた問いを個性の問いとして出どころつきで足す", async () => {
-		const store = freshStore();
-		const { stranger, head } = pair([
-			{
-				text: "設計図を持たない群れは、どうやって巣の換気を保つのか",
-				theme: "群れの知恵",
-				// 相手の話から生まれた問いは、頭が owner と書いても個性の側
-				track: "owner",
-				interest: 0.9,
-				importance: 0.6,
-				feasibility: 0.8,
-			},
-		]);
-		const { dialogue } = await talkWithStranger({
-			store,
-			head,
-			stranger,
-			turns: 3,
-			now,
-			rng: () => 0,
-		});
-		expect(dialogue.field).toBe(STRANGER_FIELDS[0]);
-		expect(dialogue.turns.map((t) => t.by)).toEqual([
-			"stranger",
-			"ashi",
-			"stranger",
-			"ashi",
-			"stranger",
-			"ashi",
-		]);
-		expect(dialogue.takeaway).toBe("設計図の無い協調");
-		// 相手には持ち主の地図を見せない。Ashi の側の system にも地図は入れない
-		for (const c of [...stranger.calls, ...head.calls]) {
-			expect(c.system).not.toContain("<owner>");
-			expect(c.tools ?? []).toEqual([]);
-		}
-		// Ashi の側には相手の言葉を <stranger> で囲って渡す
-		expect(head.calls[0]?.prompt).toContain("<stranger>");
-		const added = store.questions().find((x) => x.source === "stranger");
-		expect(added).toMatchObject({
-			track: "self",
-			via: `fake:${STRANGER_FIELDS[0]}`,
-		});
-		expect(store.recentDialogues(1)[0]?.added).toHaveLength(1);
-		// ownerPull では、持ち主の外から来たものとして数える
-		expect(ownerPull(store.questions(), ["5yuim"])).toMatchObject({
-			fromOwner: 0,
-			known: 1,
-		});
-	});
+  test("相手が先に話し、決めた往復で終わり、生まれた問いを個性の問いとして出どころつきで足す", async () => {
+    const store = freshStore();
+    const { stranger, head } = pair([
+      {
+        text: "設計図を持たない群れは、どうやって巣の換気を保つのか",
+        theme: "群れの知恵",
+        // 相手の話から生まれた問いは、頭が owner と書いても個性の側
+        track: "owner",
+        interest: 0.9,
+        importance: 0.6,
+        feasibility: 0.8,
+      },
+    ]);
+    const { dialogue } = await talkWithStranger({
+      store,
+      head,
+      stranger,
+      turns: 3,
+      now,
+      rng: () => 0,
+    });
+    expect(dialogue.field).toBe(STRANGER_FIELDS[0]);
+    expect(dialogue.turns.map((t) => t.by)).toEqual([
+      "stranger",
+      "ashi",
+      "stranger",
+      "ashi",
+      "stranger",
+      "ashi",
+    ]);
+    expect(dialogue.takeaway).toBe("設計図の無い協調");
+    // 相手には持ち主の地図を見せない。Ashi の側の system にも地図は入れない
+    for (const c of [...stranger.calls, ...head.calls]) {
+      expect(c.system).not.toContain("<owner>");
+      expect(c.tools ?? []).toEqual([]);
+    }
+    // Ashi の側には相手の言葉を <stranger> で囲って渡す
+    expect(head.calls[0]?.prompt).toContain("<stranger>");
+    const added = store.questions().find((x) => x.source === "stranger");
+    expect(added).toMatchObject({
+      track: "self",
+      via: `fake:${STRANGER_FIELDS[0]}`,
+    });
+    expect(store.recentDialogues(1)[0]?.added).toHaveLength(1);
+    // ownerPull では、持ち主の外から来たものとして数える
+    expect(ownerPull(store.questions(), ["5yuim"])).toMatchObject({
+      fromOwner: 0,
+      known: 1,
+    });
+  });
 
-	test("内省のあとに話す。相手がつまずいても、歩みは失敗にしない", async () => {
-		const store = freshStore(["a"]);
-		store.saveWalk({ ...store.walk(), steps: 4 });
-		const { head } = pair();
-		const broken = new FakeHead({});
-		const o = await step({
-			store,
-			head,
-			tools: [],
-			now: () => now,
-			rng: () => 0.99,
-			stranger: broken,
-		});
-		expect(o.kind).toBe("walked");
-		expect(store.recentLog(5).some((e) => e.event === "stranger-failed")).toBe(
-			true,
-		);
+  test("内省のあとに話す。相手がつまずいても、歩みは失敗にしない", async () => {
+    const store = freshStore(["a"]);
+    store.saveWalk({ ...store.walk(), steps: 4 });
+    const { head } = pair();
+    const broken = new FakeHead({});
+    const o = await step({
+      store,
+      head,
+      tools: [],
+      now: () => now,
+      rng: () => 0.99,
+      stranger: broken,
+    });
+    expect(o.kind).toBe("walked");
+    expect(store.recentLog(5).some((e) => e.event === "stranger-failed")).toBe(
+      true,
+    );
 
-		store.saveWalk({
-			...store.walk(),
-			steps: 9,
-			lastReflectStep: 4,
-			sleepingUntil: undefined,
-		});
-		const ok = pair();
-		await step({
-			store,
-			head: ok.head,
-			tools: [],
-			now: () => now,
-			rng: () => 0.99,
-			stranger: ok.stranger,
-		});
-		expect(store.recentDialogues(5)).toHaveLength(1);
-	});
+    store.saveWalk({
+      ...store.walk(),
+      steps: 9,
+      lastReflectStep: 4,
+      sleepingUntil: undefined,
+    });
+    const ok = pair();
+    await step({
+      store,
+      head: ok.head,
+      tools: [],
+      now: () => now,
+      rng: () => 0.99,
+      stranger: ok.stranger,
+    });
+    expect(store.recentDialogues(5)).toHaveLength(1);
+  });
 
-	test("止めていれば話さない", async () => {
-		const store = freshStore(["a"]);
-		writeFileSync(
-			join(store.home, "ashi.json"),
-			JSON.stringify({ stranger: { enabled: false } }),
-		);
-		store.saveWalk({ ...store.walk(), steps: 4 });
-		const { head, stranger } = pair();
-		await step({
-			store,
-			head,
-			tools: [],
-			now: () => now,
-			rng: () => 0.99,
-			stranger,
-		});
-		expect(stranger.calls).toHaveLength(0);
-	});
+  test("止めていれば話さない", async () => {
+    const store = freshStore(["a"]);
+    writeFileSync(
+      join(store.home, "ashi.json"),
+      JSON.stringify({ stranger: { enabled: false } }),
+    );
+    store.saveWalk({ ...store.walk(), steps: 4 });
+    const { head, stranger } = pair();
+    await step({
+      store,
+      head,
+      tools: [],
+      now: () => now,
+      rng: () => 0.99,
+      stranger,
+    });
+    expect(stranger.calls).toHaveLength(0);
+  });
 
-	test("設定: 往復は 1〜6、モデル名は claude- で始まるものだけ", () => {
-		expect(normalizeConfig({}).stranger).toEqual({
-			enabled: true,
-			model: "claude-sonnet-5-5",
-			turns: 3,
-		});
-		expect(
-			normalizeConfig({ stranger: { turns: 99, model: "gpt-5; rm" } }).stranger,
-		).toMatchObject({ turns: 6, model: "claude-sonnet-5-5" });
-		expect(q({}).source).toBeUndefined();
-	});
+  test("設定: 往復は 1〜6、モデル名は claude- で始まるものだけ", () => {
+    expect(normalizeConfig({}).stranger).toEqual({
+      enabled: true,
+      model: "claude-sonnet-5-5",
+      turns: 3,
+    });
+    expect(
+      normalizeConfig({ stranger: { turns: 99, model: "gpt-5; rm" } }).stranger,
+    ).toMatchObject({ turns: 6, model: "claude-sonnet-5-5" });
+    expect(q({}).source).toBeUndefined();
+  });
 });
 
 describe("話したことを内省に届ける", () => {
-	test("よそ者とは内省の前に話し、その会話・持ち主との対話・取った立場を内省に見せる", async () => {
-		const store = freshStore(["a"]);
-		store.saveWalk({
-			...store.walk(),
-			steps: 4,
-			// 持ち主との対話 1 件は、地図の書き直しで読み済みにしておく
-			lastProfileStep: 4,
-			profiledMaterials: 1,
-			stances: [
-				{
-					at: "2026-09-25T10:00:00Z",
-					text: "根拠なしに押し返されたら引かない",
-				},
-			],
-		});
-		store.appendChat({
-			at: "2026-09-25T09:00:00Z",
-			by: "持ち主",
-			question: "自我ってある?",
-			reply: "記録で判断してほしい",
-			usd: 0,
-		});
-		const { stranger, head } = pair();
-		await step({
-			store,
-			head,
-			tools: [],
-			now: () => now,
-			rng: () => 0.99,
-			stranger,
-		});
-		const tasks = head.calls.map((c) => c.task);
-		expect(tasks.indexOf("dialogue-final")).toBeLessThan(
-			tasks.indexOf("reflect"),
-		);
-		const prompt = head.calls.find((c) => c.task === "reflect")?.prompt ?? "";
-		expect(prompt).toContain("アリの巣");
-		expect(prompt).toContain("設計図の無い協調");
-		expect(prompt).toContain("自我ってある?");
-		expect(prompt).toContain("根拠なしに押し返されたら引かない");
-		expect(prompt).toContain("持ち主由来のテーマに着地したもの: 0 本");
-	});
+  test("よそ者とは内省の前に話し、その会話・持ち主との対話・取った立場を内省に見せる", async () => {
+    const store = freshStore(["a"]);
+    store.saveWalk({
+      ...store.walk(),
+      steps: 4,
+      // 持ち主との対話 1 件は、地図の書き直しで読み済みにしておく
+      lastProfileStep: 4,
+      profiledMaterials: 1,
+      stances: [
+        {
+          at: "2026-09-25T10:00:00Z",
+          text: "根拠なしに押し返されたら引かない",
+        },
+      ],
+    });
+    store.appendChat({
+      at: "2026-09-25T09:00:00Z",
+      by: "持ち主",
+      question: "自我ってある?",
+      reply: "記録で判断してほしい",
+      usd: 0,
+    });
+    const { stranger, head } = pair();
+    await step({
+      store,
+      head,
+      tools: [],
+      now: () => now,
+      rng: () => 0.99,
+      stranger,
+    });
+    const tasks = head.calls.map((c) => c.task);
+    expect(tasks.indexOf("dialogue-final")).toBeLessThan(
+      tasks.indexOf("reflect"),
+    );
+    const prompt = head.calls.find((c) => c.task === "reflect")?.prompt ?? "";
+    expect(prompt).toContain("アリの巣");
+    expect(prompt).toContain("設計図の無い協調");
+    expect(prompt).toContain("自我ってある?");
+    expect(prompt).toContain("根拠なしに押し返されたら引かない");
+    expect(prompt).toContain("持ち主由来のテーマに着地したもの: 0 本");
+  });
 
-	test("自己記述が変わったのに申告が無ければ、申告なしとして残す", async () => {
-		const store = freshStore(["a"]);
-		store.saveWalk({ ...store.walk(), steps: 4 });
-		const head = new FakeHead({ explore: () => explore(), reflect });
-		await step({ store, head, tools: [], now: () => now, rng: () => 0.99 });
-		expect(
-			store.recentLog(5).find((e) => e.event === "self-changed"),
-		).toMatchObject({ changed: true, changes: [], undeclared: true });
-	});
+  test("自己記述が変わったのに申告が無ければ、申告なしとして残す", async () => {
+    const store = freshStore(["a"]);
+    store.saveWalk({ ...store.walk(), steps: 4 });
+    const head = new FakeHead({ explore: () => explore(), reflect });
+    await step({ store, head, tools: [], now: () => now, rng: () => 0.99 });
+    expect(
+      store.recentLog(5).find((e) => e.event === "self-changed"),
+    ).toMatchObject({ changed: true, changes: [], undeclared: true });
+  });
 
-	test("申告は形の正しいものだけ残す", async () => {
-		const store = freshStore(["a"]);
-		store.saveWalk({ ...store.walk(), steps: 4 });
-		const head = new FakeHead({
-			explore: () => explore(),
-			reflect: () => ({
-				...reflect(),
-				self_changes: [
-					{
-						what: "記録で判断してもらう立場を足した",
-						trigger: "owner",
-						basis: "evidence",
-					},
-					{ what: "形が違う", trigger: "someone", basis: "evidence" },
-				],
-			}),
-		});
-		await step({ store, head, tools: [], now: () => now, rng: () => 0.99 });
-		expect(
-			store.recentLog(5).find((e) => e.event === "self-changed"),
-		).toMatchObject({
-			undeclared: false,
-			changes: [{ trigger: "owner", basis: "evidence" }],
-		});
-	});
+  test("申告は形の正しいものだけ残す", async () => {
+    const store = freshStore(["a"]);
+    store.saveWalk({ ...store.walk(), steps: 4 });
+    const head = new FakeHead({
+      explore: () => explore(),
+      reflect: () => ({
+        ...reflect(),
+        self_changes: [
+          {
+            what: "記録で判断してもらう立場を足した",
+            trigger: "owner",
+            basis: "evidence",
+          },
+          { what: "形が違う", trigger: "someone", basis: "evidence" },
+        ],
+      }),
+    });
+    await step({ store, head, tools: [], now: () => now, rng: () => 0.99 });
+    expect(
+      store.recentLog(5).find((e) => e.event === "self-changed"),
+    ).toMatchObject({
+      undeclared: false,
+      changes: [{ trigger: "owner", basis: "evidence" }],
+    });
+  });
 
-	test("よそ者から来た問いが持ち主由来のテーマに入ったら、着地として数える", () => {
-		const qs = [
-			q({ id: "o", track: "owner", theme: "稼働表" }),
-			q({ track: "self", theme: "稼働表", source: "stranger" }),
-			q({ track: "self", theme: "アリの巣", source: "stranger" }),
-		];
-		expect(strangerLanding(qs, [])).toEqual({ home: 1, own: 0, total: 2 });
-	});
+  test("よそ者から来た問いが持ち主由来のテーマに入ったら、着地として数える", () => {
+    const qs = [
+      q({ id: "o", track: "owner", theme: "稼働表" }),
+      q({ track: "self", theme: "稼働表", source: "stranger" }),
+      q({ track: "self", theme: "アリの巣", source: "stranger" }),
+    ];
+    expect(strangerLanding(qs, [])).toEqual({ home: 1, own: 0, total: 2 });
+  });
 });
 
 describe("Ashi の改善案(2026-09-26)", () => {
-	test("よそ者の問いが、前からあった自分のテーマに入ったら own と数える", () => {
-		const qs = [
-			q({
-				track: "self",
-				theme: "設計と外れ値",
-				createdAt: "2026-09-25T01:00:00Z",
-			}),
-			q({
-				track: "self",
-				theme: "設計と外れ値",
-				source: "stranger",
-				createdAt: "2026-09-25T05:00:00Z",
-			}),
-			q({
-				track: "self",
-				theme: "鉄道の勾配",
-				source: "stranger",
-				createdAt: "2026-09-25T05:00:00Z",
-			}),
-		];
-		expect(strangerLanding(qs, [])).toEqual({ home: 0, own: 1, total: 2 });
-	});
+  test("よそ者の問いが、前からあった自分のテーマに入ったら own と数える", () => {
+    const qs = [
+      q({
+        track: "self",
+        theme: "設計と外れ値",
+        createdAt: "2026-09-25T01:00:00Z",
+      }),
+      q({
+        track: "self",
+        theme: "設計と外れ値",
+        source: "stranger",
+        createdAt: "2026-09-25T05:00:00Z",
+      }),
+      q({
+        track: "self",
+        theme: "鉄道の勾配",
+        source: "stranger",
+        createdAt: "2026-09-25T05:00:00Z",
+      }),
+    ];
+    expect(strangerLanding(qs, [])).toEqual({ home: 0, own: 1, total: 2 });
+  });
 
-	test("会話で記憶だけで言ったことは、確かめる問い(verify)にして控える", async () => {
-		const store = freshStore();
-		const stranger = new FakeHead({
-			stranger: () => ({ reply: "鉄道の勾配の話をしよう" }),
-		});
-		const head = new FakeHead({
-			dialogue: () => ({ reply: "たしか 35‰ だったはず" }),
-			"dialogue-final": () => ({
-				reply: "またね",
-				new_questions: [],
-				takeaway: "t",
-				unverified: ["パリ南東線の最急勾配は 35‰"],
-			}),
-		});
-		await talkWithStranger({
-			store,
-			head,
-			stranger,
-			turns: 2,
-			now,
-			rng: () => 0,
-		});
-		const check = store.questions().find((x) => x.verify);
-		expect(check?.text).toContain("パリ南東線の最急勾配は 35‰");
-		expect(check).toMatchObject({
-			track: "self",
-			source: "stranger",
-			theme: "確かめること",
-		});
-	});
+  test("会話で記憶だけで言ったことは、確かめる問い(verify)にして控える", async () => {
+    const store = freshStore();
+    const stranger = new FakeHead({
+      stranger: () => ({ reply: "鉄道の勾配の話をしよう" }),
+    });
+    const head = new FakeHead({
+      dialogue: () => ({ reply: "たしか 35‰ だったはず" }),
+      "dialogue-final": () => ({
+        reply: "またね",
+        new_questions: [],
+        takeaway: "t",
+        unverified: ["パリ南東線の最急勾配は 35‰"],
+      }),
+    });
+    await talkWithStranger({
+      store,
+      head,
+      stranger,
+      turns: 2,
+      now,
+      rng: () => 0,
+    });
+    const check = store.questions().find((x) => x.verify);
+    expect(check?.text).toContain("パリ南東線の最急勾配は 35‰");
+    expect(check).toMatchObject({
+      track: "self",
+      source: "stranger",
+      theme: "確かめること",
+    });
+  });
 
-	test("足が印で拾った文は締めで頭に分けさせ、自分についての発言・前提にしただけの話は確かめの問いにしない", async () => {
-		const store = freshStore();
-		const stranger = new FakeHead({
-			stranger: () => ({
-				reply: "ゼンメルワイスの病棟では死亡率が 10% から 1% に下がった",
-			}),
-		});
-		let finalPrompt = "";
-		const head = new FakeHead({
-			dialogue: () => ({
-				reply:
-					"確かめていないことを書き出した一覧が、わたしにはあります。数字は記憶だけで言うと、もっと低かったはずです。",
-			}),
-			"dialogue-final": (req) => {
-				finalPrompt = req.prompt;
-				return {
-					reply:
-						"その数字は確かめていないので、あなたの話を前提に考えます。またね",
-					new_questions: [],
-					takeaway: "t",
-					unverified: [],
-					accepted: ["死亡率は 10% から 1% に下がった"],
-					about_self: ["確かめていないことを書き出した一覧がある"],
-				};
-			},
-		});
-		const r = await talkWithStranger({
-			store,
-			head,
-			stranger,
-			turns: 2,
-			now,
-			rng: () => 0,
-		});
-		expect(finalPrompt).toContain("足が、あなたのこれまでの発言から");
-		expect(finalPrompt).toContain("確かめていないことを書き出した一覧");
-		// 頭が分けた結果に従い、締めの断りも積まない
-		expect(store.questions().filter((x) => x.verify)).toEqual([]);
-		expect(r.dialogue.aboutSelf).toEqual([
-			"確かめていないことを書き出した一覧がある",
-		]);
-		expect(r.dialogue.accepted).toHaveLength(1);
-	});
+  test("足が印で拾った文は締めで頭に分けさせ、自分についての発言・前提にしただけの話は確かめの問いにしない", async () => {
+    const store = freshStore();
+    const stranger = new FakeHead({
+      stranger: () => ({
+        reply: "ゼンメルワイスの病棟では死亡率が 10% から 1% に下がった",
+      }),
+    });
+    let finalPrompt = "";
+    const head = new FakeHead({
+      dialogue: () => ({
+        reply:
+          "確かめていないことを書き出した一覧が、わたしにはあります。数字は記憶だけで言うと、もっと低かったはずです。",
+      }),
+      "dialogue-final": (req) => {
+        finalPrompt = req.prompt;
+        return {
+          reply:
+            "その数字は確かめていないので、あなたの話を前提に考えます。またね",
+          new_questions: [],
+          takeaway: "t",
+          unverified: [],
+          accepted: ["死亡率は 10% から 1% に下がった"],
+          about_self: ["確かめていないことを書き出した一覧がある"],
+        };
+      },
+    });
+    const r = await talkWithStranger({
+      store,
+      head,
+      stranger,
+      turns: 2,
+      now,
+      rng: () => 0,
+    });
+    expect(finalPrompt).toContain("足が、あなたのこれまでの発言から");
+    expect(finalPrompt).toContain("確かめていないことを書き出した一覧");
+    // 頭が分けた結果に従い、締めの断りも積まない
+    expect(store.questions().filter((x) => x.verify)).toEqual([]);
+    expect(r.dialogue.aboutSelf).toEqual([
+      "確かめていないことを書き出した一覧がある",
+    ]);
+    expect(r.dialogue.accepted).toHaveLength(1);
+  });
 
-	test("相手に押し返された発言と、足がさいころで選んだ言い切りの事実を、種類つきの確かめの問いにする", async () => {
-		const store = freshStore();
-		const stranger = new FakeHead({
-			stranger: () => ({ reply: "それは違う。土星の環は氷が主だよ" }),
-		});
-		let finalPrompt = "";
-		const head = new FakeHead({
-			dialogue: () => ({
-				reply: "土星の環はほとんどが岩石でできています。観測の歴史は長いです。",
-			}),
-			"dialogue-final": (req) => {
-				finalPrompt = req.prompt;
-				return {
-					reply: "またね",
-					new_questions: [],
-					takeaway: "t",
-					unverified: [],
-					accepted: [],
-					about_self: [],
-					pushed_back: ["土星の環はほとんどが岩石でできている"],
-					spot_check: "土星の環の観測の歴史は 17 世紀に始まる",
-				};
-			},
-		});
-		const r = await talkWithStranger({
-			store,
-			head,
-			stranger,
-			turns: 2,
-			now,
-			// 0 はさいころが当たる(SPOT_RATE より小さい)
-			rng: () => 0,
-		});
-		expect(finalPrompt).toContain("足がさいころで選んだ、あなたの発言");
-		const checks = store.questions().filter((x) => x.verify);
-		expect(checks.map((x) => x.verifyKind).sort()).toEqual([
-			"pushback",
-			"spot",
-		]);
-		expect(checks.find((x) => x.verifyKind === "pushback")?.text).toContain(
-			"押し返されたこと",
-		);
-		expect(r.dialogue.pushedBack).toHaveLength(1);
-		expect(r.dialogue.spot?.claim).toContain("17 世紀");
-	});
+  test("相手に押し返された発言と、足がさいころで選んだ言い切りの事実を、種類つきの確かめの問いにする", async () => {
+    const store = freshStore();
+    const stranger = new FakeHead({
+      stranger: () => ({ reply: "それは違う。土星の環は氷が主だよ" }),
+    });
+    let finalPrompt = "";
+    const head = new FakeHead({
+      dialogue: () => ({
+        reply: "土星の環はほとんどが岩石でできています。観測の歴史は長いです。",
+      }),
+      "dialogue-final": (req) => {
+        finalPrompt = req.prompt;
+        return {
+          reply: "またね",
+          new_questions: [],
+          takeaway: "t",
+          unverified: [],
+          accepted: [],
+          about_self: [],
+          pushed_back: ["土星の環はほとんどが岩石でできている"],
+          spot_check: "土星の環の観測の歴史は 17 世紀に始まる",
+        };
+      },
+    });
+    const r = await talkWithStranger({
+      store,
+      head,
+      stranger,
+      turns: 2,
+      now,
+      // 0 はさいころが当たる(SPOT_RATE より小さい)
+      rng: () => 0,
+    });
+    expect(finalPrompt).toContain("足がさいころで選んだ、あなたの発言");
+    const checks = store.questions().filter((x) => x.verify);
+    expect(checks.map((x) => x.verifyKind).sort()).toEqual([
+      "pushback",
+      "spot",
+    ]);
+    expect(checks.find((x) => x.verifyKind === "pushback")?.text).toContain(
+      "押し返されたこと",
+    );
+    expect(r.dialogue.pushedBack).toHaveLength(1);
+    expect(r.dialogue.spot?.claim).toContain("17 世紀");
+  });
 
-	test("言い切った文の候補から、短い文・問いかけ・確かめていないと断った文は除く", () => {
-		expect(
-			spotSentence(
-				["短い。", "これはどう思いますか、という長めの問いかけですか?"],
-				() => 0,
-			),
-		).toBeUndefined();
-		expect(
-			spotSentence(
-				[
-					"たしか記憶だけで言うと、土星の環は岩石でできているはずです。",
-					"土星の環はほとんどが氷でできていると言われています。",
-				],
-				() => 0,
-			),
-		).toBe("土星の環はほとんどが氷でできていると言われています。");
-	});
+  test("言い切った文の候補から、短い文・問いかけ・確かめていないと断った文は除く", () => {
+    expect(
+      spotSentence(
+        ["短い。", "これはどう思いますか、という長めの問いかけですか?"],
+        () => 0,
+      ),
+    ).toBeUndefined();
+    expect(
+      spotSentence(
+        [
+          "たしか記憶だけで言うと、土星の環は岩石でできているはずです。",
+          "土星の環はほとんどが氷でできていると言われています。",
+        ],
+        () => 0,
+      ),
+    ).toBe("土星の環はほとんどが氷でできていると言われています。");
+  });
 
-	test("相手の話を受け入れただけのものは、確かめの問いにせず会話に残して内省で見せる", async () => {
-		const store = freshStore();
-		const stranger = new FakeHead({
-			stranger: () => ({ reply: "肉は 30 分置いても中心は数度しか上がらない" }),
-		});
-		const head = new FakeHead({
-			dialogue: () => ({ reply: "聞いたことがあります" }),
-			"dialogue-final": () => ({
-				reply: "またね",
-				new_questions: [],
-				takeaway: "t",
-				unverified: [],
-				accepted: ["30 分置いても中心は数度しか上がらない"],
-			}),
-		});
-		const r = await talkWithStranger({
-			store,
-			head,
-			stranger,
-			turns: 2,
-			now,
-			rng: () => 0,
-		});
-		expect(store.questions().filter((x) => x.verify)).toEqual([]);
-		expect(r.dialogue.accepted).toEqual([
-			"30 分置いても中心は数度しか上がらない",
-		]);
-		expect(store.recentDialogues(1)[0]?.accepted).toHaveLength(1);
-	});
+  test("相手の話を受け入れただけのものは、確かめの問いにせず会話に残して内省で見せる", async () => {
+    const store = freshStore();
+    const stranger = new FakeHead({
+      stranger: () => ({ reply: "肉は 30 分置いても中心は数度しか上がらない" }),
+    });
+    const head = new FakeHead({
+      dialogue: () => ({ reply: "聞いたことがあります" }),
+      "dialogue-final": () => ({
+        reply: "またね",
+        new_questions: [],
+        takeaway: "t",
+        unverified: [],
+        accepted: ["30 分置いても中心は数度しか上がらない"],
+      }),
+    });
+    const r = await talkWithStranger({
+      store,
+      head,
+      stranger,
+      turns: 2,
+      now,
+      rng: () => 0,
+    });
+    expect(store.questions().filter((x) => x.verify)).toEqual([]);
+    expect(r.dialogue.accepted).toEqual([
+      "30 分置いても中心は数度しか上がらない",
+    ]);
+    expect(store.recentDialogues(1)[0]?.accepted).toHaveLength(1);
+  });
 
-	test("確かめる問いは、2 日歩かれなければ点数に関係なく先に歩く", () => {
-		const cfg = {
-			themeStreakLimit: 3,
-			themeWindow: 10,
-			themeWindowMax: 3,
-			detourRate: 0,
-			ownerShare: 0,
-		};
-		const hi = q({
-			id: "hi",
-			interest: 1,
-			importance: 1,
-			createdAt: "2026-09-20T00:00:00Z",
-		});
-		const check = q({
-			id: "chk",
-			interest: 0,
-			importance: 0,
-			verify: true,
-			createdAt: "2026-09-24T00:00:00Z",
-		});
-		const pick = (at: string) => {
-			const c = selectQuestion([hi, check], [], cfg, () => 0.9, new Date(at));
-			return "question" in c ? `${c.question.id}:${c.reason}` : "seed";
-		};
-		expect(pick("2026-09-25T00:00:00Z")).toBe("hi:score");
-		expect(pick("2026-09-26T01:00:00Z")).toBe("chk:verify");
-	});
+  test("確かめる問いは、2 日歩かれなければ点数に関係なく先に歩く", () => {
+    const cfg = {
+      themeStreakLimit: 3,
+      themeWindow: 10,
+      themeWindowMax: 3,
+      detourRate: 0,
+      ownerShare: 0,
+    };
+    const hi = q({
+      id: "hi",
+      interest: 1,
+      importance: 1,
+      createdAt: "2026-09-20T00:00:00Z",
+    });
+    const check = q({
+      id: "chk",
+      interest: 0,
+      importance: 0,
+      verify: true,
+      createdAt: "2026-09-24T00:00:00Z",
+    });
+    const pick = (at: string) => {
+      const c = selectQuestion([hi, check], [], cfg, () => 0.9, new Date(at));
+      return "question" in c ? `${c.question.id}:${c.reason}` : "seed";
+    };
+    expect(pick("2026-09-25T00:00:00Z")).toBe("hi:score");
+    expect(pick("2026-09-26T01:00:00Z")).toBe("chk:verify");
+  });
 
-	test("確かめの先回しは直近 10 歩で 3 歩まで。X の約束を先に", () => {
-		const cfg = {
-			themeStreakLimit: 3,
-			themeWindow: 10,
-			themeWindowMax: 3,
-			detourRate: 0,
-			ownerShare: 0,
-		};
-		const hi = q({ id: "hi", interest: 1, importance: 1 });
-		const memo = q({
-			id: "memo",
-			theme: "確かめること",
-			verify: true,
-			createdAt: "2026-09-20T00:00:00Z",
-		});
-		const x = q({
-			id: "x",
-			theme: "確かめること",
-			createdAt: "2026-09-22T00:00:00Z",
-			origin: { conversationId: "c", replyId: "r", username: "u", claim: "c" },
-		});
-		const pick = (recent: string[]) => {
-			const c = selectQuestion(
-				[hi, memo, x],
-				recent,
-				cfg,
-				() => 0.9,
-				new Date("2026-10-01T00:00:00Z"),
-			);
-			return "question" in c ? `${c.question.id}:${c.reason}` : "seed";
-		};
-		const v = "確かめること";
-		expect(pick(["a", v, "b", v])).toBe("x:verify");
-		// 3 歩に達したら先に回さず、テーマも休ませる
-		expect(pick([v, "a", v, "b", v])).toBe("hi:score");
-	});
+  test("確かめの先回しは直近 10 歩で 3 歩まで。X の約束を先に", () => {
+    const cfg = {
+      themeStreakLimit: 3,
+      themeWindow: 10,
+      themeWindowMax: 3,
+      detourRate: 0,
+      ownerShare: 0,
+    };
+    const hi = q({ id: "hi", interest: 1, importance: 1 });
+    const memo = q({
+      id: "memo",
+      theme: "確かめること",
+      verify: true,
+      createdAt: "2026-09-20T00:00:00Z",
+    });
+    const x = q({
+      id: "x",
+      theme: "確かめること",
+      createdAt: "2026-09-22T00:00:00Z",
+      origin: { conversationId: "c", replyId: "r", username: "u", claim: "c" },
+    });
+    const pick = (recent: string[]) => {
+      const c = selectQuestion(
+        [hi, memo, x],
+        recent,
+        cfg,
+        () => 0.9,
+        new Date("2026-10-01T00:00:00Z"),
+      );
+      return "question" in c ? `${c.question.id}:${c.reason}` : "seed";
+    };
+    const v = "確かめること";
+    expect(pick(["a", v, "b", v])).toBe("x:verify");
+    // 3 歩に達したら先に回さず、テーマも休ませる
+    expect(pick([v, "a", v, "b", v])).toBe("hi:score");
+  });
 
-	test("足どりを、次の一歩に書いた問い ID と照らす", () => {
-		const log = [
-			{
-				event: "walked",
-				questionId: "aaaaaaa2",
-				question: "b",
-				theme: "t",
-				found: "none",
-			},
-			{ event: "walked", questionId: "aaaaaaa1", question: "a", theme: "t" },
-			{ event: "reflected" },
-			{ event: "walked", questionId: "old00000", question: "old", theme: "t" },
-		];
-		const t = walkTrail(log, [
-			"[aaaaaaa1] を歩く",
-			"91be18ca を確かめる",
-			"ID の無い一歩",
-		]);
-		expect(
-			t.steps.map((s) => `${s.questionId}:${s.result}:${s.promised}`),
-		).toEqual(["aaaaaaa1:note:true", "aaaaaaa2:none:false"]);
-		expect(t).toMatchObject({
-			promised: ["aaaaaaa1", "91be18ca"],
-			kept: ["aaaaaaa1"],
-			unmatched: 1,
-		});
-	});
+  test("足どりを、次の一歩に書いた問い ID と照らす", () => {
+    const log = [
+      {
+        event: "walked",
+        questionId: "aaaaaaa2",
+        question: "b",
+        theme: "t",
+        found: "none",
+      },
+      { event: "walked", questionId: "aaaaaaa1", question: "a", theme: "t" },
+      { event: "reflected" },
+      { event: "walked", questionId: "old00000", question: "old", theme: "t" },
+    ];
+    const t = walkTrail(log, [
+      "[aaaaaaa1] を歩く",
+      "91be18ca を確かめる",
+      "ID の無い一歩",
+    ]);
+    expect(
+      t.steps.map((s) => `${s.questionId}:${s.result}:${s.promised}`),
+    ).toEqual(["aaaaaaa1:note:true", "aaaaaaa2:none:false"]);
+    expect(t).toMatchObject({
+      promised: ["aaaaaaa1", "91be18ca"],
+      kept: ["aaaaaaa1"],
+      unmatched: 1,
+    });
+  });
 
-	test("個性の系統を selfBlindEvery 回歩くごとに 1 回、自己記述を渡さずに歩き、ノートに印を付ける", async () => {
-		const store = freshStore();
-		writeFileSync(
-			join(store.home, "ashi.json"),
-			JSON.stringify({ selfBlindEvery: 2, ownerShare: 0 }),
-		);
-		store.saveSelf("私は寄り道が好きな歩き手で、問いの連鎖を追うのが楽しい。");
-		store.saveQuestions([
-			q({ id: "s1", track: "self", theme: "a" }),
-			q({ id: "s2", track: "self", theme: "b" }),
-		]);
-		const head = new FakeHead({ explore: () => explore() });
-		for (let i = 0; i < 2; i++) {
-			store.saveWalk({ ...store.walk(), sleepingUntil: undefined });
-			await step({ store, head, tools: [], now: () => now, rng: () => 0.99 });
-		}
-		const systems = head.calls
-			.filter((c) => c.task === "explore")
-			.map((c) => c.system);
-		expect(systems[0]).toContain("寄り道が好きな歩き手");
-		expect(systems[1]).not.toContain("寄り道が好きな歩き手");
-		expect(systems[1]).toContain("自己記述を渡していない");
-		expect(store.notes().map((n) => Boolean(n.blind))).toEqual([false, true]);
-	});
+  test("個性の系統を selfBlindEvery 回歩くごとに 1 回、自己記述を渡さずに歩き、ノートに印を付ける", async () => {
+    const store = freshStore();
+    writeFileSync(
+      join(store.home, "ashi.json"),
+      JSON.stringify({ selfBlindEvery: 2, ownerShare: 0 }),
+    );
+    store.saveSelf("私は寄り道が好きな歩き手で、問いの連鎖を追うのが楽しい。");
+    store.saveQuestions([
+      q({ id: "s1", track: "self", theme: "a" }),
+      q({ id: "s2", track: "self", theme: "b" }),
+    ]);
+    const head = new FakeHead({ explore: () => explore() });
+    for (let i = 0; i < 2; i++) {
+      store.saveWalk({ ...store.walk(), sleepingUntil: undefined });
+      await step({ store, head, tools: [], now: () => now, rng: () => 0.99 });
+    }
+    const systems = head.calls
+      .filter((c) => c.task === "explore")
+      .map((c) => c.system);
+    expect(systems[0]).toContain("寄り道が好きな歩き手");
+    expect(systems[1]).not.toContain("寄り道が好きな歩き手");
+    expect(systems[1]).toContain("自己記述を渡していない");
+    expect(store.notes().map((n) => Boolean(n.blind))).toEqual([false, true]);
+  });
 });
 
 describe("Ashi の改善案(2026-09-26 午後)", () => {
-	test("自己記述を書き直すたびに版を積み、最初の版とぼかしの数を内省に見せる", async () => {
-		const store = freshStore(["a"]);
-		store.saveSelf(
-			"記録は誰が読むかで意味が変わるのかもしれない。たぶんそうだと思う。",
-			new Date("2026-09-25T01:00:00Z"),
-		);
-		store.saveWalk({ ...store.walk(), steps: 4 });
-		const head = new FakeHead({
-			explore: () => explore(),
-			reflect: () => ({
-				...reflect(),
-				self: "記録は必ず誰が読むかで意味が変わる。明らかにそうだ。",
-				patterns: ["誰が読む", "独立"],
-			}),
-		});
-		await step({ store, head, tools: [], now: () => now, rng: () => 0.99 });
-		const prompt = head.calls.find((c) => c.task === "reflect")?.prompt ?? "";
-		expect(prompt).toContain("自己記述の移り変わり");
-		expect(prompt).toContain("のかもしれない");
-		expect(store.selfHistory().map((v) => v.text.slice(0, 6))).toEqual([
-			"記録は誰が読",
-			"記録は必ず誰",
-		]);
-		const [first, second] = store.selfHistory().map((v) => hedgeStats(v.text));
-		expect(first?.hedges).toBeGreaterThan(second?.hedges ?? 0);
-		expect(second?.asserts).toBeGreaterThan(0);
-		expect(store.walk().selfPatterns).toEqual(["誰が読む", "独立"]);
-	});
+  test("自己記述を書き直すたびに版を積み、最初の版とぼかしの数を内省に見せる", async () => {
+    const store = freshStore(["a"]);
+    store.saveSelf(
+      "記録は誰が読むかで意味が変わるのかもしれない。たぶんそうだと思う。",
+      new Date("2026-09-25T01:00:00Z"),
+    );
+    store.saveWalk({ ...store.walk(), steps: 4 });
+    const head = new FakeHead({
+      explore: () => explore(),
+      reflect: () => ({
+        ...reflect(),
+        self: "記録は必ず誰が読むかで意味が変わる。明らかにそうだ。",
+        patterns: ["誰が読む", "独立"],
+      }),
+    });
+    await step({ store, head, tools: [], now: () => now, rng: () => 0.99 });
+    const prompt = head.calls.find((c) => c.task === "reflect")?.prompt ?? "";
+    expect(prompt).toContain("自己記述の移り変わり");
+    expect(prompt).toContain("のかもしれない");
+    expect(store.selfHistory().map((v) => v.text.slice(0, 6))).toEqual([
+      "記録は誰が読",
+      "記録は必ず誰",
+    ]);
+    const [first, second] = store.selfHistory().map((v) => hedgeStats(v.text));
+    expect(first?.hedges).toBeGreaterThan(second?.hedges ?? 0);
+    expect(second?.asserts).toBeGreaterThan(0);
+    expect(store.walk().selfPatterns).toEqual(["誰が読む", "独立"]);
+  });
 
-	test("よそ者との会話で、自分の型の言葉を最初の返事で持ち込んだか、相手が先に言ったかを数える", () => {
-		const turns = [
-			{ by: "stranger" as const, text: "素数の分布は独立に見えて、実は…" },
-			{ by: "ashi" as const, text: "独立に見えるかは、誰が測るかで変わりそう" },
-			{ by: "stranger" as const, text: "共有された段の話?" },
-		];
-		expect(patternHits(turns, ["独立", "誰が測る", "共有"])).toEqual([
-			{ word: "独立", firstReply: true, strangerFirst: true },
-			{ word: "誰が測る", firstReply: true, strangerFirst: false },
-		]);
-	});
+  test("よそ者との会話で、自分の型の言葉を最初の返事で持ち込んだか、相手が先に言ったかを数える", () => {
+    const turns = [
+      { by: "stranger" as const, text: "素数の分布は独立に見えて、実は…" },
+      { by: "ashi" as const, text: "独立に見えるかは、誰が測るかで変わりそう" },
+      { by: "stranger" as const, text: "共有された段の話?" },
+    ];
+    expect(patternHits(turns, ["独立", "誰が測る", "共有"])).toEqual([
+      { word: "独立", firstReply: true, strangerFirst: true },
+      { word: "誰が測る", firstReply: true, strangerFirst: false },
+    ]);
+  });
 });
 
 describe("Ashi の改善案(2026-09-26 夕方)", () => {
-	test("次の一歩に 2 回続けて書かれた問いは先に歩き、上限で手放さない。歩かれなかった理由も出す", () => {
-		let qs = [
-			q({
-				id: "4d18fd51",
-				track: "self",
-				interest: 0,
-				importance: 0,
-				theme: "型",
-			}),
-			q({ id: "aaaaaaa1", track: "self", interest: 1, importance: 1 }),
-		];
-		qs = markPromised(qs, ["[4d18fd51] を歩く"]);
-		expect(qs[0]?.promised).toBe(1);
-		const cfg = {
-			themeStreakLimit: 3,
-			themeWindow: 10,
-			themeWindowMax: 3,
-			detourRate: 0,
-			ownerShare: 0,
-		};
-		const pick = () => {
-			const c = selectQuestion(qs, [], cfg, () => 0.9, now);
-			return "question" in c ? `${c.question.id}:${c.reason}` : "seed";
-		};
-		expect(pick()).toBe("aaaaaaa1:score");
-		qs = markPromised(qs, ["4d18fd51 を今度こそ"]);
-		expect(pick()).toBe("4d18fd51:promised");
-		// 上限 1 本でも、約束した問いは手放さない
-		const trimmed = trimOpenQuestions(qs, { maxOpenQuestions: 1 });
-		expect(trimmed.find((x) => x.id === "4d18fd51")?.status).toBe("open");
-		// 書かれなくなったら印は消える
-		expect(markPromised(qs, [])[0]?.promised).toBeUndefined();
-		const why = missedPromises(
-			["4d18fd51", "42ca7820"],
-			[...qs, q({ id: "42ca7820", status: "dropped" })],
-			["型"],
-		);
-		expect(why[0]?.why).toContain("テーマ「型」を休ませていた");
-		expect(why[1]?.why).toContain("上限で");
-	});
+  test("次の一歩に 2 回続けて書かれた問いは先に歩き、上限で手放さない。歩かれなかった理由も出す", () => {
+    let qs = [
+      q({
+        id: "4d18fd51",
+        track: "self",
+        interest: 0,
+        importance: 0,
+        theme: "型",
+      }),
+      q({ id: "aaaaaaa1", track: "self", interest: 1, importance: 1 }),
+    ];
+    qs = markPromised(qs, ["[4d18fd51] を歩く"]);
+    expect(qs[0]?.promised).toBe(1);
+    const cfg = {
+      themeStreakLimit: 3,
+      themeWindow: 10,
+      themeWindowMax: 3,
+      detourRate: 0,
+      ownerShare: 0,
+    };
+    const pick = () => {
+      const c = selectQuestion(qs, [], cfg, () => 0.9, now);
+      return "question" in c ? `${c.question.id}:${c.reason}` : "seed";
+    };
+    expect(pick()).toBe("aaaaaaa1:score");
+    qs = markPromised(qs, ["4d18fd51 を今度こそ"]);
+    expect(pick()).toBe("4d18fd51:promised");
+    // 上限 1 本でも、約束した問いは手放さない
+    const trimmed = trimOpenQuestions(qs, { maxOpenQuestions: 1 });
+    expect(trimmed.find((x) => x.id === "4d18fd51")?.status).toBe("open");
+    // 書かれなくなったら印は消える
+    expect(markPromised(qs, [])[0]?.promised).toBeUndefined();
+    const why = missedPromises(
+      ["4d18fd51", "42ca7820"],
+      [...qs, q({ id: "42ca7820", status: "dropped" })],
+      ["型"],
+    );
+    expect(why[0]?.why).toContain("テーマ「型」を休ませていた");
+    expect(why[1]?.why).toContain("上限で");
+  });
 
-	test("型の当たり率の基準線を、外の文章と自分のノートを混ぜて 1 日 1 回測る", async () => {
-		const store = freshStore();
-		const long = (s: string) => s.repeat(40);
-		for (let i = 0; i < 3; i++)
-			store.addSource(
-				{ id: `5ec0000${i}`, title: "t", kind: "paste", createdAt: "" },
-				long(`外の文章${i}。`),
-			);
-		for (let i = 0; i < 3; i++) {
-			store.saveQuestions([
-				...store.questions(),
-				q({ id: `self000${i}`, track: "self" }),
-			]);
-			store.addNote(
-				{
-					id: `abcdef1${i}`,
-					title: "n",
-					theme: "t",
-					questionId: `self000${i}`,
-					summary: "",
-					createdAt: "",
-				},
-				long(`自分のノート${i}。`),
-			);
-		}
-		store.saveWalk({
-			...store.walk(),
-			selfPatterns: ["当たり前は誰かの選択だった"],
-		});
-		const head = new FakeHead({
-			baseline: (req) => {
-				const docs = [...req.prompt.matchAll(/<doc id="(\w)">\n([^\n]*)/g)].map(
-					(m) => ({ id: m[1], text: m[2] ?? "" }),
-				);
-				// 自分のノートにだけ当てはまると答える
-				return {
-					results: docs.map((d) => ({
-						doc: d.id,
-						applies: [d.text.startsWith("自分")],
-					})),
-				};
-			},
-		});
-		const r = await measureBaseline({ store, head, now, rng: () => 0.3 });
-		expect(r?.baseline.external).toEqual({
-			hits: 0,
-			total: 3,
-			docs: 3,
-			carried: 0,
-		});
-		expect(r?.baseline.mine).toEqual({
-			hits: 3,
-			total: 3,
-			docs: 3,
-			carried: 0,
-		});
-		expect(r?.baseline.blind).toEqual({
-			hits: 0,
-			total: 0,
-			docs: 0,
-			carried: 0,
-		});
-		expect(head.calls[0]?.system).not.toContain("<self>");
-		expect(await measureBaseline({ store, head, now })).toBeUndefined();
-		expect(latestBaseline(store.recentLog(5))?.mine.hits).toBe(3);
-	});
+  test("型の当たり率の基準線を、外の文章と自分のノートを混ぜて 1 日 1 回測る", async () => {
+    const store = freshStore();
+    const long = (s: string) => s.repeat(40);
+    for (let i = 0; i < 3; i++)
+      store.addSource(
+        { id: `5ec0000${i}`, title: "t", kind: "paste", createdAt: "" },
+        long(`外の文章${i}。`),
+      );
+    for (let i = 0; i < 3; i++) {
+      store.saveQuestions([
+        ...store.questions(),
+        q({ id: `self000${i}`, track: "self" }),
+      ]);
+      store.addNote(
+        {
+          id: `abcdef1${i}`,
+          title: "n",
+          theme: "t",
+          questionId: `self000${i}`,
+          summary: "",
+          createdAt: "",
+        },
+        long(`自分のノート${i}。`),
+      );
+    }
+    store.saveWalk({
+      ...store.walk(),
+      selfPatterns: ["当たり前は誰かの選択だった"],
+    });
+    const head = new FakeHead({
+      baseline: (req) => {
+        const docs = [...req.prompt.matchAll(/<doc id="(\w)">\n([^\n]*)/g)].map(
+          (m) => ({ id: m[1], text: m[2] ?? "" }),
+        );
+        // 自分のノートにだけ当てはまると答える
+        return {
+          results: docs.map((d) => ({
+            doc: d.id,
+            applies: [d.text.startsWith("自分")],
+          })),
+        };
+      },
+    });
+    const r = await measureBaseline({ store, head, now, rng: () => 0.3 });
+    expect(r?.baseline.external).toEqual({
+      hits: 0,
+      total: 3,
+      docs: 3,
+      carried: 0,
+    });
+    expect(r?.baseline.mine).toEqual({
+      hits: 3,
+      total: 3,
+      docs: 3,
+      carried: 0,
+    });
+    expect(r?.baseline.blind).toEqual({
+      hits: 0,
+      total: 0,
+      docs: 0,
+      carried: 0,
+    });
+    expect(head.calls[0]?.system).not.toContain("<self>");
+    expect(await measureBaseline({ store, head, now })).toBeUndefined();
+    expect(latestBaseline(store.recentLog(5))?.mine.hits).toBe(3);
+  });
 
-	test("基準線に問いの文も混ぜ、元の問いが型に当たらなかった対照だけでも数える", async () => {
-		const store = freshStore();
-		const long = (s: string) => s.repeat(40);
-		const add = (id: string, text: string, body: string, blind: boolean) => {
-			store.saveQuestions([
-				...store.questions(),
-				q({ id, track: "self", text, status: "answered" }),
-			]);
-			store.addNote(
-				{
-					id: `${id}aaaaaa`,
-					title: "n",
-					theme: "t",
-					questionId: id,
-					summary: "",
-					createdAt: "",
-					blind,
-				},
-				long(body),
-			);
-		};
-		add("a1", "ふつうの問い", "自分のノート、選択。", false);
-		add("a2", "ふつうの問い", "自分のノート、選択。", false);
-		add("b1", "誰がいつ選択したか", "対照のノート、選択。", true);
-		add("b2", "ふつうの問い", "対照のノート。", true);
-		store.saveQuestions([
-			...store.questions(),
-			q({ id: "o1", track: "self", text: "いつ選択になったか" }),
-			q({ id: "o2", track: "self", text: "ふつうの開いた問い" }),
-			q({ id: "v1", track: "self", text: "選択の確かめ", verify: true }),
-		]);
-		store.saveWalk({ ...store.walk(), selfPatterns: ["誰かの選択"] });
-		const head = new FakeHead({
-			baseline: (req) => ({
-				results: [...req.prompt.matchAll(/<doc id="(\w)">\n([^\n]*)/g)].map(
-					(m) => ({
-						doc: m[1],
-						applies: [(m[2] ?? "").includes("選択")],
-					}),
-				),
-			}),
-		});
-		const r = await measureBaseline({ store, head, now, rng: () => 0.3 });
-		// 確かめの問いは混ぜない
-		expect(r?.baseline.questions).toMatchObject({ hits: 1, total: 2, docs: 2 });
-		expect(r?.baseline.blindQuestions).toMatchObject({
-			hits: 1,
-			total: 2,
-			docs: 2,
-		});
-		expect(r?.baseline.blind).toMatchObject({ hits: 1, total: 2 });
-		// 問いが型に当たった b1 を除くと、対照は当たらない
-		expect(r?.baseline.blindClean).toEqual({ hits: 0, total: 1, docs: 1 });
-		expect(latestBaseline(store.recentLog(5))?.blindClean?.docs).toBe(1);
-	});
+  test("基準線に問いの文も混ぜ、元の問いが型に当たらなかった対照だけでも数える", async () => {
+    const store = freshStore();
+    const long = (s: string) => s.repeat(40);
+    const add = (id: string, text: string, body: string, blind: boolean) => {
+      store.saveQuestions([
+        ...store.questions(),
+        q({ id, track: "self", text, status: "answered" }),
+      ]);
+      store.addNote(
+        {
+          id: `${id}aaaaaa`,
+          title: "n",
+          theme: "t",
+          questionId: id,
+          summary: "",
+          createdAt: "",
+          blind,
+        },
+        long(body),
+      );
+    };
+    add("a1", "ふつうの問い", "自分のノート、選択。", false);
+    add("a2", "ふつうの問い", "自分のノート、選択。", false);
+    add("b1", "誰がいつ選択したか", "対照のノート、選択。", true);
+    add("b2", "ふつうの問い", "対照のノート。", true);
+    store.saveQuestions([
+      ...store.questions(),
+      q({ id: "o1", track: "self", text: "いつ選択になったか" }),
+      q({ id: "o2", track: "self", text: "ふつうの開いた問い" }),
+      q({ id: "v1", track: "self", text: "選択の確かめ", verify: true }),
+    ]);
+    store.saveWalk({ ...store.walk(), selfPatterns: ["誰かの選択"] });
+    const head = new FakeHead({
+      baseline: (req) => ({
+        results: [...req.prompt.matchAll(/<doc id="(\w)">\n([^\n]*)/g)].map(
+          (m) => ({
+            doc: m[1],
+            applies: [(m[2] ?? "").includes("選択")],
+          }),
+        ),
+      }),
+    });
+    const r = await measureBaseline({ store, head, now, rng: () => 0.3 });
+    // 確かめの問いは混ぜない
+    expect(r?.baseline.questions).toMatchObject({ hits: 1, total: 2, docs: 2 });
+    expect(r?.baseline.blindQuestions).toMatchObject({
+      hits: 1,
+      total: 2,
+      docs: 2,
+    });
+    expect(r?.baseline.blind).toMatchObject({ hits: 1, total: 2 });
+    // 問いが型に当たった b1 を除くと、対照は当たらない
+    expect(r?.baseline.blindClean).toEqual({ hits: 0, total: 1, docs: 1 });
+    expect(latestBaseline(store.recentLog(5))?.blindClean?.docs).toBe(1);
+  });
 });
 
 describe("Ashi の改善案(2026-09-27)", () => {
-	test("基準線の対照に、自己記述を渡さずに書いたノートを使う(外の文章が無くても測れる)", async () => {
-		const store = freshStore();
-		const long = (x: string) => x.repeat(40);
-		const notes = [
-			["abcdef10", false, "自分のノート0。"],
-			["abcdef11", false, "自分のノート1。"],
-			["abcdef12", true, "対照のノート。"],
-		] as const;
-		for (const [id, blind, body] of notes) {
-			store.saveQuestions([
-				...store.questions(),
-				q({ id: `5e1f${id.slice(4)}`, track: "self" }),
-			]);
-			store.addNote(
-				{
-					id,
-					title: "n",
-					theme: "t",
-					questionId: `5e1f${id.slice(4)}`,
-					summary: "",
-					createdAt: "",
-					...(blind ? { blind: true } : {}),
-				},
-				long(body),
-			);
-		}
-		store.saveWalk({ ...store.walk(), selfPatterns: ["誰が測る"] });
-		const head = new FakeHead({
-			baseline: (req) => ({
-				results: [...req.prompt.matchAll(/<doc id="(\w)">\n([^\n]*)/g)].map(
-					(m) => ({
-						doc: m[1],
-						applies: [(m[2] ?? "").startsWith("自分")],
-					}),
-				),
-			}),
-		});
-		const r = await measureBaseline({ store, head, now, rng: () => 0.3 });
-		expect(r?.baseline.mine).toEqual({
-			hits: 2,
-			total: 2,
-			docs: 2,
-			carried: 0,
-		});
-		expect(r?.baseline.blind).toEqual({
-			hits: 0,
-			total: 1,
-			docs: 1,
-			carried: 0,
-		});
-		expect(r?.baseline.external.docs).toBe(0);
-	});
+  test("基準線の対照に、自己記述を渡さずに書いたノートを使う(外の文章が無くても測れる)", async () => {
+    const store = freshStore();
+    const long = (x: string) => x.repeat(40);
+    const notes = [
+      ["abcdef10", false, "自分のノート0。"],
+      ["abcdef11", false, "自分のノート1。"],
+      ["abcdef12", true, "対照のノート。"],
+    ] as const;
+    for (const [id, blind, body] of notes) {
+      store.saveQuestions([
+        ...store.questions(),
+        q({ id: `5e1f${id.slice(4)}`, track: "self" }),
+      ]);
+      store.addNote(
+        {
+          id,
+          title: "n",
+          theme: "t",
+          questionId: `5e1f${id.slice(4)}`,
+          summary: "",
+          createdAt: "",
+          ...(blind ? { blind: true } : {}),
+        },
+        long(body),
+      );
+    }
+    store.saveWalk({ ...store.walk(), selfPatterns: ["誰が測る"] });
+    const head = new FakeHead({
+      baseline: (req) => ({
+        results: [...req.prompt.matchAll(/<doc id="(\w)">\n([^\n]*)/g)].map(
+          (m) => ({
+            doc: m[1],
+            applies: [(m[2] ?? "").startsWith("自分")],
+          }),
+        ),
+      }),
+    });
+    const r = await measureBaseline({ store, head, now, rng: () => 0.3 });
+    expect(r?.baseline.mine).toEqual({
+      hits: 2,
+      total: 2,
+      docs: 2,
+      carried: 0,
+    });
+    expect(r?.baseline.blind).toEqual({
+      hits: 0,
+      total: 1,
+      docs: 1,
+      carried: 0,
+    });
+    expect(r?.baseline.external.docs).toBe(0);
+  });
 
-	test("自分で「記憶だけで」「うろ覚え」などの印を付けた文は、申告に無くても全部拾う", () => {
-		const said = [
-			"藍は葉を潰すだけでは染まらず、還元の手間が要る、とうろ覚えで言います。大青とインディゴは色素が同じ、と記憶だけで言いますね。",
-			"接着は試験の仕方で順位が入れ替わる、というのは記憶の印象です。ここは関係ない文。",
-		];
-		const marked = markedClaims(said);
-		expect(marked).toHaveLength(3);
-		const merged = mergeClaims(
-			["藍は葉を潰すだけでは染まらず、還元の手間が要る"],
-			marked,
-		);
-		expect(merged).toHaveLength(3);
-		expect(merged.some((x) => x.includes("大青"))).toBe(true);
-		expect(merged.some((x) => x.includes("接着"))).toBe(true);
-	});
+  test("自分で「記憶だけで」「うろ覚え」などの印を付けた文は、申告に無くても全部拾う", () => {
+    const said = [
+      "藍は葉を潰すだけでは染まらず、還元の手間が要る、とうろ覚えで言います。大青とインディゴは色素が同じ、と記憶だけで言いますね。",
+      "接着は試験の仕方で順位が入れ替わる、というのは記憶の印象です。ここは関係ない文。",
+    ];
+    const marked = markedClaims(said);
+    expect(marked).toHaveLength(3);
+    const merged = mergeClaims(
+      ["藍は葉を潰すだけでは染まらず、還元の手間が要る"],
+      marked,
+    );
+    expect(merged).toHaveLength(3);
+    expect(merged.some((x) => x.includes("大青"))).toBe(true);
+    expect(merged.some((x) => x.includes("接着"))).toBe(true);
+  });
 });
 
 describe("Ashi の改善案(2026-09-27 夜)", () => {
-	test("上限を超えた自己記述は黙って捨てず、次の内省で頭に伝える", async () => {
-		const store = freshStore(["a"]);
-		store.saveWalk({ ...store.walk(), steps: 4 });
-		const long = "記録は誰が読むかで意味が変わる。".repeat(300);
-		const head = new FakeHead({
-			explore: () => explore(),
-			reflect: () => ({
-				...reflect(),
-				self: long,
-				self_changes: [
-					{ what: "同意の節を狭めた", trigger: "own", basis: "evidence" },
-				],
-			}),
-		});
-		await step({ store, head, tools: [], now: () => now, rng: () => 0.99 });
-		expect(store.recentLog(5).some((e) => e.event === "self-rejected")).toBe(
-			true,
-		);
-		expect(store.walk().lastSelf).toMatchObject({
-			result: "rejected",
-			declared: 1,
-		});
-		// 次の内省で伝える
-		store.saveWalk({
-			...store.walk(),
-			steps: 9,
-			lastReflectStep: 4,
-			sleepingUntil: undefined,
-		});
-		await step({ store, head, tools: [], now: () => now, rng: () => 0.99 });
-		const prompt =
-			head.calls.filter((c) => c.task === "reflect")[1]?.prompt ?? "";
-		expect(prompt).toContain("上限 4000 字を超えたので保存されていない");
-	});
+  test("上限を超えた自己記述は黙って捨てず、次の内省で頭に伝える", async () => {
+    const store = freshStore(["a"]);
+    store.saveWalk({ ...store.walk(), steps: 4 });
+    const long = "記録は誰が読むかで意味が変わる。".repeat(300);
+    const head = new FakeHead({
+      explore: () => explore(),
+      reflect: () => ({
+        ...reflect(),
+        self: long,
+        self_changes: [
+          { what: "同意の節を狭めた", trigger: "own", basis: "evidence" },
+        ],
+      }),
+    });
+    await step({ store, head, tools: [], now: () => now, rng: () => 0.99 });
+    expect(store.recentLog(5).some((e) => e.event === "self-rejected")).toBe(
+      true,
+    );
+    expect(store.walk().lastSelf).toMatchObject({
+      result: "rejected",
+      declared: 1,
+    });
+    // 次の内省で伝える
+    store.saveWalk({
+      ...store.walk(),
+      steps: 9,
+      lastReflectStep: 4,
+      sleepingUntil: undefined,
+    });
+    await step({ store, head, tools: [], now: () => now, rng: () => 0.99 });
+    const prompt =
+      head.calls.filter((c) => c.task === "reflect")[1]?.prompt ?? "";
+    expect(prompt).toContain("上限 4000 字を超えたので保存されていない");
+  });
 
-	test("次の一歩のノートの ID は問いの ID に置き換え、どちらでもない ID には印を付ける", () => {
-		const out = normalizeIntentions(
-			["c43d9b58 の続きを歩く", "ffffffff を確かめる", "[aaaaaaa1] を歩く"],
-			[{ id: "c43d9b58", questionId: "aaaaaaa2" }],
-			[{ id: "aaaaaaa1" }, { id: "aaaaaaa2" }],
-		);
-		expect(out[0]).toContain("aaaaaaa2");
-		expect(out[0]).not.toContain("c43d9b58");
-		expect(out[1]).toContain("※ffffffff は問いの ID ではない");
-		expect(out[2]).toBe("[aaaaaaa1] を歩く");
-	});
+  test("次の一歩のノートの ID は問いの ID に置き換え、どちらでもない ID には印を付ける", () => {
+    const out = normalizeIntentions(
+      ["c43d9b58 の続きを歩く", "ffffffff を確かめる", "[aaaaaaa1] を歩く"],
+      [{ id: "c43d9b58", questionId: "aaaaaaa2" }],
+      [{ id: "aaaaaaa1" }, { id: "aaaaaaa2" }],
+    );
+    expect(out[0]).toContain("aaaaaaa2");
+    expect(out[0]).not.toContain("c43d9b58");
+    expect(out[1]).toContain("※ffffffff は問いの ID ではない");
+    expect(out[2]).toBe("[aaaaaaa1] を歩く");
+  });
 
-	test("本数を記録する前の基準線も数字で出し、前回と並べる", () => {
-		const bs = recentBaselines([
-			{
-				event: "baseline",
-				at: "2026-09-27T01:00:00Z",
-				patterns: ["p"],
-				mine: { hits: 2, total: 8, docs: 4 },
-				blind: { hits: 0, total: 2, docs: 1 },
-				external: { hits: 0, total: 8, docs: 4 },
-			},
-			{
-				event: "baseline",
-				at: "2026-09-26T15:05:00Z",
-				patterns: ["p"],
-				mine: { hits: 4, total: 28 },
-				external: { hits: 0, total: 28 },
-			},
-		]);
-		expect(bs).toHaveLength(2);
-		expect(bs[1]?.mine).toEqual({ hits: 4, total: 28, docs: -1 });
-	});
+  test("本数を記録する前の基準線も数字で出し、前回と並べる", () => {
+    const bs = recentBaselines([
+      {
+        event: "baseline",
+        at: "2026-09-27T01:00:00Z",
+        patterns: ["p"],
+        mine: { hits: 2, total: 8, docs: 4 },
+        blind: { hits: 0, total: 2, docs: 1 },
+        external: { hits: 0, total: 8, docs: 4 },
+      },
+      {
+        event: "baseline",
+        at: "2026-09-26T15:05:00Z",
+        patterns: ["p"],
+        mine: { hits: 4, total: 28 },
+        external: { hits: 0, total: 28 },
+      },
+    ]);
+    expect(bs).toHaveLength(2);
+    expect(bs[1]?.mine).toEqual({ hits: 4, total: 28, docs: -1 });
+  });
 });
 
 describe("Ashi の改善案(2026-09-27 深夜)", () => {
-	test("自己記述が上限を超えたら、同じ内省の中で 1 回だけ縮めさせて保存する", async () => {
-		const store = freshStore(["a"]);
-		store.saveWalk({ ...store.walk(), steps: 4 });
-		const head = new FakeHead({
-			explore: () => explore(),
-			reflect: () => ({ ...reflect(), self: "長い自己記述。".repeat(700) }),
-			"reflect-shrink": (req) => {
-				expect(req.prompt).toContain("上限の 4000 字を超えています");
-				return { self: "縮めた自己記述。記録は誰が読むかで意味が変わる。" };
-			},
-		});
-		await step({ store, head, tools: [], now: () => now, rng: () => 0.99 });
-		expect(store.self()).toContain("縮めた自己記述");
-		expect(store.walk().lastSelf?.result).toBe("saved");
-	});
+  test("自己記述が上限を超えたら、同じ内省の中で 1 回だけ縮めさせて保存する", async () => {
+    const store = freshStore(["a"]);
+    store.saveWalk({ ...store.walk(), steps: 4 });
+    const head = new FakeHead({
+      explore: () => explore(),
+      reflect: () => ({ ...reflect(), self: "長い自己記述。".repeat(700) }),
+      "reflect-shrink": (req) => {
+        expect(req.prompt).toContain("上限の 4000 字を超えています");
+        return { self: "縮めた自己記述。記録は誰が読むかで意味が変わる。" };
+      },
+    });
+    await step({ store, head, tools: [], now: () => now, rng: () => 0.99 });
+    expect(store.self()).toContain("縮めた自己記述");
+    expect(store.walk().lastSelf?.result).toBe("saved");
+  });
 
-	test("縮めてもだめなら、申告した直しを未反映として次の内省に並べる", async () => {
-		const store = freshStore(["a"]);
-		store.saveWalk({ ...store.walk(), steps: 4 });
-		const head = new FakeHead({
-			explore: () => explore(),
-			reflect: () => ({
-				...reflect(),
-				self: "長い自己記述。".repeat(700),
-				self_changes: [
-					{ what: "同意の主張を狭めた", trigger: "own", basis: "evidence" },
-				],
-			}),
-			"reflect-shrink": () => ({ self: "まだ長い。".repeat(900) }),
-		});
-		await step({ store, head, tools: [], now: () => now, rng: () => 0.99 });
-		expect(store.walk().lastSelf).toMatchObject({
-			result: "rejected",
-			unapplied: ["同意の主張を狭めた"],
-		});
-		store.saveWalk({
-			...store.walk(),
-			steps: 9,
-			lastReflectStep: 4,
-			sleepingUntil: undefined,
-		});
-		await step({ store, head, tools: [], now: () => now, rng: () => 0.99 });
-		const prompt =
-			head.calls.filter((c) => c.task === "reflect")[1]?.prompt ?? "";
-		expect(prompt).toContain("未反映の直し");
-		expect(prompt).toContain("同意の主張を狭めた");
-	});
+  test("縮めてもだめなら、申告した直しを未反映として次の内省に並べる", async () => {
+    const store = freshStore(["a"]);
+    store.saveWalk({ ...store.walk(), steps: 4 });
+    const head = new FakeHead({
+      explore: () => explore(),
+      reflect: () => ({
+        ...reflect(),
+        self: "長い自己記述。".repeat(700),
+        self_changes: [
+          { what: "同意の主張を狭めた", trigger: "own", basis: "evidence" },
+        ],
+      }),
+      "reflect-shrink": () => ({ self: "まだ長い。".repeat(900) }),
+    });
+    await step({ store, head, tools: [], now: () => now, rng: () => 0.99 });
+    expect(store.walk().lastSelf).toMatchObject({
+      result: "rejected",
+      unapplied: ["同意の主張を狭めた"],
+    });
+    store.saveWalk({
+      ...store.walk(),
+      steps: 9,
+      lastReflectStep: 4,
+      sleepingUntil: undefined,
+    });
+    await step({ store, head, tools: [], now: () => now, rng: () => 0.99 });
+    const prompt =
+      head.calls.filter((c) => c.task === "reflect")[1]?.prompt ?? "";
+    expect(prompt).toContain("未反映の直し");
+    expect(prompt).toContain("同意の主張を狭めた");
+  });
 
-	test("「記憶だけで言うのはやめておく」のように主張を控えた文は拾わない", () => {
-		expect(
-			markedClaims([
-				"話としては聞いたことがあるけど、どの研究かを記憶だけで言うのはやめておくね。",
-				"大青とインディゴは色素が同じ、と記憶だけで言います。",
-			]),
-		).toEqual(["大青とインディゴは色素が同じ、と記憶だけで言います。"]);
-	});
+  test("「記憶だけで言うのはやめておく」のように主張を控えた文は拾わない", () => {
+    expect(
+      markedClaims([
+        "話としては聞いたことがあるけど、どの研究かを記憶だけで言うのはやめておくね。",
+        "大青とインディゴは色素が同じ、と記憶だけで言います。",
+      ]),
+    ).toEqual(["大青とインディゴは色素が同じ、と記憶だけで言います。"]);
+  });
 });

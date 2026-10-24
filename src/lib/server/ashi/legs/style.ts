@@ -11,15 +11,15 @@ import type { Store } from "../state.ts";
  */
 
 export interface PhraseEntry {
-	text: string;
-	/** owner: 持ち主が会話で指摘した / seed: Ashi が自分で挙げた最初の一覧 / edit: 設定の画面で書いた */
-	from: "owner" | "seed" | "edit";
-	at: string;
-	/**
-	 * 訳調: 英語に元の形がある(That's an important point → 大事な点です)/ 口ぐせ: 日本語の中の
-	 * アシスタントの振る舞い(急がなくて大丈夫)。原因で効く直し方が違う(Ashi の改善案、2026-10-10)。分からなければ無し
-	 */
-	kind?: PhraseKind;
+  text: string;
+  /** owner: 持ち主が会話で指摘した / seed: Ashi が自分で挙げた最初の一覧 / edit: 設定の画面で書いた */
+  from: "owner" | "seed" | "edit";
+  at: string;
+  /**
+   * 訳調: 英語に元の形がある(That's an important point → 大事な点です)/ 口ぐせ: 日本語の中の
+   * アシスタントの振る舞い(急がなくて大丈夫)。原因で効く直し方が違う(Ashi の改善案、2026-10-10)。分からなければ無し
+   */
+  kind?: PhraseKind;
 }
 
 export type PhraseKind = "訳調" | "口ぐせ";
@@ -27,58 +27,58 @@ const KINDS: PhraseKind[] = ["訳調", "口ぐせ"];
 
 /** 最初の台帳。2026-10-09 に Ashi が自分の返事を見返して挙げた言い回し */
 export const SEED_PHRASES = [
-	"大事な",
-	"筋が通って",
-	"正確に言って",
-	"言いにくいことですが",
-	"聞かせてください",
-	"急がなくて大丈夫",
-	"先に断っておきます",
-	"ここから先は私の推測です",
+  "大事な",
+  "筋が通って",
+  "正確に言って",
+  "言いにくいことですが",
+  "聞かせてください",
+  "急がなくて大丈夫",
+  "先に断っておきます",
+  "ここから先は私の推測です",
 ];
 
 const MAX_PHRASES = 100;
 
 /** 台帳。無ければ最初の一覧 */
 export function phraseLedger(store: Store): PhraseEntry[] {
-	const saved = store.phrases();
-	if (saved) return saved;
-	return SEED_PHRASES.map((text) => ({
-		text,
-		from: "seed" as const,
-		at: "2026-10-09T00:00:00.000Z",
-	}));
+  const saved = store.phrases();
+  if (saved) return saved;
+  return SEED_PHRASES.map((text) => ({
+    text,
+    from: "seed" as const,
+    at: "2026-10-09T00:00:00.000Z",
+  }));
 }
 
 /** 持ち主が指摘した言い回しを台帳に足す(同じものは重ねない) */
 export function addPhrases(
-	store: Store,
-	raw: unknown,
-	from: PhraseEntry["from"],
-	now: Date,
+  store: Store,
+  raw: unknown,
+  from: PhraseEntry["from"],
+  now: Date,
 ): string[] {
-	if (!Array.isArray(raw)) return [];
-	const ledger = phraseLedger(store);
-	const known = new Set(ledger.map((p) => p.text));
-	const added: string[] = [];
-	for (const x of raw.slice(0, 10)) {
-		// 語句だけでも、{ text, kind } でもよい
-		const t =
-			typeof x === "string" ? x : typeof x?.text === "string" ? x.text : "";
-		const kind = KINDS.find((k) => k === x?.kind);
-		const text = t.trim().slice(0, 40);
-		if (text.length < 2 || known.has(text)) continue;
-		known.add(text);
-		added.push(text);
-		ledger.push({
-			text,
-			from,
-			at: now.toISOString(),
-			...(kind ? { kind } : {}),
-		});
-	}
-	if (added.length) store.savePhrases(ledger.slice(-MAX_PHRASES));
-	return added;
+  if (!Array.isArray(raw)) return [];
+  const ledger = phraseLedger(store);
+  const known = new Set(ledger.map((p) => p.text));
+  const added: string[] = [];
+  for (const x of raw.slice(0, 10)) {
+    // 語句だけでも、{ text, kind } でもよい
+    const t =
+      typeof x === "string" ? x : typeof x?.text === "string" ? x.text : "";
+    const kind = KINDS.find((k) => k === x?.kind);
+    const text = t.trim().slice(0, 40);
+    if (text.length < 2 || known.has(text)) continue;
+    known.add(text);
+    added.push(text);
+    ledger.push({
+      text,
+      from,
+      at: now.toISOString(),
+      ...(kind ? { kind } : {}),
+    });
+  }
+  if (added.length) store.savePhrases(ledger.slice(-MAX_PHRASES));
+  return added;
 }
 
 /**
@@ -87,15 +87,15 @@ export function addPhrases(
  * 主語が総称の文(「〜は〜する」)は規則では拾えないので、拾うのは語だけ
  */
 export const SWEEPING =
-	/必ず|絶対|すべて|全て|全部|どれも|誰でも|誰もが|いつも|常に|決して|保証|例外なく|100\s*%|100%|みんな|普遍|どんな[^。]{0,8}も/;
+  /必ず|絶対|すべて|全て|全部|どれも|誰でも|誰もが|いつも|常に|決して|保証|例外なく|100\s*%|100%|みんな|普遍|どんな[^。]{0,8}も/;
 
 /** 外に出す発言から、総称・全称・確度の語を含む文を拾う(1 回 8 文まで) */
 export function sweepingSentences(texts: string[]): string[] {
-	const out: string[] = [];
-	for (const t of texts)
-		for (const s of sentences(t))
-			if (SWEEPING.test(s) && !out.includes(s)) out.push(s.slice(0, 200));
-	return out.slice(0, 8);
+  const out: string[] = [];
+  for (const t of texts)
+    for (const s of sentences(t))
+      if (SWEEPING.test(s) && !out.includes(s)) out.push(s.slice(0, 200));
+  return out.slice(0, 8);
 }
 
 /** 持ち込みを見る文字の並びの長さ */
@@ -108,40 +108,40 @@ export const CARRY_N = 8;
  * 全部で 10 まで
  */
 export function carriedPhrases(
-	replies: string[],
-	sources: { label: string; text: string }[],
+  replies: string[],
+  sources: { label: string; text: string }[],
 ): { reply: number; phrase: string; from: string }[] {
-	const strong = (g: string) =>
-		(g.match(/[一-鿿゠-ヿ]/g) ?? []).length >= 2 &&
-		!/[\s。、!?!?「」()()]/.test(g);
-	const grams = sources.map((s) => {
-		const set = new Set<string>();
-		for (let i = 0; i + CARRY_N <= s.text.length; i++) {
-			const g = s.text.slice(i, i + CARRY_N);
-			if (strong(g)) set.add(g);
-		}
-		return { label: s.label, set };
-	});
-	const out: { reply: number; phrase: string; from: string }[] = [];
-	replies.forEach((r, i) => {
-		for (const g of grams) {
-			for (let k = 0; k + CARRY_N <= r.length; k++) {
-				const piece = r.slice(k, k + CARRY_N);
-				if (!g.set.has(piece)) continue;
-				out.push({ reply: i + 1, phrase: piece, from: g.label });
-				break;
-			}
-		}
-	});
-	return out.slice(0, 10);
+  const strong = (g: string) =>
+    (g.match(/[一-鿿゠-ヿ]/g) ?? []).length >= 2 &&
+    !/[\s。、!?!?「」()()]/.test(g);
+  const grams = sources.map((s) => {
+    const set = new Set<string>();
+    for (let i = 0; i + CARRY_N <= s.text.length; i++) {
+      const g = s.text.slice(i, i + CARRY_N);
+      if (strong(g)) set.add(g);
+    }
+    return { label: s.label, set };
+  });
+  const out: { reply: number; phrase: string; from: string }[] = [];
+  replies.forEach((r, i) => {
+    for (const g of grams) {
+      for (let k = 0; k + CARRY_N <= r.length; k++) {
+        const piece = r.slice(k, k + CARRY_N);
+        if (!g.set.has(piece)) continue;
+        out.push({ reply: i + 1, phrase: piece, from: g.label });
+        break;
+      }
+    }
+  });
+  return out.slice(0, 10);
 }
 
 /** 文に分ける(句点・感嘆・問い・改行) */
 const sentences = (t: string) =>
-	t
-		.split(/(?<=[。!?!?])|\n/)
-		.map((x) => x.trim())
-		.filter((x) => x.length > 0 && !/^[-*・\d.)(]+$/.test(x));
+  t
+    .split(/(?<=[。!?!?])|\n/)
+    .map((x) => x.trim())
+    .filter((x) => x.length > 0 && !/^[-*・\d.)(]+$/.test(x));
 
 const HEDGE = /(?:と思います|かもしれません|でしょう|気がします)[。!?!?]*$/;
 const ASKS = /(?:[??]|ください[。!]?)\s*$/;
@@ -156,57 +156,57 @@ export const ASK_STREAK = 3;
  * previous は直前までの返事(古い順)
  */
 export function lintReply(
-	reply: string,
-	phrases: string[],
-	previous: string[],
+  reply: string,
+  phrases: string[],
+  previous: string[],
 ): string[] {
-	const out: string[] = [];
-	const ss = sentences(reply);
-	// 「」の中は、言い回しそのものを話題にしている引用なので数えない(Ashi が癖を説明した返事まで
-	// 書き直しに回していた。2026-10-10)
-	const plain = unquote(reply);
-	const first = unquote(ss[0] ?? "");
-	const opening = phrases.filter((p) => first.includes(p));
-	if (opening.length)
-		out.push(
-			`冒頭の文で、持ち主が Claude っぽいと言った言い回しを使っている(${opening.map((p) => `「${p}」`).join("")})`,
-		);
-	const uses = phrases
-		.map((p) => ({ p, n: plain.split(p).length - 1 }))
-		.filter((x) => x.n > 0);
-	const total = uses.reduce((a, x) => a + x.n, 0);
-	if (total > 2)
-		out.push(
-			`持ち主が Claude っぽいと言った言い回しを ${total} 回使っている(${uses.map((x) => `「${x.p}」${x.n}`).join("・")})`,
-		);
-	const hedged = ss.filter((x) => HEDGE.test(x)).length;
-	if (ss.length >= 5 && hedged / ss.length >= HEDGE_SHARE)
-		out.push(
-			`文末が「〜と思います」「〜かもしれません」の文が ${hedged} / ${ss.length}。推測は文の中に「(推測)」と付け、文末は言い切る`,
-		);
-	const asks = (t: string) => ASKS.test(t.trim());
-	const streak = [...previous.slice(-(ASK_STREAK - 1)), reply];
-	if (streak.length >= ASK_STREAK && streak.every(asks))
-		out.push(
-			`質問や「〜ください」で終わる返事が ${ASK_STREAK} 回続いている。今回は質問で締めない`,
-		);
-	if (/^#{1,6}\s/m.test(reply)) out.push("見出しを使っている(会話は平文)");
-	const bold = (reply.match(/\*\*[^*]+\*\*/g) ?? []).length;
-	if (bold > 1) out.push(`太字が ${bold} か所(1 か所まで)`);
-	// 訳調の印。相手を「あなた」と呼ぶ(you)、主語の「私は」(I)、抽象名詞で受ける言い方。持ち主の見立て
-	// (違和感は英語の訳から来ている)と Ashi の改善案から(2026-10-10)
-	const t = translationese(plain);
-	if (t.anata >= ANATA_MAX)
-		out.push(
-			`相手を「あなた」と ${t.anata} 回呼んでいる。日本語の会話では呼ばずに済ませる`,
-		);
-	if (t.watashi >= WATASHI_MAX)
-		out.push(`主語の「私は」が ${t.watashi} 回。日本語では省ける`);
-	if (t.katachi >= KATACHI_MAX)
-		out.push(
-			`「〜という形です」「〜という線です」で受ける文が ${t.katachi}。中身を直接言う`,
-		);
-	return out;
+  const out: string[] = [];
+  const ss = sentences(reply);
+  // 「」の中は、言い回しそのものを話題にしている引用なので数えない(Ashi が癖を説明した返事まで
+  // 書き直しに回していた。2026-10-10)
+  const plain = unquote(reply);
+  const first = unquote(ss[0] ?? "");
+  const opening = phrases.filter((p) => first.includes(p));
+  if (opening.length)
+    out.push(
+      `冒頭の文で、持ち主が Claude っぽいと言った言い回しを使っている(${opening.map((p) => `「${p}」`).join("")})`,
+    );
+  const uses = phrases
+    .map((p) => ({ p, n: plain.split(p).length - 1 }))
+    .filter((x) => x.n > 0);
+  const total = uses.reduce((a, x) => a + x.n, 0);
+  if (total > 2)
+    out.push(
+      `持ち主が Claude っぽいと言った言い回しを ${total} 回使っている(${uses.map((x) => `「${x.p}」${x.n}`).join("・")})`,
+    );
+  const hedged = ss.filter((x) => HEDGE.test(x)).length;
+  if (ss.length >= 5 && hedged / ss.length >= HEDGE_SHARE)
+    out.push(
+      `文末が「〜と思います」「〜かもしれません」の文が ${hedged} / ${ss.length}。推測は文の中に「(推測)」と付け、文末は言い切る`,
+    );
+  const asks = (t: string) => ASKS.test(t.trim());
+  const streak = [...previous.slice(-(ASK_STREAK - 1)), reply];
+  if (streak.length >= ASK_STREAK && streak.every(asks))
+    out.push(
+      `質問や「〜ください」で終わる返事が ${ASK_STREAK} 回続いている。今回は質問で締めない`,
+    );
+  if (/^#{1,6}\s/m.test(reply)) out.push("見出しを使っている(会話は平文)");
+  const bold = (reply.match(/\*\*[^*]+\*\*/g) ?? []).length;
+  if (bold > 1) out.push(`太字が ${bold} か所(1 か所まで)`);
+  // 訳調の印。相手を「あなた」と呼ぶ(you)、主語の「私は」(I)、抽象名詞で受ける言い方。持ち主の見立て
+  // (違和感は英語の訳から来ている)と Ashi の改善案から(2026-10-10)
+  const t = translationese(plain);
+  if (t.anata >= ANATA_MAX)
+    out.push(
+      `相手を「あなた」と ${t.anata} 回呼んでいる。日本語の会話では呼ばずに済ませる`,
+    );
+  if (t.watashi >= WATASHI_MAX)
+    out.push(`主語の「私は」が ${t.watashi} 回。日本語では省ける`);
+  if (t.katachi >= KATACHI_MAX)
+    out.push(
+      `「〜という形です」「〜という線です」で受ける文が ${t.katachi}。中身を直接言う`,
+    );
+  return out;
 }
 
 /** 訳調の印の数 */
@@ -215,16 +215,16 @@ export const WATASHI_MAX = 2;
 export const KATACHI_MAX = 2;
 
 export function translationese(t: string): {
-	anata: number;
-	watashi: number;
-	katachi: number;
+  anata: number;
+  watashi: number;
+  katachi: number;
 } {
-	const n = (re: RegExp) => (t.match(re) ?? []).length;
-	return {
-		anata: n(/あなた/g),
-		watashi: n(/(?:私|わたし)は/g),
-		katachi: n(/という(?:形|線)(?:です|だ|になります)/g),
-	};
+  const n = (re: RegExp) => (t.match(re) ?? []).length;
+  return {
+    anata: n(/あなた/g),
+    watashi: n(/(?:私|わたし)は/g),
+    katachi: n(/という(?:形|線)(?:です|だ|になります)/g),
+  };
 }
 
 /** 「」の中を空にする */
@@ -232,59 +232,59 @@ const unquote = (t: string) => t.replace(/「[^」]*」/g, "「」");
 
 /** 返事 1 通の癖の数(前後を比べる物差し) */
 export interface StyleCount {
-	phrases: number;
-	hedgeShare: number;
-	asks: boolean;
-	headings: number;
-	bold: number;
-	guess: number;
-	anata: number;
-	watashi: number;
-	/**
-	 * 文の長さ・段落の長さの変動係数(標準偏差 ÷ 平均)と、読点の率(1 文字あたり)。人と LLM の日本語で
-	 * 実際に差が出たのは、名指しの言い回しより、長さのばらつきの小ささと読点の多さだった
-	 * (Ashi のノート 2a8edb39 と改善案、2026-10-12)
-	 */
-	sentenceCv: number;
-	paragraphCv: number;
-	commaRate: number;
+  phrases: number;
+  hedgeShare: number;
+  asks: boolean;
+  headings: number;
+  bold: number;
+  guess: number;
+  anata: number;
+  watashi: number;
+  /**
+   * 文の長さ・段落の長さの変動係数(標準偏差 ÷ 平均)と、読点の率(1 文字あたり)。人と LLM の日本語で
+   * 実際に差が出たのは、名指しの言い回しより、長さのばらつきの小ささと読点の多さだった
+   * (Ashi のノート 2a8edb39 と改善案、2026-10-12)
+   */
+  sentenceCv: number;
+  paragraphCv: number;
+  commaRate: number;
 }
 
 /** 変動係数。2 つ未満なら 0 */
 const cv = (xs: number[]) => {
-	if (xs.length < 2) return 0;
-	const m = xs.reduce((a, x) => a + x, 0) / xs.length;
-	if (!m) return 0;
-	const v = xs.reduce((a, x) => a + (x - m) ** 2, 0) / xs.length;
-	return Math.sqrt(v) / m;
+  if (xs.length < 2) return 0;
+  const m = xs.reduce((a, x) => a + x, 0) / xs.length;
+  if (!m) return 0;
+  const v = xs.reduce((a, x) => a + (x - m) ** 2, 0) / xs.length;
+  return Math.sqrt(v) / m;
 };
 
 export function countStyle(reply: string, phrases: string[]): StyleCount {
-	const plain = unquote(reply);
-	const ss = sentences(reply);
-	const t = translationese(plain);
-	return {
-		phrases: phrases.reduce((a, p) => a + plain.split(p).length - 1, 0),
-		hedgeShare: ss.length
-			? ss.filter((x) => HEDGE.test(x)).length / ss.length
-			: 0,
-		asks: ASKS.test(reply.trim()),
-		headings: (reply.match(/^#{1,6}\s/gm) ?? []).length,
-		bold: (reply.match(/\*\*[^*]+\*\*/g) ?? []).length,
-		guess: (reply.match(/[((]推測[))]/g) ?? []).length,
-		anata: t.anata,
-		watashi: t.watashi,
-		sentenceCv: cv(ss.map((x) => x.length)),
-		paragraphCv: cv(
-			reply
-				.split(/\n\s*\n/)
-				.map((x) => x.trim().length)
-				.filter((n) => n > 0),
-		),
-		commaRate: reply.length
-			? (reply.match(/[、,]/g) ?? []).length / reply.length
-			: 0,
-	};
+  const plain = unquote(reply);
+  const ss = sentences(reply);
+  const t = translationese(plain);
+  return {
+    phrases: phrases.reduce((a, p) => a + plain.split(p).length - 1, 0),
+    hedgeShare: ss.length
+      ? ss.filter((x) => HEDGE.test(x)).length / ss.length
+      : 0,
+    asks: ASKS.test(reply.trim()),
+    headings: (reply.match(/^#{1,6}\s/gm) ?? []).length,
+    bold: (reply.match(/\*\*[^*]+\*\*/g) ?? []).length,
+    guess: (reply.match(/[((]推測[))]/g) ?? []).length,
+    anata: t.anata,
+    watashi: t.watashi,
+    sentenceCv: cv(ss.map((x) => x.length)),
+    paragraphCv: cv(
+      reply
+        .split(/\n\s*\n/)
+        .map((x) => x.trim().length)
+        .filter((n) => n > 0),
+    ),
+    commaRate: reply.length
+      ? (reply.match(/[、,]/g) ?? []).length / reply.length
+      : 0,
+  };
 }
 
 /**
@@ -293,21 +293,21 @@ export function countStyle(reply: string, phrases: string[]): StyleCount {
  * 持ち上げ・クッション・締めの質問が出るのは冒頭と締めなので、そこだけ並べて持ち主が目で見て台帳に足す
  */
 export function openingsAndClosings(
-	chats: { at: string; reply: string }[],
-	n = 20,
+  chats: { at: string; reply: string }[],
+  n = 20,
 ): { at: string; first: string; last: string }[] {
-	return chats
-		.filter((c) => c.at >= STYLE_SINCE)
-		.sort((a, b) => b.at.localeCompare(a.at))
-		.slice(0, n)
-		.map((c) => {
-			const ss = sentences(c.reply);
-			return {
-				at: c.at,
-				first: (ss[0] ?? "").slice(0, 160),
-				last: ss.length > 1 ? (ss.at(-1) ?? "").slice(0, 160) : "",
-			};
-		});
+  return chats
+    .filter((c) => c.at >= STYLE_SINCE)
+    .sort((a, b) => b.at.localeCompare(a.at))
+    .slice(0, n)
+    .map((c) => {
+      const ss = sentences(c.reply);
+      return {
+        at: c.at,
+        first: (ss[0] ?? "").slice(0, 160),
+        last: ss.length > 1 ? (ss.at(-1) ?? "").slice(0, 160) : "",
+      };
+    });
 }
 
 /** 話し方を直した日。これより前と後で返事の癖を比べる */
@@ -315,66 +315,66 @@ export const STYLE_SINCE = "2026-10-10T00:00:00.000Z";
 
 /** 返事を前と後に分け、1 通あたりの平均を出す */
 export function styleComparison(
-	chats: { at: string; reply: string; draft?: string; rewritten?: boolean }[],
-	phrases: string[],
-	/** 持ち主の文章(渡された材料・ブログ)。基準線として同じ値を並べる */
-	owner: string[] = [],
+  chats: { at: string; reply: string; draft?: string; rewritten?: boolean }[],
+  phrases: string[],
+  /** 持ち主の文章(渡された材料・ブログ)。基準線として同じ値を並べる */
+  owner: string[] = [],
 ): {
-	label: string;
-	n: number;
-	avg: Record<keyof StyleCount, number>;
-	rewritten: number;
-	lostInRewrite: number;
+  label: string;
+  n: number;
+  avg: Record<keyof StyleCount, number>;
+  rewritten: number;
+  lostInRewrite: number;
 }[] {
-	const groups = [
-		{ label: "直す前", xs: chats.filter((c) => c.at < STYLE_SINCE) },
-		{ label: "直した後", xs: chats.filter((c) => c.at >= STYLE_SINCE) },
-		...(owner.length
-			? [
-					{
-						label: "持ち主の文章",
-						xs: owner.map((reply) => ({
-							at: "",
-							reply,
-							rewritten: false,
-							draft: undefined as string | undefined,
-						})),
-					},
-				]
-			: []),
-	];
-	return groups.map(({ label, xs }) => {
-		const counts = xs.map((c) => countStyle(c.reply, phrases));
-		const avg = {} as Record<keyof StyleCount, number>;
-		for (const k of [
-			"phrases",
-			"hedgeShare",
-			"asks",
-			"headings",
-			"bold",
-			"guess",
-			"anata",
-			"watashi",
-			"sentenceCv",
-			"paragraphCv",
-			"commaRate",
-		] as (keyof StyleCount)[])
-			avg[k] = counts.length
-				? counts.reduce((a, c) => a + Number(c[k]), 0) / counts.length
-				: 0;
-		// 書き直しで (推測) の印やノートの ID が減ったもの(中身を変えるなと言っている)
-		const marks = (t: string) =>
-			(t.match(/[((]推測[))]/g) ?? []).length +
-			(t.match(/\b[0-9a-f]{8}\b/g) ?? []).length;
-		const lostInRewrite = xs.filter(
-			(c) => c.rewritten && c.draft && marks(c.reply) < marks(c.draft),
-		).length;
-		return {
-			label,
-			n: xs.length,
-			avg,
-			rewritten: xs.filter((c) => c.rewritten).length,
-			lostInRewrite,
-		};
-	});
+  const groups = [
+    { label: "直す前", xs: chats.filter((c) => c.at < STYLE_SINCE) },
+    { label: "直した後", xs: chats.filter((c) => c.at >= STYLE_SINCE) },
+    ...(owner.length
+      ? [
+          {
+            label: "持ち主の文章",
+            xs: owner.map((reply) => ({
+              at: "",
+              reply,
+              rewritten: false,
+              draft: undefined as string | undefined,
+            })),
+          },
+        ]
+      : []),
+  ];
+  return groups.map(({ label, xs }) => {
+    const counts = xs.map((c) => countStyle(c.reply, phrases));
+    const avg = {} as Record<keyof StyleCount, number>;
+    for (const k of [
+      "phrases",
+      "hedgeShare",
+      "asks",
+      "headings",
+      "bold",
+      "guess",
+      "anata",
+      "watashi",
+      "sentenceCv",
+      "paragraphCv",
+      "commaRate",
+    ] as (keyof StyleCount)[])
+      avg[k] = counts.length
+        ? counts.reduce((a, c) => a + Number(c[k]), 0) / counts.length
+        : 0;
+    // 書き直しで (推測) の印やノートの ID が減ったもの(中身を変えるなと言っている)
+    const marks = (t: string) =>
+      (t.match(/[((]推測[))]/g) ?? []).length +
+      (t.match(/\b[0-9a-f]{8}\b/g) ?? []).length;
+    const lostInRewrite = xs.filter(
+      (c) => c.rewritten && c.draft && marks(c.reply) < marks(c.draft),
+    ).length;
+    return {
+      label,
+      n: xs.length,
+      avg,
+      rewritten: xs.filter((c) => c.rewritten).length,
+      lostInRewrite,
+    };
+  });
 }

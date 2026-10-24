@@ -5,6 +5,7 @@ Ashi は、AI(頭)に「足」を与えて自分で学び続けさせるプロ�
 ## 狙い(持ち主の言葉、2026-09-25)
 
 「AI という自任はもちつつも、人間社会に放り込んで、個性を意図した選択ではなく自然に獲得できるか」。個性を設計で足すより、人や別の相手との接触と、その記録から育つ経路を作る。直すときは「これは個性を作り込んでいないか、育つ経路を作っているか」を見る。
+
 - よそ者との対話は、**数週間いまの形(毎回初対面・分野はさいころ)で数字を取ってから**、分野ではなく「人物」に作り替える(関心 2〜3・数行の記憶・賛成しなかったこと、7 割が新しい人・3 割が再会、薄れて忘れる、15 人ほど、Ashi が誰が何に詳しいかを覚える)。前後で比べるため、それまで対話の仕組みは変えない
 - 物差しは ownerPull・strangerLanding・log.jsonl の self-changed(trigger と evidence / pushback、undeclared)
 
@@ -114,13 +115,14 @@ Ashi は、AI(頭)に「足」を与えて自分で学び続けさせるプロ�
 ## 直したら
 
 ```sh
-bun run check      # biome(警告も落とす)+ svelte-check
+bun run lint       # oxlint + bun fmt --check(整形は bun run format)
+bun run check      # svelte-check(警告も落とす)
 bun test tests
 bun run build      # 画面と CLI(build/cli.js)
 ```
 
 - 持ち主の手元(Windows)では、check・テスト・ビルドを wslc の Linux コンテナ(`oven/bun`、node_modules は名前付きボリューム)で回す。Windows で直接回すと、パスの区切りとシェルの違いでテストが 6 本落ちる
-- 頭の答えの形(`prompts.ts` の `*_SCHEMA`)を変えたら、`required` と `properties` が揃っているかのテスト(`tests/blockers.test.ts` の「答えの形」)が通るか見る。**プロンプトの文字列を Python などで置き換えたときは、置き換わったか grep で確かめる**(biome の整形で一致せず、黙って入っていなかったことが 2 回あった)
+- 頭の答えの形(`prompts.ts` の `*_SCHEMA`)を変えたら、`required` と `properties` が揃っているかのテスト(`tests/blockers.test.ts` の「答えの形」)が通るか見る。**プロンプトの文字列を Python などで置き換えたときは、置き換わったか grep で確かめる**(整形で一致せず、黙って入っていなかったことが 2 回あった)
 - 歩みのテストは偽の頭(`tests/helpers.ts` の `FakeHead`)で書く。本物の API や CLI をテストから呼ばない
 - Claude Code の CLI のフラグを足すときは、手元で `claude --help` と小さな `claude -p` で確かめてから(`--bare` は OAuth を読まないので使えない、など)
 
@@ -135,6 +137,7 @@ bun run build      # 画面と CLI(build/cli.js)
 ## デプロイ
 
 main に入ると `docker-publish.yml` がイメージを焼き、`deploy/deployment.yaml` のタグを差し替える PR を作って自分でマージする。ArgoCD が `deploy/argocd.yaml` を拾って as.doany.io に出す。
+
 - 設定は画面の「設定」(/settings)だけで変える。保存先は PVC の ashi.json。環境変数(deployment.yaml・Infisical)に置くのは鍵と置き場所だけで、設定は混ぜない(持ち主の指摘、2026-10-03)。前の版の `ASHI_CONFIG`・`ASHI_FEEDS`・settings.json は、起動時に一度だけ ashi.json に取り込み(`store.importLegacyConfig`、印は config-imported.json)、以後は読まない
 - 秘密は Infisical の `/ashi/ashi-secrets`(鍵の一覧は `deploy/secret.yaml` の先頭)
 - 頭はクラスタでは `api`(Messages API)。Max のプランに付く月ごとの API クレジット(Max 20x で $200、繰り越さない。Claude Code には使えない)で払う。2026-10-18 に `claude-code`(サブスク)から替えた。数字の前後を比べるときはこの日で区切る。1 日の予算(`budget.dailyUsd`)と歩数(`maxStepsPerDay`)で止める。サブスクの頃に、手元の Claude Code と週の上限を分け合うので 15 歩・道具の往復 8 回・effort medium に絞った

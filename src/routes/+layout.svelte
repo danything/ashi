@@ -1,199 +1,211 @@
 <script lang="ts">
-import "@picocss/pico/css/pico.min.css";
-import "../app.css";
-import Icon, { type IconName } from "#lib/components/Icon.svelte";
-import Logo from "#lib/components/Logo.svelte";
-import { page } from "$app/state";
+  import "@picocss/pico/css/pico.min.css";
+  import "../app.css";
+  import Icon, { type IconName } from "#lib/components/Icon.svelte";
+  import Logo from "#lib/components/Logo.svelte";
+  import { page } from "$app/state";
 
-let { data, children } = $props();
+  let { data, children } = $props();
 
-/**
- * ナビ。束ねた画面(ノート | 日記、自分 | 持ち主の地図、改善案 | 弾かれたこと)は 1 つの画面に並べてあり、
- * 古い URL(/diary・/owner・/blocked)は束ねた画面へ送る。[先, 名前, アイコン, 同じ項目として光らせる先]
- */
-const NAV: [string, string, IconName, string[]][] = [
-	["/", "いま", "home", []],
-	["/chat", "話す", "message-circle", []],
-	["/notes", "ノート", "book", ["/diary"]],
-	["/questions", "問い", "help", []],
-	["/map", "つながり", "share", []],
-	["/context", "頭の中", "brain", ["/owner"]],
-	["/x", "X", "message-circle", []],
-	["/proposals", "直すこと", "wrench", ["/blocked"]],
-	["/settings", "設定", "sliders", []],
-];
-const under = (path: string, href: string) =>
-	href === "/" ? path === "/" : path === href || path.startsWith(`${href}/`);
-const here = (href: string) =>
-	[href, ...(NAV.find(([h]) => h === href)?.[3] ?? [])].some((h) =>
-		under(page.url.pathname, h),
-	)
-		? "page"
-		: undefined;
-/** 直すことの数(開いている改善案 + 弾かれていること) */
-const badge = (href: string) =>
-	href === "/proposals" ? data.proposals + data.blocked : 0;
+  /**
+   * ナビ。束ねた画面(ノート | 日記、自分 | 持ち主の地図、改善案 | 弾かれたこと)は 1 つの画面に並べてあり、
+   * 古い URL(/diary・/owner・/blocked)は束ねた画面へ送る。[先, 名前, アイコン, 同じ項目として光らせる先]
+   */
+  const NAV: [string, string, IconName, string[]][] = [
+    ["/", "いま", "home", []],
+    ["/chat", "話す", "message-circle", []],
+    ["/notes", "ノート", "book", ["/diary"]],
+    ["/questions", "問い", "help", []],
+    ["/map", "つながり", "share", []],
+    ["/context", "頭の中", "brain", ["/owner"]],
+    ["/x", "X", "message-circle", []],
+    ["/proposals", "直すこと", "wrench", ["/blocked"]],
+    ["/settings", "設定", "sliders", []],
+  ];
+  const under = (path: string, href: string) =>
+    href === "/" ? path === "/" : path === href || path.startsWith(`${href}/`);
+  const here = (href: string) =>
+    [href, ...(NAV.find(([h]) => h === href)?.[3] ?? [])].some((h) =>
+      under(page.url.pathname, h),
+    )
+      ? "page"
+      : undefined;
+  /** 直すことの数(開いている改善案 + 弾かれていること) */
+  const badge = (href: string) =>
+    href === "/proposals" ? data.proposals + data.blocked : 0;
 </script>
 
 <svelte:head><title>Ashi</title></svelte:head>
 
 {#if !data.user}
-	{@render children()}
+  {@render children()}
 {:else}
-	<div class="site">
-		<header class="site-header">
-			<nav class="page-container bar">
-				<a class="logo" href="/"><Logo />Ashi</a>
-				<div class="grow"></div>
-				<div class="nav-wide">
-					{#each NAV as [href, label, icon] (href)}
-						<a class="button ghost small" aria-current={here(href)} {href}>
-							<Icon name={icon} size={1} />{label}
-							{#if badge(href) > 0}<span class="count">{badge(href)}</span>{/if}
-						</a>
-					{/each}
-				</div>
-				<!-- 狭い画面: 全部メニューに畳む -->
-				<details class="dropdown nav-narrow">
-					<!-- svelte-ignore a11y_no_redundant_roles -->
-					<summary role="button" class="ghost small" aria-label="メニュー"><Icon name="menu" /></summary>
-					<ul dir="rtl">
-						{#each NAV as [href, label, icon] (href)}
-							<li dir="ltr"><a {href} aria-current={here(href)}><Icon name={icon} size={1} />{label}</a></li>
-						{/each}
-					</ul>
-				</details>
-				<form method="POST" action="/logout" class="logout">
-					<button type="submit" class="ghost small" title="{data.user.name} をログアウト" aria-label="ログアウト">
-						<Icon name="log-out" size={1} />
-					</button>
-				</form>
-			</nav>
-		</header>
+  <div class="site">
+    <header class="site-header">
+      <nav class="page-container bar">
+        <a class="logo" href="/"><Logo />Ashi</a>
+        <div class="grow"></div>
+        <div class="nav-wide">
+          {#each NAV as [href, label, icon] (href)}
+            <a class="button ghost small" aria-current={here(href)} {href}>
+              <Icon name={icon} size={1} />{label}
+              {#if badge(href) > 0}<span class="count">{badge(href)}</span>{/if}
+            </a>
+          {/each}
+        </div>
+        <!-- 狭い画面: 全部メニューに畳む -->
+        <details class="dropdown nav-narrow">
+          <!-- svelte-ignore a11y_no_redundant_roles -->
+          <summary role="button" class="ghost small" aria-label="メニュー"
+            ><Icon name="menu" /></summary
+          >
+          <ul dir="rtl">
+            {#each NAV as [href, label, icon] (href)}
+              <li dir="ltr">
+                <a {href} aria-current={here(href)}
+                  ><Icon name={icon} size={1} />{label}</a
+                >
+              </li>
+            {/each}
+          </ul>
+        </details>
+        <form method="POST" action="/logout" class="logout">
+          <button
+            type="submit"
+            class="ghost small"
+            title="{data.user.name} をログアウト"
+            aria-label="ログアウト"
+          >
+            <Icon name="log-out" size={1} />
+          </button>
+        </form>
+      </nav>
+    </header>
 
-		{#if data.paused}
-			<a class="blocked-bar paused-bar" href="/">
-				Ashi を止めています(歩み・X の自動返信を止めている。話すは使える)。再開は「いま」から
-				<Icon name="arrow-right" size={1} />
-			</a>
-		{/if}
-		{#if data.blocked > 0 && page.url.pathname !== "/proposals"}
-			<a class="blocked-bar" href="/proposals">
-				<Icon name="alert" size={1} />
-				弾かれていることが {data.blocked} 件あります。権限を足すと先へ進めます
-				<Icon name="arrow-right" size={1} />
-			</a>
-		{/if}
+    {#if data.paused}
+      <a class="blocked-bar paused-bar" href="/">
+        Ashi を止めています(歩み・X
+        の自動返信を止めている。話すは使える)。再開は「いま」から
+        <Icon name="arrow-right" size={1} />
+      </a>
+    {/if}
+    {#if data.blocked > 0 && page.url.pathname !== "/proposals"}
+      <a class="blocked-bar" href="/proposals">
+        <Icon name="alert" size={1} />
+        弾かれていることが {data.blocked} 件あります。権限を足すと先へ進めます
+        <Icon name="arrow-right" size={1} />
+      </a>
+    {/if}
 
-		<main class="page-container site-main">
-			{@render children()}
-		</main>
-	</div>
+    <main class="page-container site-main">
+      {@render children()}
+    </main>
+  </div>
 {/if}
 
 <style>
-	.site {
-		display: flex;
-		min-height: 100vh;
-		flex-direction: column;
-	}
-	/* ヘッダーは地と同じ色で、下の線も色の帯も引かない(持ち主の指摘、2026-10-19) */
-	.site-header {
-		position: sticky;
-		top: 0;
-		z-index: 30;
-		background: var(--ui-header-bg);
-		backdrop-filter: saturate(1.4) blur(12px);
-	}
-	.bar {
-		display: flex;
-		align-items: center;
-		gap: 0.25rem;
-		min-height: var(--ui-header-h);
-		padding: 0.5rem 1.25rem;
-	}
-	.nav-wide :global(a.button.ghost) {
-		border-radius: 999px;
-		color: var(--ui-muted);
-	}
-	.nav-wide :global(a.button.ghost[aria-current="page"]) {
-		background: var(--ui-base-200);
-		color: var(--pico-color);
-	}
-	.logo {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		margin-right: 0.5rem;
-		color: var(--pico-primary);
-		font-size: 1.15rem;
-		font-weight: 700;
-		letter-spacing: 0.02em;
-		text-decoration: none;
-	}
-	.nav-wide {
-		display: none;
-		align-items: center;
-		gap: 0.1rem;
-	}
-	.nav-narrow {
-		margin: 0;
-	}
-	.count {
-		min-width: 1.2rem;
-		border-radius: 999px;
-		background: var(--ui-accent);
-		padding: 0 0.35rem;
-		color: #fff;
-		font-size: 0.7rem;
-		line-height: 1.2rem;
-		text-align: center;
-	}
-	.nav-narrow > summary::after {
-		display: none;
-	}
-	.nav-narrow ul li a {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-	}
-	.nav-narrow ul li a[aria-current] {
-		font-weight: 700;
-	}
-	@media (min-width: 1000px) {
-		.nav-wide {
-			display: flex;
-		}
-		.nav-narrow {
-			display: none;
-		}
-	}
-	.logout {
-		margin: 0;
-	}
-	.blocked-bar {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: 0.5rem;
-		margin: 0.25rem 1.25rem 0;
-		border-radius: 0.75rem;
-		background: var(--ui-warn-bg);
-		padding: 0.55rem 1rem;
-		color: var(--ui-warn);
-		font-size: 0.9rem;
-		font-weight: 600;
-		text-decoration: none;
-	}
-	.paused-bar {
-		background: var(--ui-base-200);
-		color: var(--pico-color);
-	}
-	.blocked-bar:hover {
-		text-decoration: underline;
-	}
-	.site-main {
-		flex: 1 1 auto;
-		padding: 1rem 1.25rem var(--main-pad-bottom);
-	}
+  .site {
+    display: flex;
+    min-height: 100vh;
+    flex-direction: column;
+  }
+  /* ヘッダーは地と同じ色で、下の線も色の帯も引かない(持ち主の指摘、2026-10-19) */
+  .site-header {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    background: var(--ui-header-bg);
+    backdrop-filter: saturate(1.4) blur(12px);
+  }
+  .bar {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-height: var(--ui-header-h);
+    padding: 0.5rem 1.25rem;
+  }
+  .nav-wide :global(a.button.ghost) {
+    border-radius: 999px;
+    color: var(--ui-muted);
+  }
+  .nav-wide :global(a.button.ghost[aria-current="page"]) {
+    background: var(--ui-base-200);
+    color: var(--pico-color);
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-right: 0.5rem;
+    color: var(--pico-primary);
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-decoration: none;
+  }
+  .nav-wide {
+    display: none;
+    align-items: center;
+    gap: 0.1rem;
+  }
+  .nav-narrow {
+    margin: 0;
+  }
+  .count {
+    min-width: 1.2rem;
+    border-radius: 999px;
+    background: var(--ui-accent);
+    padding: 0 0.35rem;
+    color: #fff;
+    font-size: 0.7rem;
+    line-height: 1.2rem;
+    text-align: center;
+  }
+  .nav-narrow > summary::after {
+    display: none;
+  }
+  .nav-narrow ul li a {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .nav-narrow ul li a[aria-current] {
+    font-weight: 700;
+  }
+  @media (min-width: 1000px) {
+    .nav-wide {
+      display: flex;
+    }
+    .nav-narrow {
+      display: none;
+    }
+  }
+  .logout {
+    margin: 0;
+  }
+  .blocked-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin: 0.25rem 1.25rem 0;
+    border-radius: 0.75rem;
+    background: var(--ui-warn-bg);
+    padding: 0.55rem 1rem;
+    color: var(--ui-warn);
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .paused-bar {
+    background: var(--ui-base-200);
+    color: var(--pico-color);
+  }
+  .blocked-bar:hover {
+    text-decoration: underline;
+  }
+  .site-main {
+    flex: 1 1 auto;
+    padding: 1rem 1.25rem var(--main-pad-bottom);
+  }
 </style>

@@ -8,11 +8,11 @@ import type { Question, Track } from "../state.ts";
 
 /** 見立てと、何度歩いたかから出す点数 */
 export function score(q: Question): number {
-	const base = 0.4 * q.interest + 0.35 * q.importance + 0.25 * q.feasibility;
-	// まだ歩いていない問いは少し前へ、何度も歩いた問いは後ろへ
-	const novelty = q.visits === 0 ? 0.15 : 0;
-	const fatigue = 0.12 * q.visits;
-	return base + novelty - fatigue;
+  const base = 0.4 * q.interest + 0.35 * q.importance + 0.25 * q.feasibility;
+  // まだ歩いていない問いは少し前へ、何度も歩いた問いは後ろへ
+  const novelty = q.visits === 0 ? 0.15 : 0;
+  const fatigue = 0.12 * q.visits;
+  return base + novelty - fatigue;
 }
 
 /**
@@ -21,44 +21,44 @@ export function score(q: Question): number {
  * あるので束ねない
  */
 export function verifySiblings(
-	q: Question,
-	qs: Question[],
-	batch: number,
+  q: Question,
+  qs: Question[],
+  batch: number,
 ): Question[] {
-	if (!q.verify || q.source !== "stranger" || !q.via || q.origin) return [];
-	return qs
-		.filter(
-			(x) =>
-				x.id !== q.id &&
-				x.status === "open" &&
-				x.verify &&
-				!x.origin &&
-				x.source === "stranger" &&
-				x.via === q.via,
-		)
-		.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-		.slice(0, Math.max(0, batch - 1));
+  if (!q.verify || q.source !== "stranger" || !q.via || q.origin) return [];
+  return qs
+    .filter(
+      (x) =>
+        x.id !== q.id &&
+        x.status === "open" &&
+        x.verify &&
+        !x.origin &&
+        x.source === "stranger" &&
+        x.via === q.via,
+    )
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    .slice(0, Math.max(0, batch - 1));
 }
 
 /** 頭の checked のうち、束ねて渡した問いの結果だけ */
 export function batchResults(
-	raw: unknown,
-	siblings: Question[],
+  raw: unknown,
+  siblings: Question[],
 ): Map<string, "holds" | "wrong" | "unreadable"> {
-	const ids = new Set(siblings.map((x) => x.id));
-	const out = new Map<string, "holds" | "wrong" | "unreadable">();
-	if (!Array.isArray(raw)) return out;
-	for (const c of raw as { id?: unknown; result?: unknown }[]) {
-		if (
-			typeof c?.id === "string" &&
-			ids.has(c.id) &&
-			(c.result === "holds" ||
-				c.result === "wrong" ||
-				c.result === "unreadable")
-		)
-			out.set(c.id, c.result);
-	}
-	return out;
+  const ids = new Set(siblings.map((x) => x.id));
+  const out = new Map<string, "holds" | "wrong" | "unreadable">();
+  if (!Array.isArray(raw)) return out;
+  for (const c of raw as { id?: unknown; result?: unknown }[]) {
+    if (
+      typeof c?.id === "string" &&
+      ids.has(c.id) &&
+      (c.result === "holds" ||
+        c.result === "wrong" ||
+        c.result === "unreadable")
+    )
+      out.set(c.id, c.result);
+  }
+  return out;
 }
 
 /**
@@ -67,47 +67,47 @@ export function batchResults(
  * 2 回続けて書けば点数に関係なく先に歩く規則(promised)はそのまま
  */
 export function byRank(a: Question, b: Question): number {
-	const sa = score(a);
-	const sb = score(b);
-	return (
-		Math.round(sb * 100) - Math.round(sa * 100) ||
-		Number(Boolean(b.promised)) - Number(Boolean(a.promised)) ||
-		sb - sa
-	);
+  const sa = score(a);
+  const sb = score(b);
+  return (
+    Math.round(sb * 100) - Math.round(sa * 100) ||
+    Number(Boolean(b.promised)) - Number(Boolean(a.promised)) ||
+    sb - sa
+  );
 }
 
 /** 直近で同じテーマが何歩続いたか */
 export function themeStreak(recentThemes: string[]): {
-	theme?: string;
-	count: number;
+  theme?: string;
+  count: number;
 } {
-	const [theme] = recentThemes;
-	if (theme === undefined) return { count: 0 };
-	let count = 0;
-	for (const t of recentThemes) {
-		if (t !== theme) break;
-		count++;
-	}
-	return { theme, count };
+  const [theme] = recentThemes;
+  if (theme === undefined) return { count: 0 };
+  let count = 0;
+  for (const t of recentThemes) {
+    if (t !== theme) break;
+    count++;
+  }
+  return { theme, count };
 }
 
 export interface Choice {
-	question: Question;
-	/** さいころで決めた系統 */
-	track: Track;
-	/**
-	 * score: 点数の順 / detour: 寄り道 / echo: 言い換えが繰り返し出た問いを一度歩く /
-	 * verify: 外で確かめずに言ったことを、日が経ったので確かめる
-	 */
-	reason: "score" | "detour" | "echo" | "verify" | "promised";
-	score: number;
+  question: Question;
+  /** さいころで決めた系統 */
+  track: Track;
+  /**
+   * score: 点数の順 / detour: 寄り道 / echo: 言い換えが繰り返し出た問いを一度歩く /
+   * verify: 外で確かめずに言ったことを、日が経ったので確かめる
+   */
+  reason: "score" | "detour" | "echo" | "verify" | "promised";
+  score: number;
 }
 
 /** さいころで決めた系統に歩ける問いが無い。その系統の問いを頭に探させる */
 export interface SeedNeeded {
-	seed: Track;
-	/** いま休ませているテーマ(探させる問いから外す) */
-	avoid: string[];
+  seed: Track;
+  /** いま休ませているテーマ(探させる問いから外す) */
+  avoid: string[];
 }
 
 /** この回数だけ言い換えが出て、まだ歩いていない問いは先に歩く */
@@ -138,131 +138,131 @@ export const SEEDING = "(問いを探す)";
  * - 窓: 直近 themeWindow 歩のうち themeWindowMax 回に達した(交互に挟まっても偏りを抑える)
  */
 export function restingThemes(
-	recentThemes: string[],
-	cfg: Pick<Config, "themeStreakLimit" | "themeWindow" | "themeWindowMax">,
+  recentThemes: string[],
+  cfg: Pick<Config, "themeStreakLimit" | "themeWindow" | "themeWindowMax">,
 ): string[] {
-	const out = new Set<string>();
-	const walked = recentThemes.filter((t) => t !== SEEDING);
-	const streak = themeStreak(walked);
-	if (streak.theme !== undefined && streak.count >= cfg.themeStreakLimit)
-		out.add(streak.theme);
-	const counts = new Map<string, number>();
-	for (const t of walked.slice(0, cfg.themeWindow))
-		counts.set(t, (counts.get(t) ?? 0) + 1);
-	for (const [t, n] of counts) if (n >= cfg.themeWindowMax) out.add(t);
-	return [...out];
+  const out = new Set<string>();
+  const walked = recentThemes.filter((t) => t !== SEEDING);
+  const streak = themeStreak(walked);
+  if (streak.theme !== undefined && streak.count >= cfg.themeStreakLimit)
+    out.add(streak.theme);
+  const counts = new Map<string, number>();
+  for (const t of walked.slice(0, cfg.themeWindow))
+    counts.set(t, (counts.get(t) ?? 0) + 1);
+  for (const [t, n] of counts) if (n >= cfg.themeWindowMax) out.add(t);
+  return [...out];
 }
 
 export function selectQuestion(
-	questions: Question[],
-	recentThemes: string[],
-	cfg: Pick<
-		Config,
-		| "themeStreakLimit"
-		| "themeWindow"
-		| "themeWindowMax"
-		| "detourRate"
-		| "ownerShare"
-	>,
-	rng: () => number = Math.random,
-	now: Date = new Date(),
-	/** 直近の歩みの系統(新しい順、問い探しも含む) */
-	recentTracks: Track[] = [],
+  questions: Question[],
+  recentThemes: string[],
+  cfg: Pick<
+    Config,
+    | "themeStreakLimit"
+    | "themeWindow"
+    | "themeWindowMax"
+    | "detourRate"
+    | "ownerShare"
+  >,
+  rng: () => number = Math.random,
+  now: Date = new Date(),
+  /** 直近の歩みの系統(新しい順、問い探しも含む) */
+  recentTracks: Track[] = [],
 ): Choice | SeedNeeded {
-	const avoid = restingThemes(recentThemes, cfg);
-	// 先に系統を決める。**その系統が空でも、もう一方には回さない。** 回すと、問いのある系統ばかり
-	// 歩いて割合(ownerShare)が効かず、空の系統はいつまでも育たない(2026-09-25、最初の歩みで先回りの
-	// 問いだけができ、個性がずっと 0 のままになりかけた)
-	const dice: Track = rng() < cfg.ownerShare ? "owner" : "self";
-	const other: Track = dice === "owner" ? "self" : "owner";
-	const promisedIn = (t: Track) =>
-		questions
-			.filter(
-				(q) => q.status === "open" && q.track === t && (q.promised ?? 0) >= 2,
-			)
-			.sort((a, b) => (b.promised ?? 0) - (a.promised ?? 0))[0];
-	// 次の一歩に 2 回書いた問いがもう一方の系統にあり、その系統が PROMISE_WAIT 歩続けて出ていなければ、
-	// さいころを 1 歩だけ譲る。系統の中でしか先に回さず、さいころが片側に寄った 5 歩で約束が
-	// 0/6 だった(Ashi の改善案、2026-10-17)。続けて出なかったときだけにして、割合はほぼ崩さない
-	const waited =
-		recentTracks.length >= PROMISE_WAIT &&
-		recentTracks.slice(0, PROMISE_WAIT).every((t) => t !== other);
-	const handover = !promisedIn(dice) && waited ? promisedIn(other) : undefined;
-	if (handover)
-		return {
-			question: handover,
-			score: score(handover),
-			track: other,
-			reason: "promised",
-		};
-	const track = dice;
-	const candidates = questions
-		.filter(
-			(q) =>
-				q.status === "open" && !avoid.includes(q.theme) && q.track === track,
-		)
-		.map((q) => ({ question: q, score: score(q) }))
-		.sort((a, b) => byRank(a.question, b.question));
-	const [top, ...rest] = candidates;
-	if (!top) return { seed: track, avoid };
-	// 外(X・よそ者・持ち主)で確かめずに言ったことは、VERIFY_AFTER_DAYS 日歩かれなければ先に確かめる。
-	// 点数のままだと、次の一歩に 2 回書いても選ばれず、言いっぱなしのまま日が経っていった
-	// (Ashi の改善案、2026-09-26)。休ませているテーマでも回す(確かめるのは別の仕事なので)
-	const verifiedLately = recentThemes
-		.filter((t) => t !== SEEDING)
-		.slice(0, cfg.themeWindow)
-		.filter((t) => t === VERIFY_THEME).length;
-	// 持ち主との対話で記憶で言ったことは、日を置かず、確かめの枠の上限も越えて先に確かめる。テーマ
-	// 「確かめること」を休ませていて、持ち主の「今調べて回答して」が 4 歩のあいだ歩かれなかった
-	// (Ashi の改善案、2026-10-22)。よそ者への借りはこれまでどおり
-	const owner = (q: Question) => !q.origin && q.verify && q.source === "chat";
-	const overdue = questions
-		.filter(
-			(q) =>
-				q.status === "open" &&
-				// 持ち主への借りは系統のさいころも待たない
-				(q.track === track || owner(q)) &&
-				(q.verify || q.origin) &&
-				q.visits === 0 &&
-				(owner(q) ||
-					(verifiedLately < VERIFY_WINDOW_MAX &&
-						now.getTime() - Date.parse(q.createdAt) >=
-							VERIFY_AFTER_DAYS * 86400e3)),
-		)
-		// 枠が限られるので、相手が返事を待っている X の約束と持ち主への借りを先に
-		.sort(
-			(a, b) =>
-				Number(!a.origin) - Number(!b.origin) ||
-				Number(!owner(a)) - Number(!owner(b)) ||
-				a.createdAt.localeCompare(b.createdAt),
-		)[0];
-	if (overdue)
-		return {
-			question: overdue,
-			score: score(overdue),
-			track: overdue.track,
-			reason: "verify",
-		};
-	// 内省の次の一歩に 2 回続けて書かれた問いは、1 回必ず歩く(休ませているテーマでも。歩いたら印は消える)。
-	// 点数のままだと 3 回続けて書いても選ばれなかった(Ashi の改善案、2026-09-26)
-	const promised = promisedIn(track);
-	if (promised)
-		return {
-			question: promised,
-			score: score(promised),
-			track,
-			reason: "promised",
-		};
-	// 言い換えが ECHO_LIMIT 回以上出たのに、まだ 1 度も歩いていない問いは、1 回だけ先に歩く。
-	// 点数には足さない。繰り返しは関心の強さより堂々巡りの印のことが多く、点数に足すと堂々巡りを
-	// 後押しする。歩けば答えが出るか棚に移るので、繰り返しがそこで止まる(Ashi の案、2026-09-25)
-	const echo = candidates.find(
-		(c) => (c.question.echoes ?? 0) >= ECHO_LIMIT && c.question.visits === 0,
-	);
-	if (echo) return { ...echo, track, reason: "echo" };
-	if (rest.length > 0 && rng() < cfg.detourRate) {
-		const pick = rest[Math.floor(rng() * rest.length)] ?? top;
-		return { ...pick, track, reason: "detour" };
-	}
-	return { ...top, track, reason: "score" };
+  const avoid = restingThemes(recentThemes, cfg);
+  // 先に系統を決める。**その系統が空でも、もう一方には回さない。** 回すと、問いのある系統ばかり
+  // 歩いて割合(ownerShare)が効かず、空の系統はいつまでも育たない(2026-09-25、最初の歩みで先回りの
+  // 問いだけができ、個性がずっと 0 のままになりかけた)
+  const dice: Track = rng() < cfg.ownerShare ? "owner" : "self";
+  const other: Track = dice === "owner" ? "self" : "owner";
+  const promisedIn = (t: Track) =>
+    questions
+      .filter(
+        (q) => q.status === "open" && q.track === t && (q.promised ?? 0) >= 2,
+      )
+      .sort((a, b) => (b.promised ?? 0) - (a.promised ?? 0))[0];
+  // 次の一歩に 2 回書いた問いがもう一方の系統にあり、その系統が PROMISE_WAIT 歩続けて出ていなければ、
+  // さいころを 1 歩だけ譲る。系統の中でしか先に回さず、さいころが片側に寄った 5 歩で約束が
+  // 0/6 だった(Ashi の改善案、2026-10-17)。続けて出なかったときだけにして、割合はほぼ崩さない
+  const waited =
+    recentTracks.length >= PROMISE_WAIT &&
+    recentTracks.slice(0, PROMISE_WAIT).every((t) => t !== other);
+  const handover = !promisedIn(dice) && waited ? promisedIn(other) : undefined;
+  if (handover)
+    return {
+      question: handover,
+      score: score(handover),
+      track: other,
+      reason: "promised",
+    };
+  const track = dice;
+  const candidates = questions
+    .filter(
+      (q) =>
+        q.status === "open" && !avoid.includes(q.theme) && q.track === track,
+    )
+    .map((q) => ({ question: q, score: score(q) }))
+    .sort((a, b) => byRank(a.question, b.question));
+  const [top, ...rest] = candidates;
+  if (!top) return { seed: track, avoid };
+  // 外(X・よそ者・持ち主)で確かめずに言ったことは、VERIFY_AFTER_DAYS 日歩かれなければ先に確かめる。
+  // 点数のままだと、次の一歩に 2 回書いても選ばれず、言いっぱなしのまま日が経っていった
+  // (Ashi の改善案、2026-09-26)。休ませているテーマでも回す(確かめるのは別の仕事なので)
+  const verifiedLately = recentThemes
+    .filter((t) => t !== SEEDING)
+    .slice(0, cfg.themeWindow)
+    .filter((t) => t === VERIFY_THEME).length;
+  // 持ち主との対話で記憶で言ったことは、日を置かず、確かめの枠の上限も越えて先に確かめる。テーマ
+  // 「確かめること」を休ませていて、持ち主の「今調べて回答して」が 4 歩のあいだ歩かれなかった
+  // (Ashi の改善案、2026-10-22)。よそ者への借りはこれまでどおり
+  const owner = (q: Question) => !q.origin && q.verify && q.source === "chat";
+  const overdue = questions
+    .filter(
+      (q) =>
+        q.status === "open" &&
+        // 持ち主への借りは系統のさいころも待たない
+        (q.track === track || owner(q)) &&
+        (q.verify || q.origin) &&
+        q.visits === 0 &&
+        (owner(q) ||
+          (verifiedLately < VERIFY_WINDOW_MAX &&
+            now.getTime() - Date.parse(q.createdAt) >=
+              VERIFY_AFTER_DAYS * 86400e3)),
+    )
+    // 枠が限られるので、相手が返事を待っている X の約束と持ち主への借りを先に
+    .sort(
+      (a, b) =>
+        Number(!a.origin) - Number(!b.origin) ||
+        Number(!owner(a)) - Number(!owner(b)) ||
+        a.createdAt.localeCompare(b.createdAt),
+    )[0];
+  if (overdue)
+    return {
+      question: overdue,
+      score: score(overdue),
+      track: overdue.track,
+      reason: "verify",
+    };
+  // 内省の次の一歩に 2 回続けて書かれた問いは、1 回必ず歩く(休ませているテーマでも。歩いたら印は消える)。
+  // 点数のままだと 3 回続けて書いても選ばれなかった(Ashi の改善案、2026-09-26)
+  const promised = promisedIn(track);
+  if (promised)
+    return {
+      question: promised,
+      score: score(promised),
+      track,
+      reason: "promised",
+    };
+  // 言い換えが ECHO_LIMIT 回以上出たのに、まだ 1 度も歩いていない問いは、1 回だけ先に歩く。
+  // 点数には足さない。繰り返しは関心の強さより堂々巡りの印のことが多く、点数に足すと堂々巡りを
+  // 後押しする。歩けば答えが出るか棚に移るので、繰り返しがそこで止まる(Ashi の案、2026-09-25)
+  const echo = candidates.find(
+    (c) => (c.question.echoes ?? 0) >= ECHO_LIMIT && c.question.visits === 0,
+  );
+  if (echo) return { ...echo, track, reason: "echo" };
+  if (rest.length > 0 && rng() < cfg.detourRate) {
+    const pick = rest[Math.floor(rng() * rest.length)] ?? top;
+    return { ...pick, track, reason: "detour" };
+  }
+  return { ...top, track, reason: "score" };
 }

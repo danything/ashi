@@ -14,7 +14,7 @@ export const CLEANUP_BATCH = 50;
 export const CLEANUP_EVERY_MS = 15 * 60_000;
 
 interface ArchivedTweet {
-	tweet?: { id_str?: string; id?: string; created_at?: string };
+  tweet?: { id_str?: string; id?: string; created_at?: string };
 }
 
 /**
@@ -22,120 +22,120 @@ interface ArchivedTweet {
  * before より後に作られたもの(Ashi をつないだ後)と、keep に入っているものは外す
  */
 export function parseArchive(
-	text: string,
-	before: Date,
-	keep: Set<string>,
+  text: string,
+  before: Date,
+  keep: Set<string>,
 ): string[] {
-	const start = text.indexOf("[");
-	if (start < 0) throw new Error("tweets.js の形ではない(配列が見つからない)");
-	const list = JSON.parse(text.slice(start)) as ArchivedTweet[];
-	const ids: string[] = [];
-	for (const item of list) {
-		const id = item.tweet?.id_str ?? item.tweet?.id;
-		if (!id || keep.has(id)) continue;
-		const at = item.tweet?.created_at
-			? new Date(item.tweet.created_at)
-			: undefined;
-		if (at && !Number.isNaN(at.getTime()) && at >= before) continue;
-		ids.push(id);
-	}
-	return [...new Set(ids)];
+  const start = text.indexOf("[");
+  if (start < 0) throw new Error("tweets.js の形ではない(配列が見つからない)");
+  const list = JSON.parse(text.slice(start)) as ArchivedTweet[];
+  const ids: string[] = [];
+  for (const item of list) {
+    const id = item.tweet?.id_str ?? item.tweet?.id;
+    if (!id || keep.has(id)) continue;
+    const at = item.tweet?.created_at
+      ? new Date(item.tweet.created_at)
+      : undefined;
+    if (at && !Number.isNaN(at.getTime()) && at >= before) continue;
+    ids.push(id);
+  }
+  return [...new Set(ids)];
 }
 
 /** Ashi が投稿したもの(消さない) */
 export function ashiPostIds(store: Store): Set<string> {
-	return new Set(
-		store
-			.conversations()
-			.flatMap((c) => c.messages.filter((m) => m.byAshi).map((m) => m.id)),
-	);
+  return new Set(
+    store
+      .conversations()
+      .flatMap((c) => c.messages.filter((m) => m.byAshi).map((m) => m.id)),
+  );
 }
 
 export function startCleanup(store: Store, ids: string[], now: Date): XCleanup {
-	const c: XCleanup = {
-		total: ids.length,
-		remaining: ids,
-		deleted: 0,
-		failed: [],
-		startedAt: now.toISOString(),
-	};
-	store.saveXCleanup(c);
-	store.log("x-cleanup-started", { total: ids.length });
-	return c;
+  const c: XCleanup = {
+    total: ids.length,
+    remaining: ids,
+    deleted: 0,
+    failed: [],
+    startedAt: now.toISOString(),
+  };
+  store.saveXCleanup(c);
+  store.log("x-cleanup-started", { total: ids.length });
+  return c;
 }
 
 /** その投稿を消せない理由のエラー(400・403)。ほかはやり直せば消せる見込みがある */
 function isPermanent(status: number): boolean {
-	return status === 400 || status === 403;
+  return status === 400 || status === 403;
 }
 
 /** 消せなかった投稿を、残りに戻してもう一度回す */
 export function retryFailed(store: Store): XCleanup | undefined {
-	const c = store.xCleanup();
-	if (!c || c.failed.length === 0) return c;
-	const next: XCleanup = {
-		...c,
-		remaining: [...c.remaining, ...c.failed],
-		failed: [],
-		lastError: undefined,
-	};
-	store.saveXCleanup(next);
-	store.log("x-cleanup-retried", { count: c.failed.length });
-	return next;
+  const c = store.xCleanup();
+  if (!c || c.failed.length === 0) return c;
+  const next: XCleanup = {
+    ...c,
+    remaining: [...c.remaining, ...c.failed],
+    failed: [],
+    lastError: undefined,
+  };
+  store.saveXCleanup(next);
+  store.log("x-cleanup-retried", { count: c.failed.length });
+  return next;
 }
 
 /** 50 件まで消す。一時的なエラー(429・402・5xx など)なら今回はそこで止め、次の回に回す */
 export async function runCleanup(
-	store: Store,
-	now: Date,
-	env: Record<string, string | undefined> = process.env,
-	doFetch: typeof fetch = fetch,
+  store: Store,
+  now: Date,
+  env: Record<string, string | undefined> = process.env,
+  doFetch: typeof fetch = fetch,
 ): Promise<{ deleted: number; left: number } | undefined> {
-	const c = store.xCleanup();
-	if (!c || c.remaining.length === 0 || !store.xAccount()) return undefined;
-	const keep = ashiPostIds(store);
-	let deleted = 0;
-	let lastError: string | undefined;
-	const done: string[] = [];
-	const failed: string[] = [];
-	for (const id of c.remaining.slice(0, CLEANUP_BATCH)) {
-		if (keep.has(id)) {
-			done.push(id);
-			continue;
-		}
-		try {
-			await call(store, "DELETE", `tweets/${id}`, undefined, now, env, doFetch);
-			deleted++;
-			done.push(id);
-		} catch (e) {
-			const status = e instanceof XError ? e.status : 0;
-			if (status === 404) {
-				// もう無い
-				done.push(id);
-				continue;
-			}
-			lastError = e instanceof Error ? e.message.slice(0, 300) : String(e);
-			// 上限・認証・残高・X の側の不調・通信の失敗は、その投稿のせいではないので次の回に回す。
-			// 残高不足(402)の間の 304 件を「消せなかった」にして、二度と回らなくなっていた(2026-10-03)
-			if (!isPermanent(status)) break;
-			failed.push(id);
-			done.push(id);
-		}
-	}
-	const gone = new Set(done);
-	const next: XCleanup = {
-		...c,
-		remaining: c.remaining.filter((id) => !gone.has(id)),
-		deleted: c.deleted + deleted,
-		failed: [...c.failed, ...failed].slice(-500),
-		lastRunAt: now.toISOString(),
-		lastError,
-	};
-	store.saveXCleanup(next);
-	if (next.remaining.length === 0)
-		store.log("x-cleanup-finished", {
-			deleted: next.deleted,
-			failed: next.failed.length,
-		});
-	return { deleted, left: next.remaining.length };
+  const c = store.xCleanup();
+  if (!c || c.remaining.length === 0 || !store.xAccount()) return undefined;
+  const keep = ashiPostIds(store);
+  let deleted = 0;
+  let lastError: string | undefined;
+  const done: string[] = [];
+  const failed: string[] = [];
+  for (const id of c.remaining.slice(0, CLEANUP_BATCH)) {
+    if (keep.has(id)) {
+      done.push(id);
+      continue;
+    }
+    try {
+      await call(store, "DELETE", `tweets/${id}`, undefined, now, env, doFetch);
+      deleted++;
+      done.push(id);
+    } catch (e) {
+      const status = e instanceof XError ? e.status : 0;
+      if (status === 404) {
+        // もう無い
+        done.push(id);
+        continue;
+      }
+      lastError = e instanceof Error ? e.message.slice(0, 300) : String(e);
+      // 上限・認証・残高・X の側の不調・通信の失敗は、その投稿のせいではないので次の回に回す。
+      // 残高不足(402)の間の 304 件を「消せなかった」にして、二度と回らなくなっていた(2026-10-03)
+      if (!isPermanent(status)) break;
+      failed.push(id);
+      done.push(id);
+    }
+  }
+  const gone = new Set(done);
+  const next: XCleanup = {
+    ...c,
+    remaining: c.remaining.filter((id) => !gone.has(id)),
+    deleted: c.deleted + deleted,
+    failed: [...c.failed, ...failed].slice(-500),
+    lastRunAt: now.toISOString(),
+    lastError,
+  };
+  store.saveXCleanup(next);
+  if (next.remaining.length === 0)
+    store.log("x-cleanup-finished", {
+      deleted: next.deleted,
+      failed: next.failed.length,
+    });
+  return { deleted, left: next.remaining.length };
 }

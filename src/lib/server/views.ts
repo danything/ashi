@@ -9,43 +9,43 @@ import { store } from "#lib/server/runtime.ts";
  */
 
 export function ownerView() {
-	const walk = store.walk();
-	const cfg = store.config();
-	const states = store.feedStates();
-	return {
-		feeds: cfg.feeds.map((f) => ({
-			...f,
-			state: states[f.id],
-			requested: walk.crawlRequests.includes(f.id),
-		})),
-		feedMinHours: cfg.feedMinHours,
-		html: md(store.owner()),
-		sources: store.sources().reverse(),
-		pending: store.materialCount() - walk.profiledMaterials,
-		profileEvery: cfg.profileEvery,
-	};
+  const walk = store.walk();
+  const cfg = store.config();
+  const states = store.feedStates();
+  return {
+    feeds: cfg.feeds.map((f) => ({
+      ...f,
+      state: states[f.id],
+      requested: walk.crawlRequests.includes(f.id),
+    })),
+    feedMinHours: cfg.feedMinHours,
+    html: md(store.owner()),
+    sources: store.sources().reverse(),
+    pending: store.materialCount() - walk.profiledMaterials,
+    profileEvery: cfg.profileEvery,
+  };
 }
 
 export function blockedView() {
-	const all = Object.values(store.blockers())
-		.sort((a, b) => b.lastAt.localeCompare(a.lastAt))
-		.map((b) => ({ ...b, remedyHtml: md(b.remedy) }));
-	return {
-		open: all.filter(isOpen),
-		closed: all.filter((b) => !isOpen(b)).slice(0, 30),
-	};
+  const all = Object.values(store.blockers())
+    .sort((a, b) => b.lastAt.localeCompare(a.lastAt))
+    .map((b) => ({ ...b, remedyHtml: md(b.remedy) }));
+  return {
+    open: all.filter(isOpen),
+    closed: all.filter((b) => !isOpen(b)).slice(0, 30),
+  };
 }
 
 /** 日記。day が無いか形が違えば、いちばん新しい日 */
 export function diaryView(day: string | null) {
-	const days = store.diaryDays();
-	const pick =
-		day && /^\d{4}-\d{2}-\d{2}$/.test(day) && days.includes(day)
-			? day
-			: days[0];
-	return {
-		day: pick ?? null,
-		days,
-		html: pick ? md(store.diary(pick) ?? "") : "",
-	};
+  const days = store.diaryDays();
+  const pick =
+    day && /^\d{4}-\d{2}-\d{2}$/.test(day) && days.includes(day)
+      ? day
+      : days[0];
+  return {
+    day: pick ?? null,
+    days,
+    html: pick ? md(store.diary(pick) ?? "") : "",
+  };
 }

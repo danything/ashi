@@ -1,10 +1,10 @@
 import type { Config, Feed } from "../config.ts";
 import { newId, type Store } from "../state.ts";
 import {
-	feedBlockage,
-	raiseBlocker,
-	resolveBlockers,
-	webhookNotify,
+  feedBlockage,
+  raiseBlocker,
+  resolveBlockers,
+  webhookNotify,
 } from "./blockers.ts";
 import { type GetDeps, htmlToText, safeGet } from "./tools.ts";
 
@@ -14,20 +14,20 @@ import { type GetDeps, htmlToText, safeGet } from "./tools.ts";
  */
 
 export interface FeedItem {
-	/** 重ねて取り込まないための鍵(記事の URL・イベントの id など) */
-	key: string;
-	title: string;
-	url?: string;
-	body: string;
-	at?: string;
+  /** 重ねて取り込まないための鍵(記事の URL・イベントの id など) */
+  key: string;
+  title: string;
+  url?: string;
+  body: string;
+  at?: string;
 }
 
 export interface FeedState {
-	lastCrawledAt?: string;
-	/** 前回見つけた新しいものの数 */
-	lastNew: number;
-	lastError?: string;
-	seen: string[];
+  lastCrawledAt?: string;
+  /** 前回見つけた新しいものの数 */
+  lastNew: number;
+  lastError?: string;
+  seen: string[];
 }
 
 const SEEN_MAX = 1000;
@@ -38,126 +38,126 @@ const ITEMS_MAX = 20;
 
 const unCdata = (s: string) => s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1");
 const tag = (xml: string, name: string) => {
-	const m = xml.match(
-		new RegExp(`<${name}(?:\\s[^>]*)?>([\\s\\S]*?)</${name}>`, "i"),
-	);
-	return m?.[1] ? unCdata(m[1]).trim() : undefined;
+  const m = xml.match(
+    new RegExp(`<${name}(?:\\s[^>]*)?>([\\s\\S]*?)</${name}>`, "i"),
+  );
+  return m?.[1] ? unCdata(m[1]).trim() : undefined;
 };
 
 /** RSS 2.0 と Atom の記事。雑でよい(読むのは頭) */
 export function parseFeed(xml: string): FeedItem[] {
-	const blocks = xml.match(/<(item|entry)[\s>][\s\S]*?<\/\1>/gi) ?? [];
-	return blocks.map((b) => {
-		const href = b.match(/<link[^>]*href="([^"]+)"/i)?.[1];
-		const url = href ?? tag(b, "link");
-		const body =
-			tag(b, "content:encoded") ??
-			tag(b, "content") ??
-			tag(b, "description") ??
-			tag(b, "summary") ??
-			"";
-		const title = htmlToText(tag(b, "title") ?? "無題");
-		return {
-			key: tag(b, "guid") ?? tag(b, "id") ?? url ?? title,
-			title,
-			url,
-			body: htmlToText(body).slice(0, 8000),
-			at: tag(b, "pubDate") ?? tag(b, "updated") ?? tag(b, "published"),
-		};
-	});
+  const blocks = xml.match(/<(item|entry)[\s>][\s\S]*?<\/\1>/gi) ?? [];
+  return blocks.map((b) => {
+    const href = b.match(/<link[^>]*href="([^"]+)"/i)?.[1];
+    const url = href ?? tag(b, "link");
+    const body =
+      tag(b, "content:encoded") ??
+      tag(b, "content") ??
+      tag(b, "description") ??
+      tag(b, "summary") ??
+      "";
+    const title = htmlToText(tag(b, "title") ?? "無題");
+    return {
+      key: tag(b, "guid") ?? tag(b, "id") ?? url ?? title,
+      title,
+      url,
+      body: htmlToText(body).slice(0, 8000),
+      at: tag(b, "pubDate") ?? tag(b, "updated") ?? tag(b, "published"),
+    };
+  });
 }
 
 interface GhEvent {
-	id: string;
-	type: string;
-	created_at: string;
-	repo: { name: string };
-	payload: {
-		action?: string;
-		ref?: string;
-		ref_type?: string;
-		commits?: { message: string }[];
-		pull_request?: { title: string; body?: string | null };
-		issue?: { title: string; body?: string | null };
-		comment?: { body?: string };
-		release?: { name?: string; tag_name?: string };
-	};
+  id: string;
+  type: string;
+  created_at: string;
+  repo: { name: string };
+  payload: {
+    action?: string;
+    ref?: string;
+    ref_type?: string;
+    commits?: { message: string }[];
+    pull_request?: { title: string; body?: string | null };
+    issue?: { title: string; body?: string | null };
+    comment?: { body?: string };
+    release?: { name?: string; tag_name?: string };
+  };
 }
 
 /** GitHub の公開イベントを 1 行ずつの文に。スターも興味の手がかりになる */
 export function describeGithubEvent(e: GhEvent): string | undefined {
-	const r = e.repo.name;
-	const p = e.payload;
-	switch (e.type) {
-		case "PushEvent":
-			return `${r} に push: ${(p.commits ?? []).map((c) => c.message.split("\n")[0]).join(" / ")}`;
-		case "PullRequestEvent":
-			return `${r} の PR を ${p.action}: ${p.pull_request?.title}\n${(p.pull_request?.body ?? "").slice(0, 1500)}`;
-		case "IssuesEvent":
-			return `${r} の issue を ${p.action}: ${p.issue?.title}\n${(p.issue?.body ?? "").slice(0, 1500)}`;
-		case "IssueCommentEvent":
-			return `${r} の「${p.issue?.title}」にコメント: ${(p.comment?.body ?? "").slice(0, 1000)}`;
-		case "WatchEvent":
-			return `${r} にスターを付けた`;
-		case "ForkEvent":
-			return `${r} を fork した`;
-		case "CreateEvent":
-			return p.ref_type === "repository" ? `${r} を作った` : undefined;
-		case "ReleaseEvent":
-			return `${r} を ${p.release?.name || p.release?.tag_name} としてリリース`;
-		default:
-			return undefined;
-	}
+  const r = e.repo.name;
+  const p = e.payload;
+  switch (e.type) {
+    case "PushEvent":
+      return `${r} に push: ${(p.commits ?? []).map((c) => c.message.split("\n")[0]).join(" / ")}`;
+    case "PullRequestEvent":
+      return `${r} の PR を ${p.action}: ${p.pull_request?.title}\n${(p.pull_request?.body ?? "").slice(0, 1500)}`;
+    case "IssuesEvent":
+      return `${r} の issue を ${p.action}: ${p.issue?.title}\n${(p.issue?.body ?? "").slice(0, 1500)}`;
+    case "IssueCommentEvent":
+      return `${r} の「${p.issue?.title}」にコメント: ${(p.comment?.body ?? "").slice(0, 1000)}`;
+    case "WatchEvent":
+      return `${r} にスターを付けた`;
+    case "ForkEvent":
+      return `${r} を fork した`;
+    case "CreateEvent":
+      return p.ref_type === "repository" ? `${r} を作った` : undefined;
+    case "ReleaseEvent":
+      return `${r} を ${p.release?.name || p.release?.tag_name} としてリリース`;
+    default:
+      return undefined;
+  }
 }
 
 interface ForgejoActivity {
-	id: number;
-	op_type: string;
-	repo?: { full_name: string };
-	ref_name?: string;
-	content?: string;
-	comment?: { body?: string };
-	created?: string;
+  id: number;
+  op_type: string;
+  repo?: { full_name: string };
+  ref_name?: string;
+  content?: string;
+  comment?: { body?: string };
+  created?: string;
 }
 
 /** Forgejo の動きを 1 行ずつの文に。content は種類ごとに形が違う(push は JSON、issue は "番号|題") */
 export function describeForgejoActivity(
-	a: ForgejoActivity,
+  a: ForgejoActivity,
 ): string | undefined {
-	const r = a.repo?.full_name ?? "?";
-	const after = (s = "") => s.slice(s.indexOf("|") + 1);
-	switch (a.op_type) {
-		case "commit_repo": {
-			try {
-				const c = JSON.parse(a.content ?? "{}") as {
-					Commits?: { Message?: string }[];
-				};
-				const msgs = (c.Commits ?? [])
-					.map((x) => (x.Message ?? "").split("\n")[0])
-					.filter(Boolean);
-				return msgs.length ? `${r} に push: ${msgs.join(" / ")}` : undefined;
-			} catch {
-				return undefined;
-			}
-		}
-		case "create_pull_request":
-			return `${r} に PR: ${after(a.content)}`;
-		case "merge_pull_request":
-			return `${r} の PR をマージ: ${after(a.content)}`;
-		case "create_issue":
-			return `${r} に issue: ${after(a.content)}`;
-		case "comment_issue":
-		case "comment_pull":
-			return `${r} にコメント: ${(a.comment?.body ?? after(a.content)).slice(0, 1000)}`;
-		case "create_repo":
-			return `${r} を作った`;
-		case "star_repo":
-			return `${r} にスターを付けた`;
-		case "publish_release":
-			return `${r} をリリース: ${a.ref_name ?? ""}`;
-		default:
-			return undefined;
-	}
+  const r = a.repo?.full_name ?? "?";
+  const after = (s = "") => s.slice(s.indexOf("|") + 1);
+  switch (a.op_type) {
+    case "commit_repo": {
+      try {
+        const c = JSON.parse(a.content ?? "{}") as {
+          Commits?: { Message?: string }[];
+        };
+        const msgs = (c.Commits ?? [])
+          .map((x) => (x.Message ?? "").split("\n")[0])
+          .filter(Boolean);
+        return msgs.length ? `${r} に push: ${msgs.join(" / ")}` : undefined;
+      } catch {
+        return undefined;
+      }
+    }
+    case "create_pull_request":
+      return `${r} に PR: ${after(a.content)}`;
+    case "merge_pull_request":
+      return `${r} の PR をマージ: ${after(a.content)}`;
+    case "create_issue":
+      return `${r} に issue: ${after(a.content)}`;
+    case "comment_issue":
+    case "comment_pull":
+      return `${r} にコメント: ${(a.comment?.body ?? after(a.content)).slice(0, 1000)}`;
+    case "create_repo":
+      return `${r} を作った`;
+    case "star_repo":
+      return `${r} にスターを付けた`;
+    case "publish_release":
+      return `${r} をリリース: ${a.ref_name ?? ""}`;
+    default:
+      return undefined;
+  }
 }
 
 type Env = Record<string, string | undefined>;
@@ -166,130 +166,130 @@ type Env = Record<string, string | undefined>;
 const GITHUB_MAX_BYTES = 5_000_000;
 
 export async function crawlFeed(
-	feed: Feed,
-	cfg: Pick<Config, "fetch">,
-	deps: GetDeps = {},
-	env: Env = process.env,
+  feed: Feed,
+  cfg: Pick<Config, "fetch">,
+  deps: GetDeps = {},
+  env: Env = process.env,
 ): Promise<FeedItem[]> {
-	switch (feed.kind) {
-		case "rss": {
-			const r = await safeGet(feed.target, cfg, deps);
-			if (r.status !== 200) throw new Error(`${r.status} ${r.url}`);
-			return parseFeed(r.body);
-		}
-		case "github": {
-			const headers: Record<string, string> = {
-				accept: "application/vnd.github+json",
-			};
-			if (env.GITHUB_TOKEN)
-				headers.authorization = `Bearer ${env.GITHUB_TOKEN}`;
-			// イベント 100 件は、push や PR の本文で 20 万バイト(fetch.maxBytes)を超えることがあり、
-			// 途中で切れて JSON が読めなかった(2026-10-02)。API の応答なので、上限を広げて読む
-			const maxBytes = Math.max(cfg.fetch.maxBytes, GITHUB_MAX_BYTES);
-			const r = await safeGet(
-				`https://api.github.com/users/${encodeURIComponent(feed.target)}/events/public?per_page=100`,
-				{ fetch: { ...cfg.fetch, maxBytes } },
-				deps,
-				headers,
-			);
-			if (r.status !== 200) throw new Error(`GitHub ${r.status}`);
-			if (new TextEncoder().encode(r.body).byteLength >= maxBytes)
-				throw new Error(
-					`GitHub の応答が ${maxBytes} バイトを超えて途中で切れた`,
-				);
-			return (JSON.parse(r.body) as GhEvent[]).flatMap((e) => {
-				const text = describeGithubEvent(e);
-				return text
-					? [
-							{
-								key: `gh:${e.id}`,
-								title: text.split("\n")[0] ?? "",
-								body: text,
-								at: e.created_at,
-							},
-						]
-					: [];
-			});
-		}
-		case "forgejo": {
-			// 宛先は人が決めた FORGEJO_URL(クラスタの中の Service)。非公開の動きも読むので鍵が要る
-			const base = env.FORGEJO_URL?.replace(/\/+$/, "");
-			const token = env.FORGEJO_TOKEN;
-			if (!base || !token)
-				throw new Error("FORGEJO_URL か FORGEJO_TOKEN が無い");
-			const r = await safeGet(
-				`${base}/api/v1/users/${encodeURIComponent(feed.target)}/activities/feeds?limit=50&only-performed-by=true`,
-				cfg,
-				deps,
-				{ authorization: `token ${token}`, accept: "application/json" },
-				true,
-			);
-			if (r.status !== 200) throw new Error(`Forgejo ${r.status}`);
-			return (JSON.parse(r.body) as ForgejoActivity[]).flatMap((a) => {
-				const text = describeForgejoActivity(a);
-				return text
-					? [
-							{
-								key: `fj:${a.id}`,
-								title: text.split("\n")[0] ?? "",
-								body: text,
-								at: a.created,
-							},
-						]
-					: [];
-			});
-		}
-		case "x": {
-			// X は公式 API しか読まない(ページの取り込みは規約に反する)。読むには有料の API の鍵が要る
-			const token = env.X_BEARER_TOKEN;
-			if (!token) throw new Error("X_BEARER_TOKEN が無い");
-			const headers = { authorization: `Bearer ${token}` };
-			const u = await safeGet(
-				`https://api.x.com/2/users/by/username/${encodeURIComponent(feed.target)}`,
-				cfg,
-				deps,
-				headers,
-			);
-			if (u.status !== 200) throw new Error(`X ${u.status}`);
-			const id = (JSON.parse(u.body) as { data?: { id?: string } }).data?.id;
-			if (!id) throw new Error("X のユーザーが見つからない");
-			const t = await safeGet(
-				`https://api.x.com/2/users/${id}/tweets?max_results=50&tweet.fields=created_at`,
-				cfg,
-				deps,
-				headers,
-			);
-			if (t.status !== 200) throw new Error(`X ${t.status}`);
-			const tweets =
-				(
-					JSON.parse(t.body) as {
-						data?: { id: string; text: string; created_at?: string }[];
-					}
-				).data ?? [];
-			return tweets.map((tw) => ({
-				key: `x:${tw.id}`,
-				title: tw.text.slice(0, 60),
-				url: `https://x.com/${feed.target}/status/${tw.id}`,
-				body: tw.text,
-				at: tw.created_at,
-			}));
-		}
-	}
+  switch (feed.kind) {
+    case "rss": {
+      const r = await safeGet(feed.target, cfg, deps);
+      if (r.status !== 200) throw new Error(`${r.status} ${r.url}`);
+      return parseFeed(r.body);
+    }
+    case "github": {
+      const headers: Record<string, string> = {
+        accept: "application/vnd.github+json",
+      };
+      if (env.GITHUB_TOKEN)
+        headers.authorization = `Bearer ${env.GITHUB_TOKEN}`;
+      // イベント 100 件は、push や PR の本文で 20 万バイト(fetch.maxBytes)を超えることがあり、
+      // 途中で切れて JSON が読めなかった(2026-10-02)。API の応答なので、上限を広げて読む
+      const maxBytes = Math.max(cfg.fetch.maxBytes, GITHUB_MAX_BYTES);
+      const r = await safeGet(
+        `https://api.github.com/users/${encodeURIComponent(feed.target)}/events/public?per_page=100`,
+        { fetch: { ...cfg.fetch, maxBytes } },
+        deps,
+        headers,
+      );
+      if (r.status !== 200) throw new Error(`GitHub ${r.status}`);
+      if (new TextEncoder().encode(r.body).byteLength >= maxBytes)
+        throw new Error(
+          `GitHub の応答が ${maxBytes} バイトを超えて途中で切れた`,
+        );
+      return (JSON.parse(r.body) as GhEvent[]).flatMap((e) => {
+        const text = describeGithubEvent(e);
+        return text
+          ? [
+              {
+                key: `gh:${e.id}`,
+                title: text.split("\n")[0] ?? "",
+                body: text,
+                at: e.created_at,
+              },
+            ]
+          : [];
+      });
+    }
+    case "forgejo": {
+      // 宛先は人が決めた FORGEJO_URL(クラスタの中の Service)。非公開の動きも読むので鍵が要る
+      const base = env.FORGEJO_URL?.replace(/\/+$/, "");
+      const token = env.FORGEJO_TOKEN;
+      if (!base || !token)
+        throw new Error("FORGEJO_URL か FORGEJO_TOKEN が無い");
+      const r = await safeGet(
+        `${base}/api/v1/users/${encodeURIComponent(feed.target)}/activities/feeds?limit=50&only-performed-by=true`,
+        cfg,
+        deps,
+        { authorization: `token ${token}`, accept: "application/json" },
+        true,
+      );
+      if (r.status !== 200) throw new Error(`Forgejo ${r.status}`);
+      return (JSON.parse(r.body) as ForgejoActivity[]).flatMap((a) => {
+        const text = describeForgejoActivity(a);
+        return text
+          ? [
+              {
+                key: `fj:${a.id}`,
+                title: text.split("\n")[0] ?? "",
+                body: text,
+                at: a.created,
+              },
+            ]
+          : [];
+      });
+    }
+    case "x": {
+      // X は公式 API しか読まない(ページの取り込みは規約に反する)。読むには有料の API の鍵が要る
+      const token = env.X_BEARER_TOKEN;
+      if (!token) throw new Error("X_BEARER_TOKEN が無い");
+      const headers = { authorization: `Bearer ${token}` };
+      const u = await safeGet(
+        `https://api.x.com/2/users/by/username/${encodeURIComponent(feed.target)}`,
+        cfg,
+        deps,
+        headers,
+      );
+      if (u.status !== 200) throw new Error(`X ${u.status}`);
+      const id = (JSON.parse(u.body) as { data?: { id?: string } }).data?.id;
+      if (!id) throw new Error("X のユーザーが見つからない");
+      const t = await safeGet(
+        `https://api.x.com/2/users/${id}/tweets?max_results=50&tweet.fields=created_at`,
+        cfg,
+        deps,
+        headers,
+      );
+      if (t.status !== 200) throw new Error(`X ${t.status}`);
+      const tweets =
+        (
+          JSON.parse(t.body) as {
+            data?: { id: string; text: string; created_at?: string }[];
+          }
+        ).data ?? [];
+      return tweets.map((tw) => ({
+        key: `x:${tw.id}`,
+        title: tw.text.slice(0, 60),
+        url: `https://x.com/${feed.target}/status/${tw.id}`,
+        body: tw.text,
+        at: tw.created_at,
+      }));
+    }
+  }
 }
 
 // ---- 取り込む
 
 /** 前回から間を空けたか。短い間隔で何度も叩かない(足のガードレール) */
 export function crawlable(
-	state: FeedState | undefined,
-	cfg: Pick<Config, "feedMinHours">,
-	now: Date,
+  state: FeedState | undefined,
+  cfg: Pick<Config, "feedMinHours">,
+  now: Date,
 ): boolean {
-	if (!state?.lastCrawledAt) return true;
-	return (
-		now.getTime() - new Date(state.lastCrawledAt).getTime() >=
-		cfg.feedMinHours * 3600_000
-	);
+  if (!state?.lastCrawledAt) return true;
+  return (
+    now.getTime() - new Date(state.lastCrawledAt).getTime() >=
+    cfg.feedMinHours * 3600_000
+  );
 }
 
 /**
@@ -297,81 +297,81 @@ export function crawlable(
  * 知らない id・間隔の下限に届かないもの・1 歩の上限を超えるものは足が落とす
  */
 export async function crawlRequested(
-	store: Store,
-	requested: string[],
-	now: Date,
-	deps: GetDeps = {},
-	env: Env = process.env,
-	notify = webhookNotify,
+  store: Store,
+  requested: string[],
+  now: Date,
+  deps: GetDeps = {},
+  env: Env = process.env,
+  notify = webhookNotify,
 ): Promise<{ id: string; added: number; error?: string }[]> {
-	const cfg = store.config();
-	const states = store.feedStates();
-	const feeds = [...new Set(requested)]
-		.map((id) => activeFeeds(cfg).find((f) => f.id === id))
-		.filter(
-			(f): f is Feed => Boolean(f) && crawlable(states[f?.id ?? ""], cfg, now),
-		)
-		.slice(0, 3);
-	const out: { id: string; added: number; error?: string }[] = [];
-	for (const feed of feeds) {
-		const prev = states[feed.id] ?? { lastNew: 0, seen: [] };
-		try {
-			const items = await crawlFeed(feed, cfg, deps, env);
-			const seen = new Set(prev.seen);
-			const fresh = items.filter((i) => !seen.has(i.key)).slice(0, ITEMS_MAX);
-			ingest(store, feed, fresh, now);
-			const keys = [...prev.seen, ...items.map((i) => i.key)];
-			store.saveFeedState(feed.id, {
-				lastCrawledAt: now.toISOString(),
-				lastNew: fresh.length,
-				seen: [...new Set(keys)].slice(-SEEN_MAX),
-			});
-			out.push({ id: feed.id, added: fresh.length });
-			resolveBlockers(store, `feed:${feed.id}`, now);
-		} catch (e) {
-			const error = e instanceof Error ? e.message : String(e);
-			// 失敗しても間隔は空ける(壊れた先を毎歩叩かない)
-			store.saveFeedState(feed.id, {
-				...prev,
-				lastCrawledAt: now.toISOString(),
-				lastNew: 0,
-				lastError: error,
-			});
-			out.push({ id: feed.id, added: 0, error });
-			// 人が鍵を足すか設定を直すまで進めないので、知らせる
-			await raiseBlocker(store, "feed", feedBlockage(feed, error), now, notify);
-		}
-	}
-	if (out.length) store.log("crawled", { results: out });
-	return out;
+  const cfg = store.config();
+  const states = store.feedStates();
+  const feeds = [...new Set(requested)]
+    .map((id) => activeFeeds(cfg).find((f) => f.id === id))
+    .filter(
+      (f): f is Feed => Boolean(f) && crawlable(states[f?.id ?? ""], cfg, now),
+    )
+    .slice(0, 3);
+  const out: { id: string; added: number; error?: string }[] = [];
+  for (const feed of feeds) {
+    const prev = states[feed.id] ?? { lastNew: 0, seen: [] };
+    try {
+      const items = await crawlFeed(feed, cfg, deps, env);
+      const seen = new Set(prev.seen);
+      const fresh = items.filter((i) => !seen.has(i.key)).slice(0, ITEMS_MAX);
+      ingest(store, feed, fresh, now);
+      const keys = [...prev.seen, ...items.map((i) => i.key)];
+      store.saveFeedState(feed.id, {
+        lastCrawledAt: now.toISOString(),
+        lastNew: fresh.length,
+        seen: [...new Set(keys)].slice(-SEEN_MAX),
+      });
+      out.push({ id: feed.id, added: fresh.length });
+      resolveBlockers(store, `feed:${feed.id}`, now);
+    } catch (e) {
+      const error = e instanceof Error ? e.message : String(e);
+      // 失敗しても間隔は空ける(壊れた先を毎歩叩かない)
+      store.saveFeedState(feed.id, {
+        ...prev,
+        lastCrawledAt: now.toISOString(),
+        lastNew: 0,
+        lastError: error,
+      });
+      out.push({ id: feed.id, added: 0, error });
+      // 人が鍵を足すか設定を直すまで進めないので、知らせる
+      await raiseBlocker(store, "feed", feedBlockage(feed, error), now, notify);
+    }
+  }
+  if (out.length) store.log("crawled", { results: out });
+  return out;
 }
 
 /** ブログは 1 記事 1 件、GitHub と X は 1 回の巡回をまとめて 1 件の材料にする */
 function ingest(store: Store, feed: Feed, items: FeedItem[], now: Date): void {
-	if (items.length === 0) return;
-	const base = {
-		kind: "feed" as const,
-		feedId: feed.id,
-		createdAt: now.toISOString(),
-	};
-	if (feed.kind === "rss") {
-		for (const i of items) {
-			store.addSource(
-				{ ...base, id: newId(), title: i.title, url: i.url },
-				`# ${i.title}\n\n${i.at ?? ""}\n\n${i.body}`,
-			);
-		}
-		return;
-	}
-	const label =
-		{ github: "GitHub", x: "X", forgejo: "Forgejo" }[feed.kind] ?? feed.kind;
-	const body = items
-		.map((i) => `- ${i.at ?? ""} ${i.body.replace(/\n+/g, " ")}`)
-		.join("\n");
-	store.addSource(
-		{ ...base, id: newId(), title: `${label} の動き(${items.length} 件)` },
-		body,
-	);
+  if (items.length === 0) return;
+  const base = {
+    kind: "feed" as const,
+    feedId: feed.id,
+    createdAt: now.toISOString(),
+  };
+  if (feed.kind === "rss") {
+    for (const i of items) {
+      store.addSource(
+        { ...base, id: newId(), title: i.title, url: i.url },
+        `# ${i.title}\n\n${i.at ?? ""}\n\n${i.body}`,
+      );
+    }
+    return;
+  }
+  const label =
+    { github: "GitHub", x: "X", forgejo: "Forgejo" }[feed.kind] ?? feed.kind;
+  const body = items
+    .map((i) => `- ${i.at ?? ""} ${i.body.replace(/\n+/g, " ")}`)
+    .join("\n");
+  store.addSource(
+    { ...base, id: newId(), title: `${label} の動き(${items.length} 件)` },
+    body,
+  );
 }
 
 /** 頭に見せるフィードの様子 */
@@ -380,24 +380,24 @@ function ingest(store: Store, feed: Feed, items: FeedItem[], now: Date): void {
  * (X_BEARER_TOKEN)なので、アカウントの接続を外しても 1 回最大 50 件の読みが課金され続けた(2026-10-03)
  */
 function activeFeeds(cfg: Pick<Config, "feeds" | "x">): Feed[] {
-	return cfg.feeds.filter((f) => f.kind !== "x" || cfg.x.enabled);
+  return cfg.feeds.filter((f) => f.kind !== "x" || cfg.x.enabled);
 }
 
 export function feedStatus(store: Store, now: Date): string {
-	const cfg = store.config();
-	const feeds = activeFeeds(cfg);
-	if (feeds.length === 0) return "(登録されていない)";
-	const states = store.feedStates();
-	return feeds
-		.map((f) => {
-			const s = states[f.id];
-			const last = s?.lastCrawledAt
-				? `${Math.round((now.getTime() - new Date(s.lastCrawledAt).getTime()) / 3600_000)} 時間前に見た、そのとき新しいもの ${s.lastNew} 件${s.lastError ? `、失敗: ${s.lastError}` : ""}`
-				: "まだ見ていない";
-			const ok = crawlable(s, cfg, now)
-				? ""
-				: `(${cfg.feedMinHours} 時間空くまで見られない)`;
-			return `- ${f.id} [${f.kind}] ${f.title ?? f.target}: ${last}${ok}`;
-		})
-		.join("\n");
+  const cfg = store.config();
+  const feeds = activeFeeds(cfg);
+  if (feeds.length === 0) return "(登録されていない)";
+  const states = store.feedStates();
+  return feeds
+    .map((f) => {
+      const s = states[f.id];
+      const last = s?.lastCrawledAt
+        ? `${Math.round((now.getTime() - new Date(s.lastCrawledAt).getTime()) / 3600_000)} 時間前に見た、そのとき新しいもの ${s.lastNew} 件${s.lastError ? `、失敗: ${s.lastError}` : ""}`
+        : "まだ見ていない";
+      const ok = crawlable(s, cfg, now)
+        ? ""
+        : `(${cfg.feedMinHours} 時間空くまで見られない)`;
+      return `- ${f.id} [${f.kind}] ${f.title ?? f.target}: ${last}${ok}`;
+    })
+    .join("\n");
 }

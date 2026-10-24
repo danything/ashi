@@ -1,14 +1,15 @@
 #!/usr/bin/env bun
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
+
 import { makeHead } from "./lib/server/ashi/head/make.ts";
 import { archiveTool } from "./lib/server/ashi/legs/archive.ts";
 import { paperTools } from "./lib/server/ashi/legs/papers.ts";
 import { fetchUrlTool, noteTools } from "./lib/server/ashi/legs/tools.ts";
 import {
   type Legs,
-  type StepOutcome,
   step,
+  type StepOutcome,
   Walker,
 } from "./lib/server/ashi/legs/walk.ts";
 import { hashText, localDay, Store } from "./lib/server/ashi/state.ts";

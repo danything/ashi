@@ -1,5 +1,6 @@
 import { redirect } from "@sveltejs/kit";
 import type { Handle, ServerInit } from "@sveltejs/kit/hooks";
+
 import {
   authConfigured,
   resolveSession,

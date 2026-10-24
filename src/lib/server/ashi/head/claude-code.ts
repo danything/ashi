@@ -2,15 +2,16 @@ import { spawn } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
 import {
   type Blockage,
   type Head,
   HeadAccessError,
   HeadError,
   noUsage,
+  taskUsage,
   type ThinkRequest,
   type ThinkResult,
-  taskUsage,
   type Usage,
 } from "./head.ts";
 

@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
+
 import type Anthropic from "@anthropic-ai/sdk";
+
 import { ClaudeHead } from "../src/lib/server/ashi/head/claude.ts";
 
 /** 決まった usage の答えを 1 回返す偽のクライアント */

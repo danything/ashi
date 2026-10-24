@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+
 import { buildThoughtMap } from "../src/lib/server/ashi/map.ts";
 import { q } from "./helpers.ts";
 

@@ -12,6 +12,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
+
 import { type Config, DEFAULT_CONFIG, normalizeConfig } from "./config.ts";
 import { addUsage, type Usage } from "./head/head.ts";
 import type { BaselineTotals } from "./legs/baseline.ts";

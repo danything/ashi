@@ -1,5 +1,6 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
+
 import type { Config } from "../config.ts";
 import type { Tool } from "../head/head.ts";
 import { localStamp, type Note, type Store } from "../state.ts";

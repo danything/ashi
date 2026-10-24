@@ -1,8 +1,8 @@
 import type { Config } from "../config.ts";
 import {
   type Budget,
-  type Note,
   newId,
+  type Note,
   type Proposal,
   type Question,
   type Store,

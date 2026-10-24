@@ -1,4 +1,5 @@
 import { redirect } from "@sveltejs/kit";
+
 import type { PageServerLoad } from "./$types";
 
 /** 日記はノートの画面に並べた */

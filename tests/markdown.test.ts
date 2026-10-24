@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+
 import { md } from "../src/lib/server/markdown.ts";
 
 test("生の HTML は字にし、危ないリンクと外の画像は出さない", () => {

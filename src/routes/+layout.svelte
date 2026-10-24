@@ -1,9 +1,10 @@
 <script lang="ts">
   import "@picocss/pico/css/pico.min.css";
   import "../app.css";
+  import { page } from "$app/state";
+
   import Icon, { type IconName } from "#lib/components/Icon.svelte";
   import Logo from "#lib/components/Logo.svelte";
-  import { page } from "$app/state";
 
   let { data, children } = $props();
 

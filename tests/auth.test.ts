@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
+
 import {
-  AuthError,
   admit,
+  AuthError,
   resolveSession,
   safeTo,
   seal,

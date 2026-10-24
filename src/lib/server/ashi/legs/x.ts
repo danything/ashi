@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+
 import type { Config } from "../config.ts";
 import type { Blockage } from "../head/head.ts";
 import {

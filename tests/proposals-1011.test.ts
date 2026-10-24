@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+
 import { relatedOpen } from "../src/lib/server/ashi/legs/guard.ts";
 import { byRank, selectQuestion } from "../src/lib/server/ashi/legs/select.ts";
 import { step } from "../src/lib/server/ashi/legs/walk.ts";

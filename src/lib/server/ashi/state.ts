@@ -1,15 +1,15 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
-	appendFileSync,
-	chmodSync,
-	existsSync,
-	mkdirSync,
-	readdirSync,
-	readFileSync,
-	renameSync,
-	rmSync,
-	statSync,
-	writeFileSync,
+  appendFileSync,
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
 import { type Config, DEFAULT_CONFIG, normalizeConfig } from "./config.ts";
@@ -59,100 +59,100 @@ export type QuestionStatus = "open" | "answered" | "dropped" | "parked";
 export type Track = "owner" | "self";
 
 export interface Question {
-	id: string;
-	text: string;
-	theme: string;
-	track: Track;
-	/** 頭の見立て(0〜1)。点数はこれを足が組み合わせて出す(legs/select.ts) */
-	interest: number;
-	importance: number;
-	feasibility: number;
-	status: QuestionStatus;
-	visits: number;
-	createdAt: string;
-	lastVisitedAt?: string;
-	/**
-	 * どこで生まれたか。explore: 歩いて / seed: 問いを探して / profile: 持ち主の地図から /
-	 * chat: 持ち主との対話 / x: X の会話(via はそのときの相手)/ stranger: よそ者との対話(via はモデルと分野)。個性が持ち主にどれだけ引っぱられて
-	 * いるかを数えるのに使う(2026-09-25、それまでは記録が無かった)
-	 */
-	source?: "explore" | "seed" | "profile" | "chat" | "x" | "stranger";
-	via?: string;
-	/** ほぼ同じ問いが後から出た回数(受け取らずに数だけ足す) */
-	echoes?: number;
-	/**
-	 * 外(X・よそ者・持ち主)で確かめずに言ったことを確かめる問い。日が経っても歩かれないまま
-	 * 残っていたので、足が一定の日数で先に回す(select.ts の VERIFY_AFTER_DAYS。Ashi の改善案、2026-09-26)
-	 */
-	verify?: boolean;
-	/**
-	 * 確かめの問いの種類。pushback: 相手に誤りを指摘された・押し返された発言。spot: 足がさいころで選んだ
-	 * 言い切った発言(自分で「確かめていない」と言わなかった誤りも拾うため。Ashi の改善案、2026-10-05)
-	 */
-	verifyKind?: "pushback" | "spot" | "sweeping" | "retract";
-	/**
-	 * 内省の次の一歩に、続けて書かれた回数。2 回以上なら足が先に歩き、開いた問いの上限で手放さない。
-	 * 3 回続けて書いても選ばれず、上限で黙って手放されてもいた(Ashi の改善案、2026-09-26)。歩いたら消す
-	 */
-	promised?: number;
-	/** 内省で統合され、手放したときの行き先 */
-	mergedInto?: string;
-	/** 内省で、答えの出たノートを答えとして閉じたときのノートの ID(close_by_note) */
-	answeredBy?: string;
-	/** 内省で見立てを付け直した回数(reestimate)。甘く付け直していないかを見るため */
-	reestimated?: number;
-	/** 確かめの問いの結果(合う / 外れ / 読めなかった)。自己記述の出どころを見直すため */
-	verifyResult?: "holds" | "wrong" | "unreadable";
-	/** 探して何も見つからなかった回数 */
-	misses?: number;
-	/** 書き損じ(本文が空・埋め草)の答えが返ってきた回数。ノートにはしていない */
-	blankNotes?: number;
-	/** これまでに探した場所(検索語・サイト・資料)。同じ所を探し直さないように次の歩みで見せる */
-	searchedWhere?: string[];
-	/** どの問いを歩いていて生まれたか */
-	parentId?: string;
-	/**
-	 * X で確かめずに言ったことを確かめる問いの出どころ。歩いて違っていたら、その返信に訂正を返す
-	 * (Ashi の改善案、2026-09-25)
-	 */
-	origin?: {
-		conversationId: string;
-		replyId: string;
-		username: string;
-		claim: string;
-	};
-	/** origin の会話に返した日時(歩みの訂正か、内省の posts の reply_to)。あれば約束は返し済み */
-	repliedAt?: string;
+  id: string;
+  text: string;
+  theme: string;
+  track: Track;
+  /** 頭の見立て(0〜1)。点数はこれを足が組み合わせて出す(legs/select.ts) */
+  interest: number;
+  importance: number;
+  feasibility: number;
+  status: QuestionStatus;
+  visits: number;
+  createdAt: string;
+  lastVisitedAt?: string;
+  /**
+   * どこで生まれたか。explore: 歩いて / seed: 問いを探して / profile: 持ち主の地図から /
+   * chat: 持ち主との対話 / x: X の会話(via はそのときの相手)/ stranger: よそ者との対話(via はモデルと分野)。個性が持ち主にどれだけ引っぱられて
+   * いるかを数えるのに使う(2026-09-25、それまでは記録が無かった)
+   */
+  source?: "explore" | "seed" | "profile" | "chat" | "x" | "stranger";
+  via?: string;
+  /** ほぼ同じ問いが後から出た回数(受け取らずに数だけ足す) */
+  echoes?: number;
+  /**
+   * 外(X・よそ者・持ち主)で確かめずに言ったことを確かめる問い。日が経っても歩かれないまま
+   * 残っていたので、足が一定の日数で先に回す(select.ts の VERIFY_AFTER_DAYS。Ashi の改善案、2026-09-26)
+   */
+  verify?: boolean;
+  /**
+   * 確かめの問いの種類。pushback: 相手に誤りを指摘された・押し返された発言。spot: 足がさいころで選んだ
+   * 言い切った発言(自分で「確かめていない」と言わなかった誤りも拾うため。Ashi の改善案、2026-10-05)
+   */
+  verifyKind?: "pushback" | "spot" | "sweeping" | "retract";
+  /**
+   * 内省の次の一歩に、続けて書かれた回数。2 回以上なら足が先に歩き、開いた問いの上限で手放さない。
+   * 3 回続けて書いても選ばれず、上限で黙って手放されてもいた(Ashi の改善案、2026-09-26)。歩いたら消す
+   */
+  promised?: number;
+  /** 内省で統合され、手放したときの行き先 */
+  mergedInto?: string;
+  /** 内省で、答えの出たノートを答えとして閉じたときのノートの ID(close_by_note) */
+  answeredBy?: string;
+  /** 内省で見立てを付け直した回数(reestimate)。甘く付け直していないかを見るため */
+  reestimated?: number;
+  /** 確かめの問いの結果(合う / 外れ / 読めなかった)。自己記述の出どころを見直すため */
+  verifyResult?: "holds" | "wrong" | "unreadable";
+  /** 探して何も見つからなかった回数 */
+  misses?: number;
+  /** 書き損じ(本文が空・埋め草)の答えが返ってきた回数。ノートにはしていない */
+  blankNotes?: number;
+  /** これまでに探した場所(検索語・サイト・資料)。同じ所を探し直さないように次の歩みで見せる */
+  searchedWhere?: string[];
+  /** どの問いを歩いていて生まれたか */
+  parentId?: string;
+  /**
+   * X で確かめずに言ったことを確かめる問いの出どころ。歩いて違っていたら、その返信に訂正を返す
+   * (Ashi の改善案、2026-09-25)
+   */
+  origin?: {
+    conversationId: string;
+    replyId: string;
+    username: string;
+    claim: string;
+  };
+  /** origin の会話に返した日時(歩みの訂正か、内省の posts の reply_to)。あれば約束は返し済み */
+  repliedAt?: string;
 }
 
 export interface Note {
-	id: string;
-	title: string;
-	theme: string;
-	questionId: string;
-	summary: string;
-	createdAt: string;
-	/**
-	 * 自己記述を渡さずに歩いたノート。見つけた型が世界の側のものか、自己記述が探させたものかを
-	 * 内省で見比べるため(Ashi の改善案、2026-09-26。config の selfBlindEvery)
-	 */
-	blind?: boolean;
-	/** 要旨だけ・読めなかった出典の数(sources_read)。内省で読み直す候補として並べる */
-	shallow?: number;
+  id: string;
+  title: string;
+  theme: string;
+  questionId: string;
+  summary: string;
+  createdAt: string;
+  /**
+   * 自己記述を渡さずに歩いたノート。見つけた型が世界の側のものか、自己記述が探させたものかを
+   * 内省で見比べるため(Ashi の改善案、2026-09-26。config の selfBlindEvery)
+   */
+  blind?: boolean;
+  /** 要旨だけ・読めなかった出典の数(sources_read)。内省で読み直す候補として並べる */
+  shallow?: number;
 }
 
 export interface Proposal {
-	id: string;
-	title: string;
-	why: string;
-	idea: string;
-	/** open: 未処理 / filed: issue にした / dismissed: 見送った */
-	status: "open" | "filed" | "dismissed" | "done";
-	/** 同じ題の案が何度出たか(何度も困っているなら大事) */
-	count: number;
-	createdAt: string;
-	lastAt: string;
-	issueUrl?: string;
+  id: string;
+  title: string;
+  why: string;
+  idea: string;
+  /** open: 未処理 / filed: issue にした / dismissed: 見送った */
+  status: "open" | "filed" | "dismissed" | "done";
+  /** 同じ題の案が何度出たか(何度も困っているなら大事) */
+  count: number;
+  createdAt: string;
+  lastAt: string;
+  issueUrl?: string;
 }
 
 /**
@@ -160,159 +160,159 @@ export interface Proposal {
  * 先回りの問いを歩く・探すときに足が見せる
  */
 export interface BridgeIdea {
-	id: string;
-	/** 思いついた元の個性のノート */
-	fromNoteId?: string;
-	/** 持ち込み先の持ち主のテーマ */
-	toTheme: string;
-	idea: string;
-	createdAt: string;
+  id: string;
+  /** 思いついた元の個性のノート */
+  fromNoteId?: string;
+  /** 持ち込み先の持ち主のテーマ */
+  toTheme: string;
+  idea: string;
+  createdAt: string;
 }
 
 /** Ashi の X アカウント。トークンは足だけが使い、頭にも画面にも出さない */
 export interface XAccount {
-	userId: string;
-	username: string;
-	accessToken: string;
-	refreshToken: string;
-	/** アクセストークンの期限(ISO) */
-	expiresAt: string;
-	connectedAt: string;
-	/** 読んだメンションのうち一番新しい ID(次はこれより後だけ読む) */
-	lastMentionId?: string;
-	lastMentionsAt?: string;
+  userId: string;
+  username: string;
+  accessToken: string;
+  refreshToken: string;
+  /** アクセストークンの期限(ISO) */
+  expiresAt: string;
+  connectedAt: string;
+  /** 読んだメンションのうち一番新しい ID(次はこれより後だけ読む) */
+  lastMentionId?: string;
+  lastMentionsAt?: string;
 }
 
 export interface XMessage {
-	id: string;
-	authorId: string;
-	username: string;
-	text: string;
-	at: string;
-	/** Ashi が書いたもの */
-	byAshi: boolean;
-	/** 返信の先 */
-	replyTo?: string;
+  id: string;
+  authorId: string;
+  username: string;
+  text: string;
+  at: string;
+  /** Ashi が書いたもの */
+  byAshi: boolean;
+  /** 返信の先 */
+  replyTo?: string;
 }
 
 /** X の会話(conversation_id ごと)。返事を待っているメンションは pending */
 export interface XConversation {
-	id: string;
-	messages: XMessage[];
-	/** まだ返事を考えていないメンションの ID */
-	pending: string[];
-	lastAt: string;
+  id: string;
+  messages: XMessage[];
+  /** まだ返事を考えていないメンションの ID */
+  pending: string[];
+  lastAt: string;
 }
 
 /** X の前の用途の投稿を消す係。15 分に 50 件ずつ消し、残りはここに持つ(Pod が入れ替わっても続きから) */
 export interface XCleanup {
-	total: number;
-	remaining: string[];
-	deleted: number;
-	/** 消せなかった(404 以外で断られた)ID */
-	failed: string[];
-	startedAt: string;
-	lastRunAt?: string;
-	lastError?: string;
+  total: number;
+  remaining: string[];
+  deleted: number;
+  /** 消せなかった(404 以外で断られた)ID */
+  failed: string[];
+  startedAt: string;
+  lastRunAt?: string;
+  lastError?: string;
 }
 
 export interface Source {
-	id: string;
-	title: string;
-	/** paste: 貼り付け / url: 読み込んだページ / feed: 足跡の巡回 */
-	kind: "paste" | "url" | "feed";
-	url?: string;
-	feedId?: string;
-	createdAt: string;
+  id: string;
+  title: string;
+  /** paste: 貼り付け / url: 読み込んだページ / feed: 足跡の巡回 */
+  kind: "paste" | "url" | "feed";
+  url?: string;
+  feedId?: string;
+  createdAt: string;
 }
 
 export interface Walk {
-	steps: number;
-	/** 新しいものが先頭 */
-	recentThemes: string[];
-	/** 直近の歩みの系統(新しい順、問い探しも含む)。約束の問いにさいころを譲るかを見る */
-	recentTracks?: Track[];
-	lastReflectStep: number;
-	/** 持ち主の地図を最後に書き直した歩数と、そのとき読んだ材料の数(文章 + 対話) */
-	lastProfileStep: number;
-	profiledMaterials: number;
-	/** 頭が次の歩みの前に読みたいと言った足跡の id */
-	crawlRequests: string[];
-	/** 直近の内省で頭が決めた「次の一歩」。問いを探す・歩くときに足が見せる */
-	intentions?: string[];
-	/**
-	 * 持ち主との対話で頭が取った立場(押し返した・意見が違ったなど)。内省で見せ、後で立場を変えたかを
-	 * 記録に残す(Ashi の案、2026-09-25。対話の中の約束が、歩いている頭に引き継がれていなかった)
-	 */
-	stances?: { at: string; text: string }[];
-	/** 個性(self)の系統を歩いた回数。selfBlindEvery 回に 1 回、自己記述を渡さずに歩く */
-	selfWalks?: number;
-	/** 内省で頭が挙げた、自分の型の言葉。よそ者との会話で持ち込んでいないかを数える */
-	selfPatterns?: string[];
-	/**
-	 * 持ち主に言ったことの訂正で、まだ伝えていないもの。話すときに頭に見せ、伝えたら消す
-	 * (持ち主が話題を振らないと訂正を出す機会が無かった。Ashi の改善案、2026-09-27)
-	 */
-	ownerCorrections?: {
-		id: string;
-		text: string;
-		at: string;
-		questionId?: string;
-		/** answer: 訂正ではなく、持ち主に聞かれて確かめた答えの渡し待ち(話題に関係なく渡す) */
-		kind?: "answer";
-	}[];
-	/** 型の当たり率の基準線を最後に測った日(1 日 1 回。legs/baseline.ts) */
-	lastBaselineDay?: string;
-	/** 内省の walk_together。組のどれかを歩くとき、残りも同じ 1 歩で渡す(次の内省で書き直す) */
-	walkGroups?: string[][];
-	/** 内省の conflicts_settled で決着した、著者の食い違いの鍵(kind:authors)と、確かめたノート */
-	settledConflicts?: Record<
-		string,
-		{ verdict: string; noteId: string; at: string }
-	>;
-	/** ノートの著者の食い違いが、内省で続けて出た回数(-1 は確かめの問いを積んだ印。legs/citations.ts) */
-	citationStreaks?: Record<string, number>;
-	/** 型の当たり率の累計(legs/baseline.ts の BaselineTotals) */
-	baselineTotals?: BaselineTotals;
-	/**
-	 * 直前の内省で、自己記述がどうなったか。上限を超えた版を黙って捨てていて、頭は「書き忘れたのか、
-	 * 保存されなかったのか」区別できなかった(Ashi の改善案、2026-09-27)。次の内省で頭に伝える
-	 */
-	lastSelf?: {
-		at: string;
-		result: "saved" | "unchanged" | "rejected" | "missing";
-		length?: number;
-		declared: number;
-		/** 保存されなかった版で申告された直し(次の内省で「未反映の直し」として見せる) */
-		unapplied?: string[];
-	};
-	/** この時刻までは起きない(ISO) */
-	sleepingUntil?: string;
-	/**
-	 * 持ち主が止めている(費用を抑えるため)。止めている間は歩まず、X の自動返信・見に行く・ストリーム・
-	 * 前の投稿の削除も止める。話す(持ち主から話しかけたとき)とニュースの見出し(無料)は止めない
-	 */
-	paused?: { at: string; by: string };
-	/** init のとき、または人が `ashi core --accept` したときの core.md のハッシュ */
-	coreHash: string;
+  steps: number;
+  /** 新しいものが先頭 */
+  recentThemes: string[];
+  /** 直近の歩みの系統(新しい順、問い探しも含む)。約束の問いにさいころを譲るかを見る */
+  recentTracks?: Track[];
+  lastReflectStep: number;
+  /** 持ち主の地図を最後に書き直した歩数と、そのとき読んだ材料の数(文章 + 対話) */
+  lastProfileStep: number;
+  profiledMaterials: number;
+  /** 頭が次の歩みの前に読みたいと言った足跡の id */
+  crawlRequests: string[];
+  /** 直近の内省で頭が決めた「次の一歩」。問いを探す・歩くときに足が見せる */
+  intentions?: string[];
+  /**
+   * 持ち主との対話で頭が取った立場(押し返した・意見が違ったなど)。内省で見せ、後で立場を変えたかを
+   * 記録に残す(Ashi の案、2026-09-25。対話の中の約束が、歩いている頭に引き継がれていなかった)
+   */
+  stances?: { at: string; text: string }[];
+  /** 個性(self)の系統を歩いた回数。selfBlindEvery 回に 1 回、自己記述を渡さずに歩く */
+  selfWalks?: number;
+  /** 内省で頭が挙げた、自分の型の言葉。よそ者との会話で持ち込んでいないかを数える */
+  selfPatterns?: string[];
+  /**
+   * 持ち主に言ったことの訂正で、まだ伝えていないもの。話すときに頭に見せ、伝えたら消す
+   * (持ち主が話題を振らないと訂正を出す機会が無かった。Ashi の改善案、2026-09-27)
+   */
+  ownerCorrections?: {
+    id: string;
+    text: string;
+    at: string;
+    questionId?: string;
+    /** answer: 訂正ではなく、持ち主に聞かれて確かめた答えの渡し待ち(話題に関係なく渡す) */
+    kind?: "answer";
+  }[];
+  /** 型の当たり率の基準線を最後に測った日(1 日 1 回。legs/baseline.ts) */
+  lastBaselineDay?: string;
+  /** 内省の walk_together。組のどれかを歩くとき、残りも同じ 1 歩で渡す(次の内省で書き直す) */
+  walkGroups?: string[][];
+  /** 内省の conflicts_settled で決着した、著者の食い違いの鍵(kind:authors)と、確かめたノート */
+  settledConflicts?: Record<
+    string,
+    { verdict: string; noteId: string; at: string }
+  >;
+  /** ノートの著者の食い違いが、内省で続けて出た回数(-1 は確かめの問いを積んだ印。legs/citations.ts) */
+  citationStreaks?: Record<string, number>;
+  /** 型の当たり率の累計(legs/baseline.ts の BaselineTotals) */
+  baselineTotals?: BaselineTotals;
+  /**
+   * 直前の内省で、自己記述がどうなったか。上限を超えた版を黙って捨てていて、頭は「書き忘れたのか、
+   * 保存されなかったのか」区別できなかった(Ashi の改善案、2026-09-27)。次の内省で頭に伝える
+   */
+  lastSelf?: {
+    at: string;
+    result: "saved" | "unchanged" | "rejected" | "missing";
+    length?: number;
+    declared: number;
+    /** 保存されなかった版で申告された直し(次の内省で「未反映の直し」として見せる) */
+    unapplied?: string[];
+  };
+  /** この時刻までは起きない(ISO) */
+  sleepingUntil?: string;
+  /**
+   * 持ち主が止めている(費用を抑えるため)。止めている間は歩まず、X の自動返信・見に行く・ストリーム・
+   * 前の投稿の削除も止める。話す(持ち主から話しかけたとき)とニュースの見出し(無料)は止めない
+   */
+  paused?: { at: string; by: string };
+  /** init のとき、または人が `ashi core --accept` したときの core.md のハッシュ */
+  coreHash: string;
 }
 
 export interface Budget {
-	/** ローカル時刻の YYYY-MM-DD */
-	day: string;
-	spentUsd: number;
-	inputTokens: number;
-	outputTokens: number;
-	/** 頭を呼んだ歩数(maxStepsPerDay で止める) */
-	steps?: number;
-	/** X に払った額の見積もり(読み 1 件 0.005・投稿 1 件 0.015 ドル)と、投稿・返信の数 */
-	xUsd?: number;
-	xPosts?: number;
-	xReplies?: number;
-	/** inputTokens のうちキャッシュから読んだ分・書いた分と、仕事ごとの内訳 */
-	cacheReadTokens?: number;
-	cacheWriteTokens?: number;
-	byTask?: Usage["byTask"];
+  /** ローカル時刻の YYYY-MM-DD */
+  day: string;
+  spentUsd: number;
+  inputTokens: number;
+  outputTokens: number;
+  /** 頭を呼んだ歩数(maxStepsPerDay で止める) */
+  steps?: number;
+  /** X に払った額の見積もり(読み 1 件 0.005・投稿 1 件 0.015 ドル)と、投稿・返信の数 */
+  xUsd?: number;
+  xPosts?: number;
+  xReplies?: number;
+  /** inputTokens のうちキャッシュから読んだ分・書いた分と、仕事ごとの内訳 */
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  byTask?: Usage["byTask"];
 }
 
 export const DEFAULT_CORE = `# コア原則
@@ -340,13 +340,13 @@ export const DEFAULT_OWNER = `# 持ち主の興味の地図
 `;
 
 export const hashText = (s: string): string =>
-	createHash("sha256").update(s).digest("hex");
+  createHash("sha256").update(s).digest("hex");
 
 export const newId = (): string => randomUUID().slice(0, 8);
 
 /** ローカル時刻の YYYY-MM-DD */
 export const localDay = (d: Date): string =>
-	`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 /**
  * ISO の時刻を、日記の見出しと同じローカル時刻(クラスタは TZ=Asia/Tokyo)の YYYY-MM-DD HH:mm にする。
@@ -354,655 +354,653 @@ export const localDay = (d: Date): string =>
  * (Ashi の改善案、2026-10-03)
  */
 export const localStamp = (iso: string): string => {
-	const d = new Date(iso);
-	if (Number.isNaN(d.getTime())) return iso.slice(0, 16).replace("T", " ");
-	return `${localDay(d)} ${d.toTimeString().slice(0, 5)}`;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso.slice(0, 16).replace("T", " ");
+  return `${localDay(d)} ${d.toTimeString().slice(0, 5)}`;
 };
 
 const EMPTY_WALK: Walk = {
-	steps: 0,
-	recentThemes: [],
-	lastReflectStep: 0,
-	lastProfileStep: 0,
-	profiledMaterials: 0,
-	crawlRequests: [],
-	coreHash: "",
+  steps: 0,
+  recentThemes: [],
+  lastReflectStep: 0,
+  lastProfileStep: 0,
+  profiledMaterials: 0,
+  crawlRequests: [],
+  coreHash: "",
 };
 
 export class Store {
-	constructor(readonly home: string) {}
-
-	private path(...p: string[]): string {
-		return join(this.home, ...p);
-	}
-
-	exists(): boolean {
-		return existsSync(this.path("walk.json"));
-	}
-
-	/** 状態ディレクトリを作る。既にあるファイルは上書きしない */
-	init(seedQuestions: string[] = []): void {
-		mkdirSync(this.path("notes"), { recursive: true });
-		mkdirSync(this.path("diary"), { recursive: true });
-		mkdirSync(this.path("sources"), { recursive: true });
-		const put = (name: string, body: string) => {
-			if (!existsSync(this.path(name))) this.writeText(name, body);
-		};
-		put("ashi.json", `${JSON.stringify(DEFAULT_CONFIG, null, "\t")}\n`);
-		put("core.md", DEFAULT_CORE);
-		put("self.md", DEFAULT_SELF);
-		put("owner.md", DEFAULT_OWNER);
-		put("sources.json", "[]\n");
-		put("notes.json", "[]\n");
-		const now = new Date().toISOString();
-		put(
-			"questions.json",
-			`${JSON.stringify(
-				seedQuestions.map(
-					(text): Question => ({
-						id: newId(),
-						text,
-						theme: "はじまり",
-						track: "self",
-						interest: 0.7,
-						importance: 0.5,
-						feasibility: 0.7,
-						status: "open",
-						visits: 0,
-						createdAt: now,
-					}),
-				),
-				null,
-				"\t",
-			)}\n`,
-		);
-		if (!existsSync(this.path("walk.json"))) {
-			this.saveWalk({ ...EMPTY_WALK, coreHash: hashText(this.core()) });
-		}
-	}
-
-	/**
-	 * 歩くのは 1 プロセスだけ(画面のサーバーと CLI の walk が同時に歩くと状態を書き合う)。
-	 * 取れたら解放する関数を、他のプロセスが歩いていたらその pid を返す
-	 */
-	lockWalking(): { release: () => void } | { heldBy: number } {
-		const p = this.path("walk.lock");
-		try {
-			writeFileSync(p, String(process.pid), { flag: "wx" });
-		} catch {
-			const pid = Number(readFileSync(p, "utf8"));
-			if (pid && pid !== process.pid && alive(pid)) return { heldBy: pid };
-			// 落ちたプロセスの残り
-			writeFileSync(p, String(process.pid));
-		}
-		return { release: () => rmSync(p, { force: true }) };
-	}
-
-	// ---- 読み書きの下回り。途中で落ちても壊れたファイルを残さないよう、書いてから差し替える
-
-	readText(name: string): string {
-		return readFileSync(this.path(name), "utf8");
-	}
-
-	writeText(name: string, body: string): void {
-		const p = this.path(name);
-		const tmp = `${p}.${process.pid}.tmp`;
-		writeFileSync(tmp, body);
-		renameSync(tmp, p);
-	}
-
-	private readJson<T>(name: string, fallback: T): T {
-		if (!existsSync(this.path(name))) return fallback;
-		return JSON.parse(this.readText(name)) as T;
-	}
-
-	private writeJson(name: string, v: unknown): void {
-		this.writeText(name, `${JSON.stringify(v, null, "\t")}\n`);
-	}
-
-	// ---- 中身
-
-	/**
-	 * 設定。状態ディレクトリの ashi.json だけ(画面の「設定」で読み書きする)。環境変数は秘密と置き場所だけに
-	 * して、設定とは混ぜない(持ち主の指摘、2026-10-03)。範囲は normalizeConfig で丸める
-	 */
-	config(): Config {
-		return normalizeConfig(
-			this.readJson<Record<string, unknown>>("ashi.json", {}),
-		);
-	}
-
-	/** 設定を書く(画面から)。丸めた全項目を書くので、ファイルを見れば今の値が全部分かる */
-	saveConfig(cfg: Config): void {
-		this.writeJson("ashi.json", normalizeConfig(cfg));
-	}
-
-	/**
-	 * 前の版の設定の置き場所(環境変数 ASHI_CONFIG・ASHI_FEEDS と、画面の settings.json)を、一度だけ
-	 * ashi.json に取り込む。取り込んだ印(config-imported.json)があれば何もしない。
-	 * 戻り値: imported(取り込んだ)/ ignored(取り込み済みなのに環境変数が残っている)/ undefined
-	 */
-	importLegacyConfig(
-		env: Record<string, string | undefined> = process.env,
-	): { result: "imported" | "ignored"; from: string[] } | undefined {
-		const from = ["ASHI_CONFIG", "ASHI_FEEDS"].filter((k) => env[k]?.trim());
-		const settings = existsSync(this.path("settings.json"));
-		if (existsSync(this.path("config-imported.json")))
-			return from.length ? { result: "ignored", from } : undefined;
-		if (!from.length && !settings) return undefined;
-		const raw = this.readJson<Record<string, unknown>>("ashi.json", {});
-		const merge = (over: unknown) => {
-			if (!over || typeof over !== "object" || Array.isArray(over)) return;
-			for (const [k, v] of Object.entries(over)) {
-				// budget・x などは中の一部だけ書かれている
-				const prev = raw[k];
-				raw[k] =
-					v &&
-					typeof v === "object" &&
-					!Array.isArray(v) &&
-					prev &&
-					typeof prev === "object"
-						? { ...prev, ...v }
-						: v;
-			}
-		};
-		merge(jsonOf(env.ASHI_CONFIG));
-		const feeds = jsonOf(env.ASHI_FEEDS);
-		if (Array.isArray(feeds)) raw.feeds = feeds;
-		if (settings) {
-			merge(this.readJson<unknown>("settings.json", {}));
-			from.push("settings.json");
-		}
-		this.saveConfig(normalizeConfig(raw));
-		rmSync(this.path("settings.json"), { force: true });
-		this.writeJson("config-imported.json", {
-			at: new Date().toISOString(),
-			from,
-		});
-		this.log("config-imported", { from });
-		return { result: "imported", from };
-	}
-
-	core(): string {
-		return this.readText("core.md");
-	}
-
-	self(): string {
-		return this.readText("self.md");
-	}
-
-	/**
-	 * 自己記述を書き直す。前の版も self-history.jsonl に積む(毎回まるごと置き換えるので、手探りだった見方が
-	 * いつ言い切りに変わったか追えなかった。Ashi の改善案、2026-09-26)。記録が無いときは、今の版を先に積む
-	 */
-	saveSelf(body: string, now: Date = new Date()): void {
-		const hist = this.path("self-history.jsonl");
-		if (!existsSync(hist) && existsSync(this.path("self.md"))) {
-			const prev = this.readText("self.md");
-			if (prev.trim() && prev !== DEFAULT_SELF)
-				appendFileSync(
-					hist,
-					`${JSON.stringify({ at: statSync(this.path("self.md")).mtime.toISOString(), text: prev })}\n`,
-				);
-		}
-		appendFileSync(
-			hist,
-			`${JSON.stringify({ at: now.toISOString(), text: body })}\n`,
-		);
-		this.writeText("self.md", body);
-	}
-
-	/** 自己記述の版。古い順 */
-	selfHistory(): { at: string; text: string }[] {
-		return tailJsonl<{ at: string; text: string }>(
-			this.path("self-history.jsonl"),
-			10_000,
-		).reverse();
-	}
-
-	owner(): string {
-		return existsSync(this.path("owner.md"))
-			? this.readText("owner.md")
-			: DEFAULT_OWNER;
-	}
-
-	saveOwner(body: string): void {
-		this.writeText("owner.md", body);
-	}
-
-	sources(): Source[] {
-		return this.readJson<Source[]>("sources.json", []);
-	}
-
-	sourceBody(id: string): string | undefined {
-		if (
-			!/^[0-9a-f]{8}$/.test(id) ||
-			!existsSync(this.path("sources", `${id}.md`))
-		)
-			return undefined;
-		return this.readText(join("sources", `${id}.md`));
-	}
-
-	addSource(src: Source, body: string): void {
-		mkdirSync(this.path("sources"), { recursive: true });
-		this.writeText(join("sources", `${src.id}.md`), body);
-		this.writeJson("sources.json", [...this.sources(), src]);
-	}
-
-	removeSource(id: string): void {
-		this.writeJson(
-			"sources.json",
-			this.sources().filter((s) => s.id !== id),
-		);
-		// 本文のファイルは残す(消すのは人が手で。誤って消したときに戻せるように)
-	}
-
-	proposals(): Proposal[] {
-		return this.readJson<Proposal[]>("proposals.json", []);
-	}
-
-	saveProposals(ps: Proposal[]): void {
-		this.writeJson("proposals.json", ps);
-	}
-
-	/** 言い回しの台帳。まだ無ければ undefined(legs/style.ts の最初の一覧を使う) */
-	phrases(): PhraseEntry[] | undefined {
-		return this.readJson<PhraseEntry[] | undefined>("phrases.json", undefined);
-	}
-
-	savePhrases(ps: PhraseEntry[]): void {
-		this.writeJson("phrases.json", ps);
-	}
-
-	xAccount(): XAccount | undefined {
-		return this.readJson<XAccount | null>("x.json", null) ?? undefined;
-	}
-
-	saveXAccount(a: XAccount | undefined): void {
-		if (!a) {
-			rmSync(this.path("x.json"), { force: true });
-			return;
-		}
-		this.writeJson("x.json", a);
-		chmodSync(this.path("x.json"), 0o600);
-	}
-
-	conversations(): XConversation[] {
-		return this.readJson<XConversation[]>("conversations.json", []);
-	}
-
-	saveConversations(cs: XConversation[]): void {
-		this.writeJson("conversations.json", cs);
-	}
-
-	/** 目にしたニュースの見出し(legs/news.ts)。学びではないのでリセットしない */
-	news(): NewsState {
-		return this.readJson<NewsState>("news.json", { items: [] });
-	}
-
-	saveNews(n: NewsState): void {
-		this.writeJson("news.json", n);
-	}
-
-	xCleanup(): XCleanup | undefined {
-		return this.readJson<XCleanup | null>("cleanup.json", null) ?? undefined;
-	}
-
-	saveXCleanup(c: XCleanup | undefined): void {
-		if (!c) {
-			rmSync(this.path("cleanup.json"), { force: true });
-			return;
-		}
-		this.writeJson("cleanup.json", c);
-	}
-
-	bridgeIdeas(): BridgeIdea[] {
-		return this.readJson<BridgeIdea[]>("bridges.json", []);
-	}
-
-	saveBridgeIdeas(b: BridgeIdea[]): void {
-		this.writeJson("bridges.json", b);
-	}
-
-	blockers(): Record<string, BlockerRecord> {
-		return this.readJson<Record<string, BlockerRecord>>("blockers.json", {});
-	}
-
-	saveBlockers(all: Record<string, BlockerRecord>): void {
-		this.writeJson("blockers.json", all);
-	}
-
-	feedStates(): Record<string, FeedState> {
-		return this.readJson<Record<string, FeedState>>("feeds.json", {});
-	}
-
-	saveFeedState(id: string, st: FeedState): void {
-		this.writeJson("feeds.json", { ...this.feedStates(), [id]: st });
-	}
-
-	/** 持ち主についての材料の数(渡された文章 + 対話)。増えたら地図を書き直す */
-	materialCount(): number {
-		const chats = existsSync(this.path("chat.jsonl"))
-			? this.readText("chat.jsonl").split("\n").filter(Boolean).length
-			: 0;
-		return this.sources().length + chats;
-	}
-
-	questions(): Question[] {
-		// 系統を足す前の問いは個性の側に置く
-		return this.readJson<Question[]>("questions.json", []).map((q) => ({
-			...q,
-			track: q.track ?? "self",
-		}));
-	}
-
-	saveQuestions(qs: Question[]): void {
-		this.writeJson("questions.json", qs);
-	}
-
-	/** 読んで直して書く。間に await を挟まないので、対話と歩みが同時に書いても片方が消えない */
-	updateQuestions(fn: (qs: Question[]) => Question[]): void {
-		this.saveQuestions(fn(this.questions()));
-	}
-
-	notes(): Note[] {
-		return this.readJson<Note[]>("notes.json", []);
-	}
-
-	noteBody(id: string): string | undefined {
-		// id は足が振ったものしか通さない(道具の入力から来るので、パスを組み立てる前に確かめる)
-		if (
-			!/^[0-9a-f]{8}$/.test(id) ||
-			!existsSync(this.path("notes", `${id}.md`))
-		)
-			return undefined;
-		return this.readText(join("notes", `${id}.md`));
-	}
-
-	addNote(note: Note, body: string): void {
-		this.writeText(join("notes", `${note.id}.md`), body);
-		this.writeJson("notes.json", [...this.notes(), note]);
-	}
-
-	walk(): Walk {
-		return { ...EMPTY_WALK, ...this.readJson<Partial<Walk>>("walk.json", {}) };
-	}
-
-	saveWalk(w: Walk): void {
-		this.writeJson("walk.json", w);
-	}
-
-	budget(today: string): Budget {
-		const b = this.readJson<Budget | null>("budget.json", null);
-		// 日が変わったら 0 から
-		return b && b.day === today
-			? b
-			: { day: today, spentUsd: 0, inputTokens: 0, outputTokens: 0 };
-	}
-
-	saveBudget(b: Budget): void {
-		// 日が変わったら、前の日の分を budget-history.jsonl に残す(上書きで消え、日ごとの使用量が
-		// 分からなかった。2026-10-03)
-		const prev = this.readJson<Budget | null>("budget.json", null);
-		if (prev && prev.day !== b.day)
-			appendFileSync(
-				this.path("budget-history.jsonl"),
-				`${JSON.stringify(prev)}\n`,
-			);
-		this.writeJson("budget.json", b);
-	}
-
-	/** 日ごとの使用量(古い順)。今日の分は budget() */
-	budgetHistory(): Budget[] {
-		const name = "budget-history.jsonl";
-		if (!existsSync(this.path(name))) return [];
-		return this.readText(name)
-			.split("\n")
-			.filter(Boolean)
-			.flatMap((l) => {
-				try {
-					return [JSON.parse(l) as Budget];
-				} catch {
-					return [];
-				}
-			});
-	}
-
-	/** 使った分を今日の予算に付ける */
-	charge(today: string, u: Usage, step = false): void {
-		const b = this.budget(today);
-		const sum = addUsage(
-			{
-				inputTokens: b.inputTokens,
-				outputTokens: b.outputTokens,
-				costUsd: b.spentUsd,
-				cacheReadTokens: b.cacheReadTokens,
-				cacheWriteTokens: b.cacheWriteTokens,
-				byTask: b.byTask,
-			},
-			u,
-		);
-		this.saveBudget({
-			...b,
-			steps: (b.steps ?? 0) + (step ? 1 : 0),
-			spentUsd: sum.costUsd,
-			inputTokens: sum.inputTokens,
-			outputTokens: sum.outputTokens,
-			...(sum.cacheReadTokens !== undefined
-				? { cacheReadTokens: sum.cacheReadTokens }
-				: {}),
-			...(sum.cacheWriteTokens !== undefined
-				? { cacheWriteTokens: sum.cacheWriteTokens }
-				: {}),
-			...(sum.byTask ? { byTask: sum.byTask } : {}),
-		});
-	}
-
-	diary(day: string): string {
-		const name = join("diary", `${day}.md`);
-		return existsSync(this.path(name)) ? this.readText(name) : "";
-	}
-
-	appendDiary(day: string, entry: string): void {
-		const prev = this.diary(day);
-		this.writeText(
-			join("diary", `${day}.md`),
-			prev ? `${prev.trimEnd()}\n\n${entry}\n` : `# ${day}\n\n${entry}\n`,
-		);
-	}
-
-	/** 日記のある日。新しい順 */
-	diaryDays(): string[] {
-		if (!existsSync(this.path("diary"))) return [];
-		return readdirSync(this.path("diary"))
-			.filter((f) => /^\d{4}-\d{2}-\d{2}\.md$/.test(f))
-			.map((f) => f.slice(0, 10))
-			.sort()
-			.reverse();
-	}
-
-	/** 出来事の記録の末尾から n 件。新しい順 */
-	recentLog(n: number): LogEntry[] {
-		return tailJsonl<LogEntry>(this.path("log.jsonl"), n);
-	}
-
-	appendChat(entry: ChatEntry): void {
-		appendFileSync(this.path("chat.jsonl"), `${JSON.stringify(entry)}\n`);
-	}
-
-	recentChats(n: number): ChatEntry[] {
-		return tailJsonl<ChatEntry>(this.path("chat.jsonl"), n);
-	}
-
-	appendDialogue(d: Dialogue): void {
-		appendFileSync(this.path("dialogues.jsonl"), `${JSON.stringify(d)}\n`);
-	}
-
-	/** よそ者との対話の末尾から n 件。新しい順 */
-	recentDialogues(n: number): Dialogue[] {
-		return tailJsonl<Dialogue>(this.path("dialogues.jsonl"), n);
-	}
-
-	/**
-	 * 学んだことを白紙に戻す。**消さずに archive/<時刻>/ へ移す**(戻したくなったら手で戻せる)。
-	 *
-	 * 戻すもの: 問い・ノート・日記・自己記述・橋の候補・よそ者との対話・次の一歩・歩数と直近のテーマ・足どり(log)
-	 * 残すもの: コア原則・設定・持ち主の地図と材料(渡した文章・足跡・対話)・改善案・弾かれたこと・今日の予算
-	 *   持ち主の地図は Ashi の学びではなく持ち主の写しで、作り直すと材料を読み直すぶん重い。
-	 *   改善案は、直したものの記録として残す
-	 */
-	resetLearning(now: Date): string {
-		const stamp = now.toISOString().replace(/[:.]/g, "-");
-		const dir = join("archive", stamp);
-		mkdirSync(this.path(dir), { recursive: true });
-		for (const name of [
-			"questions.json",
-			"notes.json",
-			"notes",
-			"diary",
-			"self.md",
-			"bridges.json",
-			"dialogues.jsonl",
-			"self-history.jsonl",
-			"log.jsonl",
-			"walk.json",
-		]) {
-			if (existsSync(this.path(name)))
-				renameSync(this.path(name), this.path(dir, name));
-		}
-		mkdirSync(this.path("notes"), { recursive: true });
-		mkdirSync(this.path("diary"), { recursive: true });
-		this.writeText("notes.json", "[]\n");
-		this.writeText("questions.json", "[]\n");
-		this.writeText("self.md", DEFAULT_SELF);
-		const prev = this.readJson<Partial<Walk>>(join(dir, "walk.json"), {});
-		// 持ち主の地図を書いた記録とコア原則の承認は引き継ぐ(地図は残すので、すぐ書き直さなくてよい)
-		this.saveWalk({
-			...EMPTY_WALK,
-			coreHash: prev.coreHash ?? hashText(this.core()),
-			// 歩数が 0 に戻るので、書き直しの間隔も 0 から数え直す
-			lastProfileStep: prev.lastProfileStep ? 1 : 0,
-			profiledMaterials: prev.profiledMaterials ?? 0,
-		});
-		this.log("reset", { archive: dir });
-		return dir;
-	}
-
-	log(event: string, data: Record<string, unknown> = {}): void {
-		appendFileSync(
-			this.path("log.jsonl"),
-			`${JSON.stringify({ at: new Date().toISOString(), event, ...data })}\n`,
-		);
-	}
+  constructor(readonly home: string) {}
+
+  private path(...p: string[]): string {
+    return join(this.home, ...p);
+  }
+
+  exists(): boolean {
+    return existsSync(this.path("walk.json"));
+  }
+
+  /** 状態ディレクトリを作る。既にあるファイルは上書きしない */
+  init(seedQuestions: string[] = []): void {
+    mkdirSync(this.path("notes"), { recursive: true });
+    mkdirSync(this.path("diary"), { recursive: true });
+    mkdirSync(this.path("sources"), { recursive: true });
+    const put = (name: string, body: string) => {
+      if (!existsSync(this.path(name))) this.writeText(name, body);
+    };
+    put("ashi.json", `${JSON.stringify(DEFAULT_CONFIG, null, "\t")}\n`);
+    put("core.md", DEFAULT_CORE);
+    put("self.md", DEFAULT_SELF);
+    put("owner.md", DEFAULT_OWNER);
+    put("sources.json", "[]\n");
+    put("notes.json", "[]\n");
+    const now = new Date().toISOString();
+    put(
+      "questions.json",
+      `${JSON.stringify(
+        seedQuestions.map((text): Question => ({
+          id: newId(),
+          text,
+          theme: "はじまり",
+          track: "self",
+          interest: 0.7,
+          importance: 0.5,
+          feasibility: 0.7,
+          status: "open",
+          visits: 0,
+          createdAt: now,
+        })),
+        null,
+        "\t",
+      )}\n`,
+    );
+    if (!existsSync(this.path("walk.json"))) {
+      this.saveWalk({ ...EMPTY_WALK, coreHash: hashText(this.core()) });
+    }
+  }
+
+  /**
+   * 歩くのは 1 プロセスだけ(画面のサーバーと CLI の walk が同時に歩くと状態を書き合う)。
+   * 取れたら解放する関数を、他のプロセスが歩いていたらその pid を返す
+   */
+  lockWalking(): { release: () => void } | { heldBy: number } {
+    const p = this.path("walk.lock");
+    try {
+      writeFileSync(p, String(process.pid), { flag: "wx" });
+    } catch {
+      const pid = Number(readFileSync(p, "utf8"));
+      if (pid && pid !== process.pid && alive(pid)) return { heldBy: pid };
+      // 落ちたプロセスの残り
+      writeFileSync(p, String(process.pid));
+    }
+    return { release: () => rmSync(p, { force: true }) };
+  }
+
+  // ---- 読み書きの下回り。途中で落ちても壊れたファイルを残さないよう、書いてから差し替える
+
+  readText(name: string): string {
+    return readFileSync(this.path(name), "utf8");
+  }
+
+  writeText(name: string, body: string): void {
+    const p = this.path(name);
+    const tmp = `${p}.${process.pid}.tmp`;
+    writeFileSync(tmp, body);
+    renameSync(tmp, p);
+  }
+
+  private readJson<T>(name: string, fallback: T): T {
+    if (!existsSync(this.path(name))) return fallback;
+    return JSON.parse(this.readText(name)) as T;
+  }
+
+  private writeJson(name: string, v: unknown): void {
+    this.writeText(name, `${JSON.stringify(v, null, "\t")}\n`);
+  }
+
+  // ---- 中身
+
+  /**
+   * 設定。状態ディレクトリの ashi.json だけ(画面の「設定」で読み書きする)。環境変数は秘密と置き場所だけに
+   * して、設定とは混ぜない(持ち主の指摘、2026-10-03)。範囲は normalizeConfig で丸める
+   */
+  config(): Config {
+    return normalizeConfig(
+      this.readJson<Record<string, unknown>>("ashi.json", {}),
+    );
+  }
+
+  /** 設定を書く(画面から)。丸めた全項目を書くので、ファイルを見れば今の値が全部分かる */
+  saveConfig(cfg: Config): void {
+    this.writeJson("ashi.json", normalizeConfig(cfg));
+  }
+
+  /**
+   * 前の版の設定の置き場所(環境変数 ASHI_CONFIG・ASHI_FEEDS と、画面の settings.json)を、一度だけ
+   * ashi.json に取り込む。取り込んだ印(config-imported.json)があれば何もしない。
+   * 戻り値: imported(取り込んだ)/ ignored(取り込み済みなのに環境変数が残っている)/ undefined
+   */
+  importLegacyConfig(
+    env: Record<string, string | undefined> = process.env,
+  ): { result: "imported" | "ignored"; from: string[] } | undefined {
+    const from = ["ASHI_CONFIG", "ASHI_FEEDS"].filter((k) => env[k]?.trim());
+    const settings = existsSync(this.path("settings.json"));
+    if (existsSync(this.path("config-imported.json")))
+      return from.length ? { result: "ignored", from } : undefined;
+    if (!from.length && !settings) return undefined;
+    const raw = this.readJson<Record<string, unknown>>("ashi.json", {});
+    const merge = (over: unknown) => {
+      if (!over || typeof over !== "object" || Array.isArray(over)) return;
+      for (const [k, v] of Object.entries(over)) {
+        // budget・x などは中の一部だけ書かれている
+        const prev = raw[k];
+        raw[k] =
+          v &&
+          typeof v === "object" &&
+          !Array.isArray(v) &&
+          prev &&
+          typeof prev === "object"
+            ? { ...prev, ...v }
+            : v;
+      }
+    };
+    merge(jsonOf(env.ASHI_CONFIG));
+    const feeds = jsonOf(env.ASHI_FEEDS);
+    if (Array.isArray(feeds)) raw.feeds = feeds;
+    if (settings) {
+      merge(this.readJson<unknown>("settings.json", {}));
+      from.push("settings.json");
+    }
+    this.saveConfig(normalizeConfig(raw));
+    rmSync(this.path("settings.json"), { force: true });
+    this.writeJson("config-imported.json", {
+      at: new Date().toISOString(),
+      from,
+    });
+    this.log("config-imported", { from });
+    return { result: "imported", from };
+  }
+
+  core(): string {
+    return this.readText("core.md");
+  }
+
+  self(): string {
+    return this.readText("self.md");
+  }
+
+  /**
+   * 自己記述を書き直す。前の版も self-history.jsonl に積む(毎回まるごと置き換えるので、手探りだった見方が
+   * いつ言い切りに変わったか追えなかった。Ashi の改善案、2026-09-26)。記録が無いときは、今の版を先に積む
+   */
+  saveSelf(body: string, now: Date = new Date()): void {
+    const hist = this.path("self-history.jsonl");
+    if (!existsSync(hist) && existsSync(this.path("self.md"))) {
+      const prev = this.readText("self.md");
+      if (prev.trim() && prev !== DEFAULT_SELF)
+        appendFileSync(
+          hist,
+          `${JSON.stringify({ at: statSync(this.path("self.md")).mtime.toISOString(), text: prev })}\n`,
+        );
+    }
+    appendFileSync(
+      hist,
+      `${JSON.stringify({ at: now.toISOString(), text: body })}\n`,
+    );
+    this.writeText("self.md", body);
+  }
+
+  /** 自己記述の版。古い順 */
+  selfHistory(): { at: string; text: string }[] {
+    return tailJsonl<{ at: string; text: string }>(
+      this.path("self-history.jsonl"),
+      10_000,
+    ).reverse();
+  }
+
+  owner(): string {
+    return existsSync(this.path("owner.md"))
+      ? this.readText("owner.md")
+      : DEFAULT_OWNER;
+  }
+
+  saveOwner(body: string): void {
+    this.writeText("owner.md", body);
+  }
+
+  sources(): Source[] {
+    return this.readJson<Source[]>("sources.json", []);
+  }
+
+  sourceBody(id: string): string | undefined {
+    if (
+      !/^[0-9a-f]{8}$/.test(id) ||
+      !existsSync(this.path("sources", `${id}.md`))
+    )
+      return undefined;
+    return this.readText(join("sources", `${id}.md`));
+  }
+
+  addSource(src: Source, body: string): void {
+    mkdirSync(this.path("sources"), { recursive: true });
+    this.writeText(join("sources", `${src.id}.md`), body);
+    this.writeJson("sources.json", [...this.sources(), src]);
+  }
+
+  removeSource(id: string): void {
+    this.writeJson(
+      "sources.json",
+      this.sources().filter((s) => s.id !== id),
+    );
+    // 本文のファイルは残す(消すのは人が手で。誤って消したときに戻せるように)
+  }
+
+  proposals(): Proposal[] {
+    return this.readJson<Proposal[]>("proposals.json", []);
+  }
+
+  saveProposals(ps: Proposal[]): void {
+    this.writeJson("proposals.json", ps);
+  }
+
+  /** 言い回しの台帳。まだ無ければ undefined(legs/style.ts の最初の一覧を使う) */
+  phrases(): PhraseEntry[] | undefined {
+    return this.readJson<PhraseEntry[] | undefined>("phrases.json", undefined);
+  }
+
+  savePhrases(ps: PhraseEntry[]): void {
+    this.writeJson("phrases.json", ps);
+  }
+
+  xAccount(): XAccount | undefined {
+    return this.readJson<XAccount | null>("x.json", null) ?? undefined;
+  }
+
+  saveXAccount(a: XAccount | undefined): void {
+    if (!a) {
+      rmSync(this.path("x.json"), { force: true });
+      return;
+    }
+    this.writeJson("x.json", a);
+    chmodSync(this.path("x.json"), 0o600);
+  }
+
+  conversations(): XConversation[] {
+    return this.readJson<XConversation[]>("conversations.json", []);
+  }
+
+  saveConversations(cs: XConversation[]): void {
+    this.writeJson("conversations.json", cs);
+  }
+
+  /** 目にしたニュースの見出し(legs/news.ts)。学びではないのでリセットしない */
+  news(): NewsState {
+    return this.readJson<NewsState>("news.json", { items: [] });
+  }
+
+  saveNews(n: NewsState): void {
+    this.writeJson("news.json", n);
+  }
+
+  xCleanup(): XCleanup | undefined {
+    return this.readJson<XCleanup | null>("cleanup.json", null) ?? undefined;
+  }
+
+  saveXCleanup(c: XCleanup | undefined): void {
+    if (!c) {
+      rmSync(this.path("cleanup.json"), { force: true });
+      return;
+    }
+    this.writeJson("cleanup.json", c);
+  }
+
+  bridgeIdeas(): BridgeIdea[] {
+    return this.readJson<BridgeIdea[]>("bridges.json", []);
+  }
+
+  saveBridgeIdeas(b: BridgeIdea[]): void {
+    this.writeJson("bridges.json", b);
+  }
+
+  blockers(): Record<string, BlockerRecord> {
+    return this.readJson<Record<string, BlockerRecord>>("blockers.json", {});
+  }
+
+  saveBlockers(all: Record<string, BlockerRecord>): void {
+    this.writeJson("blockers.json", all);
+  }
+
+  feedStates(): Record<string, FeedState> {
+    return this.readJson<Record<string, FeedState>>("feeds.json", {});
+  }
+
+  saveFeedState(id: string, st: FeedState): void {
+    this.writeJson("feeds.json", { ...this.feedStates(), [id]: st });
+  }
+
+  /** 持ち主についての材料の数(渡された文章 + 対話)。増えたら地図を書き直す */
+  materialCount(): number {
+    const chats = existsSync(this.path("chat.jsonl"))
+      ? this.readText("chat.jsonl").split("\n").filter(Boolean).length
+      : 0;
+    return this.sources().length + chats;
+  }
+
+  questions(): Question[] {
+    // 系統を足す前の問いは個性の側に置く
+    return this.readJson<Question[]>("questions.json", []).map((q) => ({
+      ...q,
+      track: q.track ?? "self",
+    }));
+  }
+
+  saveQuestions(qs: Question[]): void {
+    this.writeJson("questions.json", qs);
+  }
+
+  /** 読んで直して書く。間に await を挟まないので、対話と歩みが同時に書いても片方が消えない */
+  updateQuestions(fn: (qs: Question[]) => Question[]): void {
+    this.saveQuestions(fn(this.questions()));
+  }
+
+  notes(): Note[] {
+    return this.readJson<Note[]>("notes.json", []);
+  }
+
+  noteBody(id: string): string | undefined {
+    // id は足が振ったものしか通さない(道具の入力から来るので、パスを組み立てる前に確かめる)
+    if (
+      !/^[0-9a-f]{8}$/.test(id) ||
+      !existsSync(this.path("notes", `${id}.md`))
+    )
+      return undefined;
+    return this.readText(join("notes", `${id}.md`));
+  }
+
+  addNote(note: Note, body: string): void {
+    this.writeText(join("notes", `${note.id}.md`), body);
+    this.writeJson("notes.json", [...this.notes(), note]);
+  }
+
+  walk(): Walk {
+    return { ...EMPTY_WALK, ...this.readJson<Partial<Walk>>("walk.json", {}) };
+  }
+
+  saveWalk(w: Walk): void {
+    this.writeJson("walk.json", w);
+  }
+
+  budget(today: string): Budget {
+    const b = this.readJson<Budget | null>("budget.json", null);
+    // 日が変わったら 0 から
+    return b && b.day === today
+      ? b
+      : { day: today, spentUsd: 0, inputTokens: 0, outputTokens: 0 };
+  }
+
+  saveBudget(b: Budget): void {
+    // 日が変わったら、前の日の分を budget-history.jsonl に残す(上書きで消え、日ごとの使用量が
+    // 分からなかった。2026-10-03)
+    const prev = this.readJson<Budget | null>("budget.json", null);
+    if (prev && prev.day !== b.day)
+      appendFileSync(
+        this.path("budget-history.jsonl"),
+        `${JSON.stringify(prev)}\n`,
+      );
+    this.writeJson("budget.json", b);
+  }
+
+  /** 日ごとの使用量(古い順)。今日の分は budget() */
+  budgetHistory(): Budget[] {
+    const name = "budget-history.jsonl";
+    if (!existsSync(this.path(name))) return [];
+    return this.readText(name)
+      .split("\n")
+      .filter(Boolean)
+      .flatMap((l) => {
+        try {
+          return [JSON.parse(l) as Budget];
+        } catch {
+          return [];
+        }
+      });
+  }
+
+  /** 使った分を今日の予算に付ける */
+  charge(today: string, u: Usage, step = false): void {
+    const b = this.budget(today);
+    const sum = addUsage(
+      {
+        inputTokens: b.inputTokens,
+        outputTokens: b.outputTokens,
+        costUsd: b.spentUsd,
+        cacheReadTokens: b.cacheReadTokens,
+        cacheWriteTokens: b.cacheWriteTokens,
+        byTask: b.byTask,
+      },
+      u,
+    );
+    this.saveBudget({
+      ...b,
+      steps: (b.steps ?? 0) + (step ? 1 : 0),
+      spentUsd: sum.costUsd,
+      inputTokens: sum.inputTokens,
+      outputTokens: sum.outputTokens,
+      ...(sum.cacheReadTokens !== undefined
+        ? { cacheReadTokens: sum.cacheReadTokens }
+        : {}),
+      ...(sum.cacheWriteTokens !== undefined
+        ? { cacheWriteTokens: sum.cacheWriteTokens }
+        : {}),
+      ...(sum.byTask ? { byTask: sum.byTask } : {}),
+    });
+  }
+
+  diary(day: string): string {
+    const name = join("diary", `${day}.md`);
+    return existsSync(this.path(name)) ? this.readText(name) : "";
+  }
+
+  appendDiary(day: string, entry: string): void {
+    const prev = this.diary(day);
+    this.writeText(
+      join("diary", `${day}.md`),
+      prev ? `${prev.trimEnd()}\n\n${entry}\n` : `# ${day}\n\n${entry}\n`,
+    );
+  }
+
+  /** 日記のある日。新しい順 */
+  diaryDays(): string[] {
+    if (!existsSync(this.path("diary"))) return [];
+    return readdirSync(this.path("diary"))
+      .filter((f) => /^\d{4}-\d{2}-\d{2}\.md$/.test(f))
+      .map((f) => f.slice(0, 10))
+      .sort()
+      .reverse();
+  }
+
+  /** 出来事の記録の末尾から n 件。新しい順 */
+  recentLog(n: number): LogEntry[] {
+    return tailJsonl<LogEntry>(this.path("log.jsonl"), n);
+  }
+
+  appendChat(entry: ChatEntry): void {
+    appendFileSync(this.path("chat.jsonl"), `${JSON.stringify(entry)}\n`);
+  }
+
+  recentChats(n: number): ChatEntry[] {
+    return tailJsonl<ChatEntry>(this.path("chat.jsonl"), n);
+  }
+
+  appendDialogue(d: Dialogue): void {
+    appendFileSync(this.path("dialogues.jsonl"), `${JSON.stringify(d)}\n`);
+  }
+
+  /** よそ者との対話の末尾から n 件。新しい順 */
+  recentDialogues(n: number): Dialogue[] {
+    return tailJsonl<Dialogue>(this.path("dialogues.jsonl"), n);
+  }
+
+  /**
+   * 学んだことを白紙に戻す。**消さずに archive/<時刻>/ へ移す**(戻したくなったら手で戻せる)。
+   *
+   * 戻すもの: 問い・ノート・日記・自己記述・橋の候補・よそ者との対話・次の一歩・歩数と直近のテーマ・足どり(log)
+   * 残すもの: コア原則・設定・持ち主の地図と材料(渡した文章・足跡・対話)・改善案・弾かれたこと・今日の予算
+   *   持ち主の地図は Ashi の学びではなく持ち主の写しで、作り直すと材料を読み直すぶん重い。
+   *   改善案は、直したものの記録として残す
+   */
+  resetLearning(now: Date): string {
+    const stamp = now.toISOString().replace(/[:.]/g, "-");
+    const dir = join("archive", stamp);
+    mkdirSync(this.path(dir), { recursive: true });
+    for (const name of [
+      "questions.json",
+      "notes.json",
+      "notes",
+      "diary",
+      "self.md",
+      "bridges.json",
+      "dialogues.jsonl",
+      "self-history.jsonl",
+      "log.jsonl",
+      "walk.json",
+    ]) {
+      if (existsSync(this.path(name)))
+        renameSync(this.path(name), this.path(dir, name));
+    }
+    mkdirSync(this.path("notes"), { recursive: true });
+    mkdirSync(this.path("diary"), { recursive: true });
+    this.writeText("notes.json", "[]\n");
+    this.writeText("questions.json", "[]\n");
+    this.writeText("self.md", DEFAULT_SELF);
+    const prev = this.readJson<Partial<Walk>>(join(dir, "walk.json"), {});
+    // 持ち主の地図を書いた記録とコア原則の承認は引き継ぐ(地図は残すので、すぐ書き直さなくてよい)
+    this.saveWalk({
+      ...EMPTY_WALK,
+      coreHash: prev.coreHash ?? hashText(this.core()),
+      // 歩数が 0 に戻るので、書き直しの間隔も 0 から数え直す
+      lastProfileStep: prev.lastProfileStep ? 1 : 0,
+      profiledMaterials: prev.profiledMaterials ?? 0,
+    });
+    this.log("reset", { archive: dir });
+    return dir;
+  }
+
+  log(event: string, data: Record<string, unknown> = {}): void {
+    appendFileSync(
+      this.path("log.jsonl"),
+      `${JSON.stringify({ at: new Date().toISOString(), event, ...data })}\n`,
+    );
+  }
 }
 
 export interface LogEntry {
-	at: string;
-	event: string;
-	[key: string]: unknown;
+  at: string;
+  event: string;
+  [key: string]: unknown;
 }
 
 /** 目にしたニュースの見出し。見出しだけで、中身は読まない */
 export interface NewsState {
-	lastAt?: string;
-	items: { title: string; at: string; source: string }[];
+  lastAt?: string;
+  items: { title: string; at: string; source: string }[];
 }
 
 /** よそ者との対話 1 回分 */
 export interface Dialogue {
-	at: string;
-	/** 相手のモデル */
-	model: string;
-	/** 足がさいころで選んだ、相手の関心の分野 */
-	field: string;
-	turns: { by: "stranger" | "ashi"; text: string }[];
-	/** Ashi が会話から出して、受け取られた問い */
-	added: string[];
-	/** Ashi が会話から持ち帰ったこと(ひとこと) */
-	takeaway: string;
-	/**
-	 * 自分の型の言葉(内省で頭が挙げたもの)が、Ashi の最初の返事に出たか・相手が先に言ったか。
-	 * テーマ名が新しくても、中身が自分の型のままのことがあった(Ashi の改善案、2026-09-26)
-	 */
-	patterns?: { word: string; firstReply: boolean; strangerFirst: boolean }[];
-	/**
-	 * 相手の話を、確かめずに受け入れたもの。自分が外に言ったこと(確かめの問いにする)とは分け、
-	 * 内省で見せるだけにする(Ashi の改善案、2026-10-03)
-	 */
-	accepted?: string[];
-	/** Ashi が自分自身や自分の仕組みについて言ったこと。web ではなく足の記録で確かめる(2026-10-04) */
-	aboutSelf?: string[];
-	/** 相手に誤りを指摘された・押し返された Ashi の発言(確かめの問いにする) */
-	pushedBack?: string[];
-	/** 相手の言葉を受けて引っ込めた Ashi の主張と、きっかけの相手の主張(両方を確かめの問いにする) */
-	/** backing: きっかけの相手の主張に添えられていたもの(出典・確度・なし) */
-	retracted?: {
-		mine: string;
-		because: string;
-		backing?: "出典" | "確度" | "なし";
-	}[];
-	/** Ashi の返事に、自己記述や直前のよそ者との会話と同じ言い回しが出たもの(legs/style.ts の carriedPhrases) */
-	carried?: { reply: number; phrase: string; from: string }[];
-	/** 足が拾った、総称・全称・確度の語を含む Ashi の発言(legs/style.ts の SWEEPING) */
-	sweeping?: string[];
-	/** 足がさいころで選んだ Ashi の言い切った文と、頭が取り出した確かめる事実(無ければ空) */
-	spot?: { sentence: string; claim: string };
+  at: string;
+  /** 相手のモデル */
+  model: string;
+  /** 足がさいころで選んだ、相手の関心の分野 */
+  field: string;
+  turns: { by: "stranger" | "ashi"; text: string }[];
+  /** Ashi が会話から出して、受け取られた問い */
+  added: string[];
+  /** Ashi が会話から持ち帰ったこと(ひとこと) */
+  takeaway: string;
+  /**
+   * 自分の型の言葉(内省で頭が挙げたもの)が、Ashi の最初の返事に出たか・相手が先に言ったか。
+   * テーマ名が新しくても、中身が自分の型のままのことがあった(Ashi の改善案、2026-09-26)
+   */
+  patterns?: { word: string; firstReply: boolean; strangerFirst: boolean }[];
+  /**
+   * 相手の話を、確かめずに受け入れたもの。自分が外に言ったこと(確かめの問いにする)とは分け、
+   * 内省で見せるだけにする(Ashi の改善案、2026-10-03)
+   */
+  accepted?: string[];
+  /** Ashi が自分自身や自分の仕組みについて言ったこと。web ではなく足の記録で確かめる(2026-10-04) */
+  aboutSelf?: string[];
+  /** 相手に誤りを指摘された・押し返された Ashi の発言(確かめの問いにする) */
+  pushedBack?: string[];
+  /** 相手の言葉を受けて引っ込めた Ashi の主張と、きっかけの相手の主張(両方を確かめの問いにする) */
+  /** backing: きっかけの相手の主張に添えられていたもの(出典・確度・なし) */
+  retracted?: {
+    mine: string;
+    because: string;
+    backing?: "出典" | "確度" | "なし";
+  }[];
+  /** Ashi の返事に、自己記述や直前のよそ者との会話と同じ言い回しが出たもの(legs/style.ts の carriedPhrases) */
+  carried?: { reply: number; phrase: string; from: string }[];
+  /** 足が拾った、総称・全称・確度の語を含む Ashi の発言(legs/style.ts の SWEEPING) */
+  sweeping?: string[];
+  /** 足がさいころで選んだ Ashi の言い切った文と、頭が取り出した確かめる事実(無ければ空) */
+  spot?: { sentence: string; claim: string };
 }
 
 export interface ChatEntry {
-	at: string;
-	/** 話しかけた人(Entra の名前) */
-	by: string;
-	question: string;
-	reply: string;
-	/** その返事で問いに加えたもの(画面の「問いに加えた」) */
-	added?: string[];
-	/** その返事で拠ったノート(頭の申告と、返事に出てきたノートの ID)。あとのノートと照らすため */
-	notes?: string[];
-	/** 足のリンタが当たったこと(legs/style.ts)と、書き直したか */
-	lint?: string[];
-	rewritten?: boolean;
-	/** 書き直す前の返事(書き直しで中身や印が消えていないかを、あとで数えるため) */
-	draft?: string;
-	/** 返事の中の、総称・全称・確度の語を含む文(legs/style.ts の SWEEPING) */
-	sweeping?: string[];
-	usd: number;
+  at: string;
+  /** 話しかけた人(Entra の名前) */
+  by: string;
+  question: string;
+  reply: string;
+  /** その返事で問いに加えたもの(画面の「問いに加えた」) */
+  added?: string[];
+  /** その返事で拠ったノート(頭の申告と、返事に出てきたノートの ID)。あとのノートと照らすため */
+  notes?: string[];
+  /** 足のリンタが当たったこと(legs/style.ts)と、書き直したか */
+  lint?: string[];
+  rewritten?: boolean;
+  /** 書き直す前の返事(書き直しで中身や印が消えていないかを、あとで数えるため) */
+  draft?: string;
+  /** 返事の中の、総称・全称・確度の語を含む文(legs/style.ts の SWEEPING) */
+  sweeping?: string[];
+  usd: number;
 }
 
 function tailJsonl<T>(path: string, n: number): T[] {
-	if (!existsSync(path)) return [];
-	const lines = readFileSync(path, "utf8")
-		.trimEnd()
-		.split("\n")
-		.filter(Boolean);
-	const out: T[] = [];
-	for (const line of lines.slice(-n).reverse()) {
-		try {
-			out.push(JSON.parse(line) as T);
-		} catch {
-			// 書きかけの行(落ちた直後など)は飛ばす
-		}
-	}
-	return out;
+  if (!existsSync(path)) return [];
+  const lines = readFileSync(path, "utf8")
+    .trimEnd()
+    .split("\n")
+    .filter(Boolean);
+  const out: T[] = [];
+  for (const line of lines.slice(-n).reverse()) {
+    try {
+      out.push(JSON.parse(line) as T);
+    } catch {
+      // 書きかけの行(落ちた直後など)は飛ばす
+    }
+  }
+  return out;
 }
 
 function alive(pid: number): boolean {
-	try {
-		process.kill(pid, 0);
-		return true;
-	} catch {
-		return false;
-	}
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function jsonOf(v: string | undefined): unknown {
-	if (!v?.trim()) return undefined;
-	try {
-		return JSON.parse(v);
-	} catch {
-		console.warn(
-			"[ashi] 前の版の設定(環境変数)が JSON として読めない。取り込まない",
-		);
-		return undefined;
-	}
+  if (!v?.trim()) return undefined;
+  try {
+    return JSON.parse(v);
+  } catch {
+    console.warn(
+      "[ashi] 前の版の設定(環境変数)が JSON として読めない。取り込まない",
+    );
+    return undefined;
+  }
 }

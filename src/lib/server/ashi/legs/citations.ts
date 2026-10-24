@@ -10,11 +10,11 @@ import { VERIFY_THEME } from "./select.ts";
  */
 
 export interface CitationConflict {
-	/** 「Kim・Goodman」「Zorn ら」「Goodman」など */
-	authors: string;
-	kind: "year" | "status";
-	/** 年か状態ごとの、それを書いたノート */
-	variants: { label: string; noteIds: string[] }[];
+  /** 「Kim・Goodman」「Zorn ら」「Goodman」など */
+  authors: string;
+  kind: "year" | "status";
+  /** 年か状態ごとの、それを書いたノート */
+  variants: { label: string; noteIds: string[] }[];
 }
 
 /** 年の差がこれより大きいものは、同じ著者の別の論文とみなして出さない */
@@ -23,162 +23,162 @@ const MAX_CONFLICTS = 8;
 
 // 著者(1〜2 人、「ら」「et al.」付き)のあと、句点や改行を挟まず 25 字以内に年
 const CITE =
-	/([A-Z][a-z][A-Za-z'’-]+)(?:,\s*[A-Z]\.(?:\s*[A-Z]\.)*)?(?:\s*(?:と|・|&|and|,)\s*([A-Z][a-z][A-Za-z'’-]+))?(\s*(?:ら|et al\.?))?[^。\n]{0,25}?\b((?:19|20)\d{2})\b/g;
+  /([A-Z][a-z][A-Za-z'’-]+)(?:,\s*[A-Z]\.(?:\s*[A-Z]\.)*)?(?:\s*(?:と|・|&|and|,)\s*([A-Z][a-z][A-Za-z'’-]+))?(\s*(?:ら|et al\.?))?[^。\n]{0,25}?\b((?:19|20)\d{2})\b/g;
 const UNREVIEWED = /査読前|未査読|プレプリント|preprint|working paper/i;
 const PUBLISHED =
-	/採録|掲載(?:され|済)|出版され|forthcoming|accepted|published|advance article/i;
+  /採録|掲載(?:され|済)|出版され|forthcoming|accepted|published|advance article/i;
 
 /**
  * 誌名・機関名・題によく出る一般語。「Journal of Consumer Research 2026」の Research を著者として数え、
  * 答えの出ない確かめの問いを積んでいた(Ashi の改善案、2026-10-10)
  */
 const GENERIC = new Set(
-	(
-		"Research Journal Journals Proceedings Review Reviews Science Sciences Nature Studies Study " +
-		"Psychology Psychological Letters Bulletin Quarterly Annual Annals Press University Society " +
-		"Association Conference Findings Working Paper Papers Advances Trends Frontiers Communications " +
-		"International National American European Japanese Institute Center Centre Department " +
-		"Report Reports Medicine Medical Health Economics Economic Management Marketing Consumer " +
-		"Behavior Behaviour Social Cognitive Experimental Applied Computational Language Linguistics " +
-		"Transactions Archives Handbook Encyclopedia Library Online Open Data Survey Analysis " +
-		// 文頭の冠詞・代名詞・接続の語(「The」を著者として拾っていた。Ashi の改善案、2026-10-22)
-		"The This That These Those There Their They Its And But For From With When Where While " +
-		"After Before Since Also See Table Figure Fig Section Chapter Version Edition Vol"
-	).split(" "),
+  (
+    "Research Journal Journals Proceedings Review Reviews Science Sciences Nature Studies Study " +
+    "Psychology Psychological Letters Bulletin Quarterly Annual Annals Press University Society " +
+    "Association Conference Findings Working Paper Papers Advances Trends Frontiers Communications " +
+    "International National American European Japanese Institute Center Centre Department " +
+    "Report Reports Medicine Medical Health Economics Economic Management Marketing Consumer " +
+    "Behavior Behaviour Social Cognitive Experimental Applied Computational Language Linguistics " +
+    "Transactions Archives Handbook Encyclopedia Library Online Open Data Survey Analysis " +
+    // 文頭の冠詞・代名詞・接続の語(「The」を著者として拾っていた。Ashi の改善案、2026-10-22)
+    "The This That These Those There Their They Its And But For From With When Where While " +
+    "After Before Since Also See Table Figure Fig Section Chapter Version Edition Vol"
+  ).split(" "),
 );
 
 type Seen = Map<string, Map<string, Set<string>>>;
 
 function add(seen: Seen, key: string, label: string, noteId: string): void {
-	const byLabel = seen.get(key) ?? new Map<string, Set<string>>();
-	const ids = byLabel.get(label) ?? new Set<string>();
-	ids.add(noteId);
-	byLabel.set(label, ids);
-	seen.set(key, byLabel);
+  const byLabel = seen.get(key) ?? new Map<string, Set<string>>();
+  const ids = byLabel.get(label) ?? new Set<string>();
+  ids.add(noteId);
+  byLabel.set(label, ids);
+  seen.set(key, byLabel);
 }
 
 export function citationConflicts(
-	notes: { id: string; text: string }[],
+  notes: { id: string; text: string }[],
 ): CitationConflict[] {
-	const years: Seen = new Map();
-	const statuses: Seen = new Map();
-	// URL の中の英単語(題名の一部など)を著者と取り違えないよう、先に外す
-	const texts = notes.map((n) => ({
-		id: n.id,
-		lines: n.text.replace(/https?:\/\/\S+/g, " ").split("\n"),
-	}));
-	// どこかで「著者 年」の形で出た名前だけを著者とみなす
-	const authors = new Set<string>();
-	for (const n of texts)
-		for (const line of n.lines)
-			for (const m of line.matchAll(CITE)) {
-				if (m[1] && m[4] && !GENERIC.has(m[1])) authors.add(m[1]);
-				if (m[2] && m[4] && !GENERIC.has(m[2])) authors.add(m[2]);
-			}
-	for (const n of texts) {
-		// 1 本のノートが同じ著者の複数の年を挙げているなら、別々の論文を並べている
-		const mine = new Map<string, Set<string>>();
-		for (const line of n.lines) {
-			for (const m of line.matchAll(CITE)) {
-				const [, a, b, etal, y] = m;
-				if (!a || !y || GENERIC.has(a) || (b && GENERIC.has(b))) continue;
-				const key = b ? `${a}・${b}` : etal ? `${a} ら` : a;
-				mine.set(key, (mine.get(key) ?? new Set()).add(y));
-			}
-			// 査読の状態は、著者と同じ段落に書かれた語で見る(1 人ずつ。組の書き方が揺れるため)
-			const names = new Set(
-				(line.match(/\b[A-Z][a-z][A-Za-z'’-]+\b/g) ?? []).filter((w) =>
-					authors.has(w),
-				),
-			);
-			// 両方あるのは「査読前と書いたが、いまは採録」のような書き直しなので、後の状態で数える
-			const published = PUBLISHED.test(line);
-			if (!published && !UNREVIEWED.test(line)) continue;
-			for (const name of names)
-				add(statuses, name, published ? "採録・出版" : "査読前", n.id);
-		}
-		// 年は 2 人の組だけで見る。「Kim ら」「Wang ら」のような 1 人だけだと、同じ姓の別の論文ばかり
-		// 拾った(実際のノート 89 本で 9 件、ほぼすべて別の論文)
-		for (const [key, ys] of mine)
-			if (key.includes("・") && ys.size === 1)
-				for (const y of ys) add(years, key, y, n.id);
-	}
+  const years: Seen = new Map();
+  const statuses: Seen = new Map();
+  // URL の中の英単語(題名の一部など)を著者と取り違えないよう、先に外す
+  const texts = notes.map((n) => ({
+    id: n.id,
+    lines: n.text.replace(/https?:\/\/\S+/g, " ").split("\n"),
+  }));
+  // どこかで「著者 年」の形で出た名前だけを著者とみなす
+  const authors = new Set<string>();
+  for (const n of texts)
+    for (const line of n.lines)
+      for (const m of line.matchAll(CITE)) {
+        if (m[1] && m[4] && !GENERIC.has(m[1])) authors.add(m[1]);
+        if (m[2] && m[4] && !GENERIC.has(m[2])) authors.add(m[2]);
+      }
+  for (const n of texts) {
+    // 1 本のノートが同じ著者の複数の年を挙げているなら、別々の論文を並べている
+    const mine = new Map<string, Set<string>>();
+    for (const line of n.lines) {
+      for (const m of line.matchAll(CITE)) {
+        const [, a, b, etal, y] = m;
+        if (!a || !y || GENERIC.has(a) || (b && GENERIC.has(b))) continue;
+        const key = b ? `${a}・${b}` : etal ? `${a} ら` : a;
+        mine.set(key, (mine.get(key) ?? new Set()).add(y));
+      }
+      // 査読の状態は、著者と同じ段落に書かれた語で見る(1 人ずつ。組の書き方が揺れるため)
+      const names = new Set(
+        (line.match(/\b[A-Z][a-z][A-Za-z'’-]+\b/g) ?? []).filter((w) =>
+          authors.has(w),
+        ),
+      );
+      // 両方あるのは「査読前と書いたが、いまは採録」のような書き直しなので、後の状態で数える
+      const published = PUBLISHED.test(line);
+      if (!published && !UNREVIEWED.test(line)) continue;
+      for (const name of names)
+        add(statuses, name, published ? "採録・出版" : "査読前", n.id);
+    }
+    // 年は 2 人の組だけで見る。「Kim ら」「Wang ら」のような 1 人だけだと、同じ姓の別の論文ばかり
+    // 拾った(実際のノート 89 本で 9 件、ほぼすべて別の論文)
+    for (const [key, ys] of mine)
+      if (key.includes("・") && ys.size === 1)
+        for (const y of ys) add(years, key, y, n.id);
+  }
 
-	const out: CitationConflict[] = [];
-	for (const [authors, byYear] of years) {
-		const ys = [...byYear.keys()].map(Number).sort((p, q) => p - q);
-		const first = ys[0];
-		const last = ys[ys.length - 1];
-		if (first === undefined || last === undefined) continue;
-		if (ys.length < 2 || last - first > MAX_GAP) continue;
-		out.push({
-			authors,
-			kind: "year",
-			variants: ys.map((y) => ({
-				label: String(y),
-				noteIds: [...(byYear.get(String(y)) ?? [])],
-			})),
-		});
-	}
-	for (const [author, byStatus] of statuses) {
-		const pre = byStatus.get("査読前");
-		const pub = byStatus.get("採録・出版");
-		if (!pre || !pub) continue;
-		// 同じノートの中で書き直しているなら、そのノートは採録の側で数える
-		const onlyPre = [...pre].filter((id) => !pub.has(id));
-		if (onlyPre.length === 0) continue;
-		// 年の食い違いと同じ著者なら、そちらに任せる
-		if (out.some((c) => c.authors.split(/・| ら/).includes(author))) continue;
-		out.push({
-			authors: author,
-			kind: "status",
-			variants: [
-				{ label: "査読前", noteIds: onlyPre },
-				{ label: "採録・出版", noteIds: [...pub] },
-			],
-		});
-	}
-	return out.slice(0, MAX_CONFLICTS);
+  const out: CitationConflict[] = [];
+  for (const [authors, byYear] of years) {
+    const ys = [...byYear.keys()].map(Number).sort((p, q) => p - q);
+    const first = ys[0];
+    const last = ys[ys.length - 1];
+    if (first === undefined || last === undefined) continue;
+    if (ys.length < 2 || last - first > MAX_GAP) continue;
+    out.push({
+      authors,
+      kind: "year",
+      variants: ys.map((y) => ({
+        label: String(y),
+        noteIds: [...(byYear.get(String(y)) ?? [])],
+      })),
+    });
+  }
+  for (const [author, byStatus] of statuses) {
+    const pre = byStatus.get("査読前");
+    const pub = byStatus.get("採録・出版");
+    if (!pre || !pub) continue;
+    // 同じノートの中で書き直しているなら、そのノートは採録の側で数える
+    const onlyPre = [...pre].filter((id) => !pub.has(id));
+    if (onlyPre.length === 0) continue;
+    // 年の食い違いと同じ著者なら、そちらに任せる
+    if (out.some((c) => c.authors.split(/・| ら/).includes(author))) continue;
+    out.push({
+      authors: author,
+      kind: "status",
+      variants: [
+        { label: "査読前", noteIds: onlyPre },
+        { label: "採録・出版", noteIds: [...pub] },
+      ],
+    });
+  }
+  return out.slice(0, MAX_CONFLICTS);
 }
 
 /** 状態のノート(題・要約・本文)から拾う */
 export function noteCitationConflicts(store: Store): CitationConflict[] {
-	return citationConflicts(
-		store.notes().map((n) => ({
-			id: n.id,
-			text: `${n.title}\n${n.summary}\n${store.noteBody(n.id) ?? ""}`,
-		})),
-	);
+  return citationConflicts(
+    store.notes().map((n) => ({
+      id: n.id,
+      text: `${n.title}\n${n.summary}\n${store.noteBody(n.id) ?? ""}`,
+    })),
+  );
 }
 
 /** 食い違いがこの回数の内省で続けて出たら、確かめの問いを積む */
 export const CONFLICT_STREAK = 2;
 
 export const conflictKey = (c: { kind: string; authors: string }) =>
-	`${c.kind}:${c.authors}`;
+  `${c.kind}:${c.authors}`;
 
 /** 足が積む確かめの問いの書き出し(答えが出たかを探すのにも使う) */
 const checkLead = (c: CitationConflict) =>
-	`${c.authors} の論文の${c.kind === "year" ? "年" : "査読の状態"}が、ノートで食い違っている`;
+  `${c.authors} の論文の${c.kind === "year" ? "年" : "査読の状態"}が、ノートで食い違っている`;
 
 /**
  * 足が積んだ確かめの問いが閉じた(答えが出た・手放した)食い違いを外す。古いノートの書き方は
  * 残るので、答えが出たあとも同じ食い違いが内省に出続けていた(Ashi の改善案、2026-10-10)
  */
 export function unsettledConflicts(
-	conflicts: CitationConflict[],
-	qs: { text: string; status: string; via?: string }[],
-	/** 内省の conflicts_settled で決着したもの(別の論文だった・どちらかの誤りをノートで確かめた) */
-	settled: Record<string, unknown> = {},
+  conflicts: CitationConflict[],
+  qs: { text: string; status: string; via?: string }[],
+  /** 内省の conflicts_settled で決着したもの(別の論文だった・どちらかの誤りをノートで確かめた) */
+  settled: Record<string, unknown> = {},
 ): CitationConflict[] {
-	return conflicts.filter((c) => {
-		if (settled[conflictKey(c)]) return false;
-		const lead = checkLead(c);
-		const check = qs.find(
-			(q) => q.via === "citations" && q.text.startsWith(lead),
-		);
-		return !check || check.status === "open";
-	});
+  return conflicts.filter((c) => {
+    if (settled[conflictKey(c)]) return false;
+    const lead = checkLead(c);
+    const check = qs.find(
+      (q) => q.via === "citations" && q.text.startsWith(lead),
+    );
+    return !check || check.status === "open";
+  });
 }
 
 /**
@@ -187,48 +187,48 @@ export function unsettledConflicts(
  * (Ashi の改善案、2026-10-07)。食い違いが消えたら数え直す
  */
 export function trackConflicts(
-	store: Store,
-	conflicts: CitationConflict[],
-	now: Date,
+  store: Store,
+  conflicts: CitationConflict[],
+  now: Date,
 ): string[] {
-	const prev = store.walk().citationStreaks ?? {};
-	const next: Record<string, number> = {};
-	const due: CitationConflict[] = [];
-	for (const c of conflicts) {
-		const k = conflictKey(c);
-		const p = prev[k] ?? 0;
-		// -1 は積んだ印
-		next[k] = p < 0 ? p : p + 1;
-		if (next[k] >= CONFLICT_STREAK) due.push(c);
-	}
-	const text = (c: CitationConflict) =>
-		`${checkLead(c)}(${c.variants.map((v) => `${v.label}: ${v.noteIds.join("、")}`).join(" / ")})。どれが正しいか`;
-	let added: string[] = [];
-	if (due.length) {
-		const cfg = store.config();
-		store.updateQuestions((qs) => {
-			const got = acceptNewQuestions(
-				due.map((c) => ({
-					text: text(c),
-					theme: VERIFY_THEME,
-					track: "self",
-					interest: 0.6,
-					importance: 0.8,
-					feasibility: 0.8,
-				})),
-				qs,
-				{ ...cfg, maxNewQuestions: due.length },
-				undefined,
-				now,
-				{ source: "explore", via: "citations" },
-			).map((q) => ({ ...q, verify: true }));
-			added = got.map((q) => q.text);
-			return trimOpenQuestions([...qs, ...got], cfg);
-		});
-		// 積めたものにだけ印を付ける(テーマの枠で受け取られなければ、次の内省でまた積もうとする)
-		for (const c of due) if (added.includes(text(c))) next[conflictKey(c)] = -1;
-		if (added.length) store.log("citation-checks", { added });
-	}
-	store.saveWalk({ ...store.walk(), citationStreaks: next });
-	return added;
+  const prev = store.walk().citationStreaks ?? {};
+  const next: Record<string, number> = {};
+  const due: CitationConflict[] = [];
+  for (const c of conflicts) {
+    const k = conflictKey(c);
+    const p = prev[k] ?? 0;
+    // -1 は積んだ印
+    next[k] = p < 0 ? p : p + 1;
+    if (next[k] >= CONFLICT_STREAK) due.push(c);
+  }
+  const text = (c: CitationConflict) =>
+    `${checkLead(c)}(${c.variants.map((v) => `${v.label}: ${v.noteIds.join("、")}`).join(" / ")})。どれが正しいか`;
+  let added: string[] = [];
+  if (due.length) {
+    const cfg = store.config();
+    store.updateQuestions((qs) => {
+      const got = acceptNewQuestions(
+        due.map((c) => ({
+          text: text(c),
+          theme: VERIFY_THEME,
+          track: "self",
+          interest: 0.6,
+          importance: 0.8,
+          feasibility: 0.8,
+        })),
+        qs,
+        { ...cfg, maxNewQuestions: due.length },
+        undefined,
+        now,
+        { source: "explore", via: "citations" },
+      ).map((q) => ({ ...q, verify: true }));
+      added = got.map((q) => q.text);
+      return trimOpenQuestions([...qs, ...got], cfg);
+    });
+    // 積めたものにだけ印を付ける(テーマの枠で受け取られなければ、次の内省でまた積もうとする)
+    for (const c of due) if (added.includes(text(c))) next[conflictKey(c)] = -1;
+    if (added.length) store.log("citation-checks", { added });
+  }
+  store.saveWalk({ ...store.walk(), citationStreaks: next });
+  return added;
 }

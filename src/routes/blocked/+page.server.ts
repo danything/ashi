@@ -7,16 +7,16 @@ import type { Actions, PageServerLoad } from "./$types";
 export const load: PageServerLoad = () => redirect(303, "/proposals");
 
 export const actions: Actions = {
-	/** 権限を足した・気にしない。同じことがまた起きたら、また知らせる */
-	resolve: async ({ request }) => {
-		const key = String((await request.formData()).get("key") ?? "");
-		const all = store.blockers();
-		const b = all[key];
-		if (b && isOpen(b))
-			store.saveBlockers({
-				...all,
-				[key]: { ...b, resolvedAt: new Date().toISOString() },
-			});
-		return {};
-	},
+  /** 権限を足した・気にしない。同じことがまた起きたら、また知らせる */
+  resolve: async ({ request }) => {
+    const key = String((await request.formData()).get("key") ?? "");
+    const all = store.blockers();
+    const b = all[key];
+    if (b && isOpen(b))
+      store.saveBlockers({
+        ...all,
+        [key]: { ...b, resolvedAt: new Date().toISOString() },
+      });
+    return {};
+  },
 };

@@ -1,44 +1,44 @@
 import {
-	addUsage,
-	type Head,
-	HeadAccessError,
-	HeadError,
-	type Tool,
-	type Turn,
+  addUsage,
+  type Head,
+  HeadAccessError,
+  HeadError,
+  type Tool,
+  type Turn,
 } from "../head/head.ts";
 import {
-	CHAT_REWRITE_SCHEMA,
-	CHAT_SCHEMA,
-	type ChatAnswer,
-	chatPrompt,
-	chatRewritePrompt,
-	correctionsBlock,
-	system,
+  CHAT_REWRITE_SCHEMA,
+  CHAT_SCHEMA,
+  type ChatAnswer,
+  chatPrompt,
+  chatRewritePrompt,
+  correctionsBlock,
+  system,
 } from "../prompts.ts";
 import { localDay, type Store } from "../state.ts";
 import {
-	blockersText,
-	raiseBlocker,
-	resolveBlockers,
-	webhookNotify,
+  blockersText,
+  raiseBlocker,
+  resolveBlockers,
+  webhookNotify,
 } from "./blockers.ts";
 import { feedStatus } from "./feeds.ts";
 import {
-	acceptClaims,
-	acceptNewQuestions,
-	acceptProposals,
-	addStances,
-	claimQuestions,
-	markedClaims,
-	mergeClaims,
-	trimOpenQuestions,
+  acceptClaims,
+  acceptNewQuestions,
+  acceptProposals,
+  addStances,
+  claimQuestions,
+  markedClaims,
+  mergeClaims,
+  trimOpenQuestions,
 } from "./guard.ts";
 import { newsBlock } from "./news.ts";
 import {
-	addPhrases,
-	lintReply,
-	phraseLedger,
-	sweepingSentences,
+  addPhrases,
+  lintReply,
+  phraseLedger,
+  sweepingSentences,
 } from "./style.ts";
 import { crawlIds } from "./walk.ts";
 
@@ -56,7 +56,7 @@ const MAX_CHARS = 4000;
 const ASK_HISTORY = 2;
 /** 何かを積んだと言う言い方 */
 const UNBACKED =
-	/(?:足します|足しておきます|足しました|記録します|記録しました|積みます|積んでおきます|追加します|追加しました|入れておきます|覚えておきます)/;
+  /(?:足します|足しておきます|足しました|記録します|記録しました|積みます|積んでおきます|追加します|追加しました|入れておきます|覚えておきます)/;
 
 /**
  * いま頭が考えている発言(話しかけた人ごと)。返事を待つ間に画面を移って戻ると、送った発言が
@@ -66,234 +66,234 @@ const UNBACKED =
 const thinking = new Map<string, { question: string; at: string }>();
 
 export function chatInFlight(
-	by: string,
+  by: string,
 ): { question: string; at: string } | undefined {
-	return thinking.get(by);
+  return thinking.get(by);
 }
 
 export async function chat(
-	ctx: {
-		store: Store;
-		head: Head;
-		tools: Tool[];
-		now?: () => Date;
-		notify?: (text: string) => Promise<void>;
-	},
-	by: string,
-	history: Turn[],
-	message: string,
+  ctx: {
+    store: Store;
+    head: Head;
+    tools: Tool[];
+    now?: () => Date;
+    notify?: (text: string) => Promise<void>;
+  },
+  by: string,
+  history: Turn[],
+  message: string,
 ): Promise<{ reply: string; added: string[]; crawl: string[]; usd: number }> {
-	const { store, head } = ctx;
-	const now = ctx.now?.() ?? new Date();
-	const today = localDay(now);
-	const cfg = store.config();
-	const text = message.trim().slice(0, MAX_CHARS);
-	if (!text) throw new ChatRefused("何か書いてください");
-	// 持ち主と話すのは、1 日の予算を使い切っていても止めない(持ち主の希望、2026-10-19)。1 通にかける
-	// 上限だけは 1 歩と同じにする。使った分は同じ財布に積むので、その日の歩みはそのぶん早く止まる
-	const left = cfg.budget.stepUsd;
+  const { store, head } = ctx;
+  const now = ctx.now?.() ?? new Date();
+  const today = localDay(now);
+  const cfg = store.config();
+  const text = message.trim().slice(0, MAX_CHARS);
+  if (!text) throw new ChatRefused("何か書いてください");
+  // 持ち主と話すのは、1 日の予算を使い切っていても止めない(持ち主の希望、2026-10-19)。1 通にかける
+  // 上限だけは 1 歩と同じにする。使った分は同じ財布に積むので、その日の歩みはそのぶん早く止まる
+  const left = cfg.budget.stepUsd;
 
-	const turns = history
-		.slice(-MAX_TURNS)
-		.filter(
-			(t) =>
-				(t.role === "user" || t.role === "assistant") &&
-				typeof t.text === "string" &&
-				t.text.trim(),
-		)
-		.map((t) => ({ role: t.role, text: t.text.slice(0, MAX_CHARS) }));
-	// 先頭は user でなければならない
-	while (turns[0]?.role === "assistant") turns.shift();
+  const turns = history
+    .slice(-MAX_TURNS)
+    .filter(
+      (t) =>
+        (t.role === "user" || t.role === "assistant") &&
+        typeof t.text === "string" &&
+        t.text.trim(),
+    )
+    .map((t) => ({ role: t.role, text: t.text.slice(0, MAX_CHARS) }));
+  // 先頭は user でなければならない
+  while (turns[0]?.role === "assistant") turns.shift();
 
-	thinking.set(by, { question: text, at: now.toISOString() });
-	const phrases = phraseLedger(store).map((p) => p.text);
-	try {
-		const prompt = chatPrompt(
-			text,
-			store.notes(),
-			store.questions(),
-			feedStatus(store, now),
-			blockersText(store),
-			newsBlock(store.news().items),
-			correctionsBlock(
-				store.walk().ownerCorrections ?? [],
-				cfg.ownerCorrections,
-			),
-			phrases,
-		);
-		const ask = (extra: string, tools: Tool[], maxCostUsd: number) =>
-			head.think<ChatAnswer>({
-				task: "chat",
-				system: system(store.core(), store.self(), store.owner()),
-				history: turns,
-				prompt: `${prompt}${extra}`,
-				schema: CHAT_SCHEMA,
-				tools,
-				maxToolRounds: 4,
-				maxCostUsd,
-			});
-		let { output, usage } = await ask(
-			"",
-			ctx.tools.filter((t) => t.readOnly === true),
-			left,
-		);
-		store.charge(today, usage);
-		// 返事が空なら、道具を外して一度だけ作り直させる。持ち主の「今調べて回答して」に空で 2 回返していた
-		// (Ashi の改善案、2026-10-21)
-		let empty = !String(output.reply ?? "").trim();
-		if (empty && left - usage.costUsd > 0) {
-			const again = await ask(
-				"\n\n(前の答えは reply が空でした。道具はもう使えません。ここまでに分かったことと、分からなかったことで返事を書いてください)",
-				[],
-				left - usage.costUsd,
-			);
-			store.charge(today, again.usage);
-			usage = addUsage(usage, again.usage);
-			output = again.output;
-			empty = !String(output.reply ?? "").trim();
-		}
-		if (empty) store.log("failed", { task: "chat", error: "返事が空だった" });
-		resolveBlockers(store, "head:", now);
-		let added: string[] = [];
-		store.updateQuestions((qs) => {
-			const got = acceptNewQuestions(
-				output.new_questions,
-				qs,
-				cfg,
-				undefined,
-				now,
-				{ source: "chat" },
-			);
-			// 返事の中で記憶だけで言ったことも、確かめる問いにして控える(頭の申告と、足が印から拾ったもの)
-			const claims = mergeClaims(
-				acceptClaims(output.unverified),
-				markedClaims([String(output.reply ?? "")]),
-			);
-			const checks = acceptNewQuestions(
-				claimQuestions(claims, "持ち主に"),
-				[...qs, ...got],
-				{ ...cfg, maxNewQuestions: claims.length },
-				undefined,
-				now,
-				{ source: "chat" },
-			).map((q) => ({ ...q, verify: true }));
-			added = [...got, ...checks].map((q) => q.text);
-			return trimOpenQuestions([...qs, ...got, ...checks], cfg);
-		});
-		// 読みに行くのは次の歩みで(対話の返事は待たせない)。取った立場は内省で見せる
-		const crawl = crawlIds(output.crawl);
-		const w = store.walk();
-		store.saveWalk({
-			...w,
-			crawlRequests: [...new Set([...w.crawlRequests, ...crawl])],
-			stances: addStances(w.stances, output.stances, now),
-			// 伝えた訂正は台帳から消す
-			ownerCorrections: (w.ownerCorrections ?? []).filter(
-				(c) =>
-					!(
-						Array.isArray(output.delivered_corrections)
-							? output.delivered_corrections
-							: []
-					).includes(c.id),
-			),
-		});
-		let reply =
-			String(output.reply ?? "").trim() ||
-			"返事を作れなかった(頭が 2 回続けて空の返事を返した)。もう一度話しかけてください。";
-		// 持ち主が指摘した言い回しは台帳に、頼まれた改善案は「直すこと」に積む
-		const flagged = addPhrases(store, output.flagged_phrases, "owner", now);
-		const { proposals, added: proposed } = acceptProposals(
-			output.proposals,
-			store.proposals(),
-			now,
-		);
-		if (proposed.length) store.saveProposals(proposals);
-		// 返す前に数え、当たったら中身を変えずに 1 回だけ書き直させる(持ち主の指摘、2026-10-09)
-		const lint = lintReply(
-			reply,
-			phrases,
-			store.recentChats(ASK_HISTORY).map((c) => c.reply),
-		);
-		// 「足します」と言ったのに、どの欄にも積んでいない。前は何も記録されないまま「足しました」と
-		// 返していた(Ashi の改善案、2026-10-10)
-		const unbacked =
-			UNBACKED.test(reply) &&
-			proposed.length === 0 &&
-			flagged.length === 0 &&
-			added.length === 0;
-		if (unbacked)
-			lint.push(
-				"「足します」「記録します」のように言っているが、改善案・言い回し・問いのどの欄にも何も積んでいない。足せていないなら、そう書く",
-			);
-		let rewritten = false;
-		let draft: string | undefined;
-		if (lint.length) {
-			try {
-				const r = await head.think<{ reply: string }>({
-					task: "chat-rewrite",
-					system: system(store.core(), store.self(), store.owner()),
-					prompt: chatRewritePrompt(reply, lint),
-					schema: CHAT_REWRITE_SCHEMA,
-					maxCostUsd: Math.max(0, left - usage.costUsd),
-				});
-				store.charge(today, r.usage);
-				const again = String(r.output.reply ?? "").trim();
-				if (again) {
-					draft = reply;
-					reply = again;
-					rewritten = true;
-				}
-			} catch (e) {
-				// 書き直せなければ、最初の返事のまま返す(返事を止めない)
-				if (e instanceof HeadError) store.charge(today, e.usage);
-				else throw e;
-			}
-		}
-		// 総称・全称・確度の語を含む文を残す(あとで、確かめて外れた率を印の有無で数える)
-		const sweeping = sweepingSentences([reply]);
-		// 拠ったノート。あとで同じテーマのノートが増えたら、内省でこの返事を全文で見せる(Ashi の改善案、2026-10-06)
-		const known = new Set(store.notes().map((n) => n.id));
-		const notes = [
-			...new Set([
-				...(Array.isArray(output.notes_used) ? output.notes_used : []),
-				...(reply.match(/\b[0-9a-f]{8}\b/g) ?? []),
-			]),
-		]
-			.filter((id): id is string => typeof id === "string" && known.has(id))
-			.slice(0, 10);
-		store.appendChat({
-			at: now.toISOString(),
-			by,
-			question: text,
-			reply,
-			added,
-			...(notes.length ? { notes } : {}),
-			...(lint.length ? { lint, rewritten } : {}),
-			...(draft ? { draft } : {}),
-			...(sweeping.length ? { sweeping } : {}),
-			usd: usage.costUsd,
-		});
-		store.log("chat", {
-			by,
-			added,
-			usd: usage.costUsd,
-			...(lint.length ? { lint, rewritten } : {}),
-			...(flagged.length ? { flagged } : {}),
-			...(proposed.length ? { proposed } : {}),
-		});
-		return { reply, added, crawl, usd: usage.costUsd };
-	} catch (e) {
-		if (e instanceof HeadError) store.charge(today, e.usage);
-		if (e instanceof HeadAccessError)
-			await raiseBlocker(
-				store,
-				"head",
-				e.blockage,
-				now,
-				ctx.notify ?? webhookNotify,
-			);
-		throw e;
-	} finally {
-		thinking.delete(by);
-	}
+  thinking.set(by, { question: text, at: now.toISOString() });
+  const phrases = phraseLedger(store).map((p) => p.text);
+  try {
+    const prompt = chatPrompt(
+      text,
+      store.notes(),
+      store.questions(),
+      feedStatus(store, now),
+      blockersText(store),
+      newsBlock(store.news().items),
+      correctionsBlock(
+        store.walk().ownerCorrections ?? [],
+        cfg.ownerCorrections,
+      ),
+      phrases,
+    );
+    const ask = (extra: string, tools: Tool[], maxCostUsd: number) =>
+      head.think<ChatAnswer>({
+        task: "chat",
+        system: system(store.core(), store.self(), store.owner()),
+        history: turns,
+        prompt: `${prompt}${extra}`,
+        schema: CHAT_SCHEMA,
+        tools,
+        maxToolRounds: 4,
+        maxCostUsd,
+      });
+    let { output, usage } = await ask(
+      "",
+      ctx.tools.filter((t) => t.readOnly === true),
+      left,
+    );
+    store.charge(today, usage);
+    // 返事が空なら、道具を外して一度だけ作り直させる。持ち主の「今調べて回答して」に空で 2 回返していた
+    // (Ashi の改善案、2026-10-21)
+    let empty = !String(output.reply ?? "").trim();
+    if (empty && left - usage.costUsd > 0) {
+      const again = await ask(
+        "\n\n(前の答えは reply が空でした。道具はもう使えません。ここまでに分かったことと、分からなかったことで返事を書いてください)",
+        [],
+        left - usage.costUsd,
+      );
+      store.charge(today, again.usage);
+      usage = addUsage(usage, again.usage);
+      output = again.output;
+      empty = !String(output.reply ?? "").trim();
+    }
+    if (empty) store.log("failed", { task: "chat", error: "返事が空だった" });
+    resolveBlockers(store, "head:", now);
+    let added: string[] = [];
+    store.updateQuestions((qs) => {
+      const got = acceptNewQuestions(
+        output.new_questions,
+        qs,
+        cfg,
+        undefined,
+        now,
+        { source: "chat" },
+      );
+      // 返事の中で記憶だけで言ったことも、確かめる問いにして控える(頭の申告と、足が印から拾ったもの)
+      const claims = mergeClaims(
+        acceptClaims(output.unverified),
+        markedClaims([String(output.reply ?? "")]),
+      );
+      const checks = acceptNewQuestions(
+        claimQuestions(claims, "持ち主に"),
+        [...qs, ...got],
+        { ...cfg, maxNewQuestions: claims.length },
+        undefined,
+        now,
+        { source: "chat" },
+      ).map((q) => ({ ...q, verify: true }));
+      added = [...got, ...checks].map((q) => q.text);
+      return trimOpenQuestions([...qs, ...got, ...checks], cfg);
+    });
+    // 読みに行くのは次の歩みで(対話の返事は待たせない)。取った立場は内省で見せる
+    const crawl = crawlIds(output.crawl);
+    const w = store.walk();
+    store.saveWalk({
+      ...w,
+      crawlRequests: [...new Set([...w.crawlRequests, ...crawl])],
+      stances: addStances(w.stances, output.stances, now),
+      // 伝えた訂正は台帳から消す
+      ownerCorrections: (w.ownerCorrections ?? []).filter(
+        (c) =>
+          !(
+            Array.isArray(output.delivered_corrections)
+              ? output.delivered_corrections
+              : []
+          ).includes(c.id),
+      ),
+    });
+    let reply =
+      String(output.reply ?? "").trim() ||
+      "返事を作れなかった(頭が 2 回続けて空の返事を返した)。もう一度話しかけてください。";
+    // 持ち主が指摘した言い回しは台帳に、頼まれた改善案は「直すこと」に積む
+    const flagged = addPhrases(store, output.flagged_phrases, "owner", now);
+    const { proposals, added: proposed } = acceptProposals(
+      output.proposals,
+      store.proposals(),
+      now,
+    );
+    if (proposed.length) store.saveProposals(proposals);
+    // 返す前に数え、当たったら中身を変えずに 1 回だけ書き直させる(持ち主の指摘、2026-10-09)
+    const lint = lintReply(
+      reply,
+      phrases,
+      store.recentChats(ASK_HISTORY).map((c) => c.reply),
+    );
+    // 「足します」と言ったのに、どの欄にも積んでいない。前は何も記録されないまま「足しました」と
+    // 返していた(Ashi の改善案、2026-10-10)
+    const unbacked =
+      UNBACKED.test(reply) &&
+      proposed.length === 0 &&
+      flagged.length === 0 &&
+      added.length === 0;
+    if (unbacked)
+      lint.push(
+        "「足します」「記録します」のように言っているが、改善案・言い回し・問いのどの欄にも何も積んでいない。足せていないなら、そう書く",
+      );
+    let rewritten = false;
+    let draft: string | undefined;
+    if (lint.length) {
+      try {
+        const r = await head.think<{ reply: string }>({
+          task: "chat-rewrite",
+          system: system(store.core(), store.self(), store.owner()),
+          prompt: chatRewritePrompt(reply, lint),
+          schema: CHAT_REWRITE_SCHEMA,
+          maxCostUsd: Math.max(0, left - usage.costUsd),
+        });
+        store.charge(today, r.usage);
+        const again = String(r.output.reply ?? "").trim();
+        if (again) {
+          draft = reply;
+          reply = again;
+          rewritten = true;
+        }
+      } catch (e) {
+        // 書き直せなければ、最初の返事のまま返す(返事を止めない)
+        if (e instanceof HeadError) store.charge(today, e.usage);
+        else throw e;
+      }
+    }
+    // 総称・全称・確度の語を含む文を残す(あとで、確かめて外れた率を印の有無で数える)
+    const sweeping = sweepingSentences([reply]);
+    // 拠ったノート。あとで同じテーマのノートが増えたら、内省でこの返事を全文で見せる(Ashi の改善案、2026-10-06)
+    const known = new Set(store.notes().map((n) => n.id));
+    const notes = [
+      ...new Set([
+        ...(Array.isArray(output.notes_used) ? output.notes_used : []),
+        ...(reply.match(/\b[0-9a-f]{8}\b/g) ?? []),
+      ]),
+    ]
+      .filter((id): id is string => typeof id === "string" && known.has(id))
+      .slice(0, 10);
+    store.appendChat({
+      at: now.toISOString(),
+      by,
+      question: text,
+      reply,
+      added,
+      ...(notes.length ? { notes } : {}),
+      ...(lint.length ? { lint, rewritten } : {}),
+      ...(draft ? { draft } : {}),
+      ...(sweeping.length ? { sweeping } : {}),
+      usd: usage.costUsd,
+    });
+    store.log("chat", {
+      by,
+      added,
+      usd: usage.costUsd,
+      ...(lint.length ? { lint, rewritten } : {}),
+      ...(flagged.length ? { flagged } : {}),
+      ...(proposed.length ? { proposed } : {}),
+    });
+    return { reply, added, crawl, usd: usage.costUsd };
+  } catch (e) {
+    if (e instanceof HeadError) store.charge(today, e.usage);
+    if (e instanceof HeadAccessError)
+      await raiseBlocker(
+        store,
+        "head",
+        e.blockage,
+        now,
+        ctx.notify ?? webhookNotify,
+      );
+    throw e;
+  } finally {
+    thinking.delete(by);
+  }
 }

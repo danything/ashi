@@ -5,9 +5,9 @@ import type { Head, ThinkRequest, Tool } from "./ashi/head/head.ts";
 import { makeHead } from "./ashi/head/make.ts";
 import { archiveTool } from "./ashi/legs/archive.ts";
 import {
-	fetchBlockage,
-	raiseBlocker,
-	resolveBlockers,
+  fetchBlockage,
+  raiseBlocker,
+  resolveBlockers,
 } from "./ashi/legs/blockers.ts";
 import { checkMentions } from "./ashi/legs/converse.ts";
 import { refreshNews } from "./ashi/legs/news.ts";
@@ -17,9 +17,9 @@ import { Walker } from "./ashi/legs/walk.ts";
 import { XError } from "./ashi/legs/x.ts";
 import { CLEANUP_EVERY_MS, runCleanup } from "./ashi/legs/x-cleanup.ts";
 import {
-	acceptStreamEvent,
-	ensureSubscriptions,
-	readStream,
+  acceptStreamEvent,
+  ensureSubscriptions,
+  readStream,
 } from "./ashi/legs/x-stream.ts";
 import { Store } from "./ashi/state.ts";
 
@@ -32,36 +32,36 @@ export const store = new Store(resolve(process.env.ASHI_HOME || "data"));
 if (!store.exists()) store.init();
 // 前の版の設定(環境変数・settings.json)を一度だけ ashi.json に取り込む。以後は画面の「設定」だけ
 {
-	const r = store.importLegacyConfig();
-	if (r?.result === "imported")
-		console.log(`[ashi] 設定を ashi.json に取り込んだ: ${r.from.join("・")}`);
-	if (r?.result === "ignored")
-		console.warn(
-			`[ashi] ${r.from.join("・")} は取り込み済みで、もう読んでいない。設定は画面の「設定」で変える。環境変数は消してよい`,
-		);
+  const r = store.importLegacyConfig();
+  if (r?.result === "imported")
+    console.log(`[ashi] 設定を ashi.json に取り込んだ: ${r.from.join("・")}`);
+  if (r?.result === "ignored")
+    console.warn(
+      `[ashi] ${r.from.join("・")} は取り込み済みで、もう読んでいない。設定は画面の「設定」で変える。環境変数は消してよい`,
+    );
 }
 
 let head: { key: string; head: Head } | undefined;
 /** 頭。繋ぎ方・モデル・effort は設定から。画面で変えたら、次に呼ぶときに作り直す */
 export function getHead(): Head {
-	const cfg = store.config();
-	const key = `${cfg.head}:${cfg.model}:${cfg.effort}`;
-	if (head?.key !== key) head = { key, head: makeHead(cfg, store.home) };
-	return head.head;
+  const cfg = store.config();
+  const key = `${cfg.head}:${cfg.model}:${cfg.effort}`;
+  if (head?.key !== key) head = { key, head: makeHead(cfg, store.home) };
+  return head.head;
 }
 
 let stranger: { key: string; head: Head } | undefined;
 /** よそ者の話し相手。頭と同じ繋ぎ方で、モデルだけ設定の stranger.model にする */
 export function getStranger(): Head | undefined {
-	const cfg = store.config();
-	if (!cfg.stranger.enabled) return undefined;
-	const key = `${cfg.head}:${cfg.stranger.model}:${cfg.effort}`;
-	if (stranger?.key !== key)
-		stranger = {
-			key,
-			head: makeHead({ ...cfg, model: cfg.stranger.model }, store.home),
-		};
-	return stranger.head;
+  const cfg = store.config();
+  if (!cfg.stranger.enabled) return undefined;
+  const key = `${cfg.head}:${cfg.stranger.model}:${cfg.effort}`;
+  if (stranger?.key !== key)
+    stranger = {
+      key,
+      head: makeHead({ ...cfg, model: cfg.stranger.model }, store.home),
+    };
+  return stranger.head;
 }
 
 /**
@@ -69,16 +69,16 @@ export function getStranger(): Head | undefined {
  * モデルや effort を変えても効くように、これを渡す
  */
 function live(get: () => Head | undefined): Head {
-	return {
-		get name() {
-			return get()?.name ?? "(無し)";
-		},
-		think<T>(req: ThinkRequest) {
-			const h = get();
-			if (!h) throw new Error("頭が無い(よそ者との対話を止めている)");
-			return h.think<T>(req);
-		},
-	};
+  return {
+    get name() {
+      return get()?.name ?? "(無し)";
+    },
+    think<T>(req: ThinkRequest) {
+      const h = get();
+      if (!h) throw new Error("頭が無い(よそ者との対話を止めている)");
+      return h.think<T>(req);
+    },
+  };
 }
 
 /**
@@ -86,111 +86,110 @@ function live(get: () => Head | undefined): Head {
  * 料金がかかる)。頭は次に呼ぶときに作り直される
  */
 export function saveConfig(cfg: Config, by: string): void {
-	const before = store.config();
-	store.saveConfig(cfg);
-	const after = store.config();
-	// 何を変えたかだけを残す
-	const changed = Object.keys(after).filter(
-		(k) =>
-			JSON.stringify(before[k as keyof Config]) !==
-			JSON.stringify(after[k as keyof Config]),
-	);
-	store.log("settings", { by, changed });
-	if (!after.x.enabled) streamConn?.abort();
+  const before = store.config();
+  store.saveConfig(cfg);
+  const after = store.config();
+  // 何を変えたかだけを残す
+  const changed = Object.keys(after).filter(
+    (k) =>
+      JSON.stringify(before[k as keyof Config]) !==
+      JSON.stringify(after[k as keyof Config]),
+  );
+  store.log("settings", { by, changed });
+  if (!after.x.enabled) streamConn?.abort();
 }
 
 export function getTools(): Tool[] {
-	// 頭の fetch_url が弾かれたら持ち主に知らせ、同じ先が通ったら片づける
-	const watch = {
-		blocked(host: string, status: number | "private") {
-			const b = fetchBlockage(host, status);
-			if (b) void raiseBlocker(store, "fetch", b, new Date());
-		},
-		ok(host: string) {
-			resolveBlockers(store, `fetch:${host}`, new Date());
-		},
-		denied(host: string, status: number) {
-			store.log("fetch-denied", { host, status });
-		},
-	};
-	return [
-		fetchUrlTool(store.config(), {}, watch),
-		...paperTools(store.config()),
-		archiveTool(store.config(), {}, (host) =>
-			resolveBlockers(store, `fetch:${host}`, new Date()),
-		),
-		...noteTools(store),
-	];
+  // 頭の fetch_url が弾かれたら持ち主に知らせ、同じ先が通ったら片づける
+  const watch = {
+    blocked(host: string, status: number | "private") {
+      const b = fetchBlockage(host, status);
+      if (b) void raiseBlocker(store, "fetch", b, new Date());
+    },
+    ok(host: string) {
+      resolveBlockers(store, `fetch:${host}`, new Date());
+    },
+    denied(host: string, status: number) {
+      store.log("fetch-denied", { host, status });
+    },
+  };
+  return [
+    fetchUrlTool(store.config(), {}, watch),
+    ...paperTools(store.config()),
+    archiveTool(store.config(), {}, (host) =>
+      resolveBlockers(store, `fetch:${host}`, new Date()),
+    ),
+    ...noteTools(store),
+  ];
 }
 
 let walker: Walker | undefined;
 
 export function startWalking(): void {
-	if (walker || process.env.ASHI_WALK === "0") return;
-	const lock = store.lockWalking();
-	if ("heldBy" in lock) {
-		console.warn(
-			`[ashi] pid ${lock.heldBy} が歩いているので、このプロセスは画面だけ出す`,
-		);
-		return;
-	}
-	process.on("exit", lock.release);
-	const ac = new AbortController();
-	// adapter-bun は SIGTERM で受付を閉じ、処理中の要求を待ってから sveltekit:shutdown を出す。
-	// 歩みの休み(タイマー)と頭の CLI が残っているとプロセスが終わらず、Pod が
-	// terminationGracePeriodSeconds(30 秒)いっぱい待って殺される。そのぶんデプロイで画面が落ちていた。
-	// 歩みの途中で止めても、状態ファイルは差し替えで書くので壊れない(その 1 歩が無かったことになるだけ)
-	process.once("sveltekit:shutdown", () => {
-		ac.abort();
-		stopAllClaudeCode();
-		lock.release();
-		process.exit(0);
-	});
-	walker = new Walker(
-		{
-			store,
-			head: live(getHead),
-			tools: getTools(),
-			stranger: live(getStranger),
-		},
-		(o) => {
-			console.log(
-				`[ashi] ${o.kind}${"wakeAt" in o ? ` → ${o.wakeAt.toISOString()}` : ""}`,
-			);
-		},
-	);
-	void walker.run(ac.signal);
-	startCleanupTimer();
-	startNewsTimer();
-	startMentions(ac.signal);
+  if (walker || process.env.ASHI_WALK === "0") return;
+  const lock = store.lockWalking();
+  if ("heldBy" in lock) {
+    console.warn(
+      `[ashi] pid ${lock.heldBy} が歩いているので、このプロセスは画面だけ出す`,
+    );
+    return;
+  }
+  process.on("exit", lock.release);
+  const ac = new AbortController();
+  // adapter-bun は SIGTERM で受付を閉じ、処理中の要求を待ってから sveltekit:shutdown を出す。
+  // 歩みの休み(タイマー)と頭の CLI が残っているとプロセスが終わらず、Pod が
+  // terminationGracePeriodSeconds(30 秒)いっぱい待って殺される。そのぶんデプロイで画面が落ちていた。
+  // 歩みの途中で止めても、状態ファイルは差し替えで書くので壊れない(その 1 歩が無かったことになるだけ)
+  process.once("sveltekit:shutdown", () => {
+    ac.abort();
+    stopAllClaudeCode();
+    lock.release();
+    process.exit(0);
+  });
+  walker = new Walker(
+    {
+      store,
+      head: live(getHead),
+      tools: getTools(),
+      stranger: live(getStranger),
+    },
+    (o) => {
+      console.log(
+        `[ashi] ${o.kind}${"wakeAt" in o ? ` → ${o.wakeAt.toISOString()}` : ""}`,
+      );
+    },
+  );
+  void walker.run(ac.signal);
+  startCleanupTimer();
+  startNewsTimer();
+  startMentions(ac.signal);
 }
 
 export function isWalking(): boolean {
-	return walker?.running === true;
+  return walker?.running === true;
 }
 
 /** 休みを切り上げさせる。歩いていないプロセスでは sleepingUntil を消すだけ */
 export function wakeNow(): void {
-	if (walker) walker.wake();
-	else store.saveWalk({ ...store.walk(), sleepingUntil: undefined });
+  if (walker) walker.wake();
+  else store.saveWalk({ ...store.walk(), sleepingUntil: undefined });
 }
 
 /** 学びを白紙に戻す(archive へ移す)。1 歩の途中なら断る。戻したらすぐ歩き出させる */
 export function resetLearning():
-	| { ok: true; archive: string }
-	| { ok: false; message: string } {
-	if (walker?.stepping)
-		return {
-			ok: false,
-			message: "いま歩いている途中です。休みに入ってからもう一度押してください",
-		};
-	const archive = store.resetLearning(new Date());
-	wakeNow();
-	return { ok: true, archive };
+  { ok: true; archive: string } | { ok: false; message: string } {
+  if (walker?.stepping)
+    return {
+      ok: false,
+      message: "いま歩いている途中です。休みに入ってからもう一度押してください",
+    };
+  const archive = store.resetLearning(new Date());
+  wakeNow();
+  return { ok: true, archive };
 }
 
 export function isStepping(): boolean {
-	return walker?.stepping === true;
+  return walker?.stepping === true;
 }
 
 /**
@@ -198,39 +197,39 @@ export function isStepping(): boolean {
  * 歩いているプロセスだけで回す(状態ファイルを 2 つのプロセスで書き合わない)
  */
 function startCleanupTimer(): void {
-	const tick = () => {
-		if (isPaused()) return;
-		runCleanup(store, new Date())
-			.then(
-				(r) =>
-					r &&
-					console.log(`[ashi] x-cleanup ${r.deleted} 件消した、残り ${r.left}`),
-			)
-			.catch((e) => console.warn("[ashi] x-cleanup", e));
-	};
-	// 起動のたびに間を空けずに回すと上限に当たりやすいので、前回から 15 分空いていれば回す
-	const last = store.xCleanup()?.lastRunAt;
-	if (!last || Date.now() - new Date(last).getTime() >= CLEANUP_EVERY_MS)
-		setTimeout(tick, 10_000).unref();
-	setInterval(tick, CLEANUP_EVERY_MS).unref();
+  const tick = () => {
+    if (isPaused()) return;
+    runCleanup(store, new Date())
+      .then(
+        (r) =>
+          r &&
+          console.log(`[ashi] x-cleanup ${r.deleted} 件消した、残り ${r.left}`),
+      )
+      .catch((e) => console.warn("[ashi] x-cleanup", e));
+  };
+  // 起動のたびに間を空けずに回すと上限に当たりやすいので、前回から 15 分空いていれば回す
+  const last = store.xCleanup()?.lastRunAt;
+  if (!last || Date.now() - new Date(last).getTime() >= CLEANUP_EVERY_MS)
+    setTimeout(tick, 10_000).unref();
+  setInterval(tick, CLEANUP_EVERY_MS).unref();
 }
 
 /** ニュースの見出しを目にしておく。1 時間ごとに見て、読む間隔(news.everyHours)が来ていれば読む */
 function startNewsTimer(): void {
-	const tick = () => {
-		refreshNews(store, new Date())
-			.then(
-				(r) => r && console.log(`[ashi] news ${r.items.length} 件を覚えている`),
-			)
-			.catch((e) => console.warn("[ashi] news", e));
-	};
-	setTimeout(tick, 15_000).unref();
-	setInterval(tick, 3600_000).unref();
+  const tick = () => {
+    refreshNews(store, new Date())
+      .then(
+        (r) => r && console.log(`[ashi] news ${r.items.length} 件を覚えている`),
+      )
+      .catch((e) => console.warn("[ashi] news", e));
+  };
+  setTimeout(tick, 15_000).unref();
+  setInterval(tick, 3600_000).unref();
 }
 
 /** 持ち主が止めているか */
 export function isPaused(): boolean {
-	return Boolean(store.walk().paused);
+  return Boolean(store.walk().paused);
 }
 
 /**
@@ -238,25 +237,25 @@ export function isPaused(): boolean {
  * メンションを読むたびに料金がかかる)。再開したら歩みをすぐ起こす
  */
 export function setPaused(on: boolean, by: string): void {
-	const w = store.walk();
-	if (on) {
-		store.saveWalk({ ...w, paused: { at: new Date().toISOString(), by } });
-		streamConn?.abort();
-		store.log("paused", { by });
-	} else {
-		const { paused: _, ...rest } = w;
-		store.saveWalk(rest);
-		store.log("resumed", { by });
-		wakeNow();
-	}
+  const w = store.walk();
+  if (on) {
+    store.saveWalk({ ...w, paused: { at: new Date().toISOString(), by } });
+    streamConn?.abort();
+    store.log("paused", { by });
+  } else {
+    const { paused: _, ...rest } = w;
+    store.saveWalk(rest);
+    store.log("resumed", { by });
+    wakeNow();
+  }
 }
 
 /** 画面から受け取った直後に 1 回回す(待たずに始める) */
 export function kickCleanup(): void {
-	if (!walker || isPaused()) return;
-	void runCleanup(store, new Date()).catch((e) =>
-		console.warn("[ashi] x-cleanup", e),
-	);
+  if (!walker || isPaused()) return;
+  void runCleanup(store, new Date()).catch((e) =>
+    console.warn("[ashi] x-cleanup", e),
+  );
 }
 
 /**
@@ -270,117 +269,117 @@ let conversing = false;
 let converseTimer: ReturnType<typeof setTimeout> | undefined;
 
 function converseSoon(delayMs: number): void {
-	if (converseTimer) return;
-	converseTimer = setTimeout(async () => {
-		converseTimer = undefined;
-		// 止めている間は返さない(見に行くのも、返事を考えるのも)
-		if (isPaused()) return;
-		if (conversing) return converseSoon(30_000);
-		conversing = true;
-		try {
-			const r = await checkMentions({
-				store,
-				head: getHead(),
-				pollMinutes: streamUp ? 60 : 5,
-			});
-			if (r?.replied.length)
-				console.log(`[ashi] x ${r.replied.length} 件返した`);
-		} catch (e) {
-			console.warn("[ashi] x-converse", e);
-		} finally {
-			conversing = false;
-		}
-	}, delayMs);
-	converseTimer.unref();
+  if (converseTimer) return;
+  converseTimer = setTimeout(async () => {
+    converseTimer = undefined;
+    // 止めている間は返さない(見に行くのも、返事を考えるのも)
+    if (isPaused()) return;
+    if (conversing) return converseSoon(30_000);
+    conversing = true;
+    try {
+      const r = await checkMentions({
+        store,
+        head: getHead(),
+        pollMinutes: streamUp ? 60 : 5,
+      });
+      if (r?.replied.length)
+        console.log(`[ashi] x ${r.replied.length} 件返した`);
+    } catch (e) {
+      console.warn("[ashi] x-converse", e);
+    } finally {
+      conversing = false;
+    }
+  }, delayMs);
+  converseTimer.unref();
 }
 
 function startMentions(signal: AbortSignal): void {
-	// 見に行く方式(ストリームが落ちている間の保険、返事待ちの取りこぼしも拾う)
-	setInterval(() => converseSoon(0), 60_000).unref();
-	void (async () => {
-		let wait = 5_000;
-		while (!signal.aborted) {
-			await new Promise((r) => setTimeout(r, wait).unref());
-			const cfg = store.config();
-			if (!cfg.x.enabled || !store.xAccount() || !process.env.X_BEARER_TOKEN) {
-				wait = 5 * 60_000;
-				continue;
-			}
-			// 止めている間はつながない(届いたイベントを読むだけで料金がかかる)
-			if (isPaused()) {
-				wait = 60_000;
-				continue;
-			}
-			const conn = new AbortController();
-			signal.addEventListener("abort", () => conn.abort(), { once: true });
-			streamConn = conn;
-			try {
-				await ensureSubscriptions(store, new Date());
-				const r = await readStream(
-					(line) => {
-						streamUp = true;
-						// 同じ会話に続けて来ることがあるので、少し待ってまとめて返事を考える
-						if (acceptStreamEvent(store, line, new Date()))
-							converseSoon(15_000);
-					},
-					conn.signal,
-					process.env,
-					fetch,
-					() => {
-						// つながったら片づける(切れるまで待たない)
-						streamUp = true;
-						resolveBlockers(store, "x:stream", new Date());
-						console.log("[ashi] x-stream つながった");
-					},
-				);
-				if (!r.ok) {
-					streamUp = false;
-					await raiseBlocker(
-						store,
-						"x",
-						{
-							key: "x:stream",
-							title: "X のメンションをその場で受け取れない(ストリーム)",
-							detail: `activity/stream ${r.status}`,
-							remedy:
-								"Infisical の x-bearer-token が、Ashi をつないだ X のアプリ(xool と同じアプリ)の Bearer Token か確かめる(xool の x-bearer-token への参照にする)。それまでは 5 分おきに見に行く。",
-						},
-						new Date(),
-					);
-					wait = 30 * 60_000;
-					continue;
-				}
-				resolveBlockers(store, "x:stream", new Date());
-				wait = 5_000;
-			} catch (e) {
-				// 止めたので切れた。知らせずに待つ
-				if (isPaused()) {
-					wait = 60_000;
-					continue;
-				}
-				const status = e instanceof XError ? e.status : 0;
-				if (status === 401 || status === 403) {
-					// 断られたものを毎分叩いても変わらない。知らせて、しばらく置く(見に行く方式が 5 分おきに回る)
-					await raiseBlocker(
-						store,
-						"x",
-						{
-							key: "x:stream",
-							title: "X のメンションをその場で受け取れない(X Activity API)",
-							detail: e instanceof Error ? e.message.slice(0, 300) : String(e),
-							remedy:
-								"X の開発者ポータルで、このアプリ(xool と同じアプリ)に X Activity API が使えるか確かめる(プランや申し込みが要ることがある)。使えなくても、5 分おきに見に行く方式で返事はする。",
-						},
-						new Date(),
-					);
-					wait = 6 * 60 * 60_000;
-				} else {
-					console.warn("[ashi] x-stream", e);
-					wait = 60_000;
-				}
-			} finally {
-				streamUp = false;
-			}
-		}
-	})();
+  // 見に行く方式(ストリームが落ちている間の保険、返事待ちの取りこぼしも拾う)
+  setInterval(() => converseSoon(0), 60_000).unref();
+  void (async () => {
+    let wait = 5_000;
+    while (!signal.aborted) {
+      await new Promise((r) => setTimeout(r, wait).unref());
+      const cfg = store.config();
+      if (!cfg.x.enabled || !store.xAccount() || !process.env.X_BEARER_TOKEN) {
+        wait = 5 * 60_000;
+        continue;
+      }
+      // 止めている間はつながない(届いたイベントを読むだけで料金がかかる)
+      if (isPaused()) {
+        wait = 60_000;
+        continue;
+      }
+      const conn = new AbortController();
+      signal.addEventListener("abort", () => conn.abort(), { once: true });
+      streamConn = conn;
+      try {
+        await ensureSubscriptions(store, new Date());
+        const r = await readStream(
+          (line) => {
+            streamUp = true;
+            // 同じ会話に続けて来ることがあるので、少し待ってまとめて返事を考える
+            if (acceptStreamEvent(store, line, new Date()))
+              converseSoon(15_000);
+          },
+          conn.signal,
+          process.env,
+          fetch,
+          () => {
+            // つながったら片づける(切れるまで待たない)
+            streamUp = true;
+            resolveBlockers(store, "x:stream", new Date());
+            console.log("[ashi] x-stream つながった");
+          },
+        );
+        if (!r.ok) {
+          streamUp = false;
+          await raiseBlocker(
+            store,
+            "x",
+            {
+              key: "x:stream",
+              title: "X のメンションをその場で受け取れない(ストリーム)",
+              detail: `activity/stream ${r.status}`,
+              remedy:
+                "Infisical の x-bearer-token が、Ashi をつないだ X のアプリ(xool と同じアプリ)の Bearer Token か確かめる(xool の x-bearer-token への参照にする)。それまでは 5 分おきに見に行く。",
+            },
+            new Date(),
+          );
+          wait = 30 * 60_000;
+          continue;
+        }
+        resolveBlockers(store, "x:stream", new Date());
+        wait = 5_000;
+      } catch (e) {
+        // 止めたので切れた。知らせずに待つ
+        if (isPaused()) {
+          wait = 60_000;
+          continue;
+        }
+        const status = e instanceof XError ? e.status : 0;
+        if (status === 401 || status === 403) {
+          // 断られたものを毎分叩いても変わらない。知らせて、しばらく置く(見に行く方式が 5 分おきに回る)
+          await raiseBlocker(
+            store,
+            "x",
+            {
+              key: "x:stream",
+              title: "X のメンションをその場で受け取れない(X Activity API)",
+              detail: e instanceof Error ? e.message.slice(0, 300) : String(e),
+              remedy:
+                "X の開発者ポータルで、このアプリ(xool と同じアプリ)に X Activity API が使えるか確かめる(プランや申し込みが要ることがある)。使えなくても、5 分おきに見に行く方式で返事はする。",
+            },
+            new Date(),
+          );
+          wait = 6 * 60 * 60_000;
+        } else {
+          console.warn("[ashi] x-stream", e);
+          wait = 60_000;
+        }
+      } finally {
+        streamUp = false;
+      }
+    }
+  })();
 }

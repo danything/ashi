@@ -7,110 +7,110 @@ export type JsonSchema = { [key: string]: unknown };
 
 /** 頭が使える道具。実行するのは足で、読み取り専用のものしか渡さない(legs/tools.ts) */
 export interface Tool {
-	name: string;
-	description: string;
-	inputSchema: JsonSchema;
-	/** 足が中身を見て、書き込みや外への副作用が無いと確かめた印 */
-	readOnly: true;
-	run(input: unknown): Promise<string>;
+  name: string;
+  description: string;
+  inputSchema: JsonSchema;
+  /** 足が中身を見て、書き込みや外への副作用が無いと確かめた印 */
+  readOnly: true;
+  run(input: unknown): Promise<string>;
 }
 
 export interface Turn {
-	role: "user" | "assistant";
-	text: string;
+  role: "user" | "assistant";
+  text: string;
 }
 
 export interface Usage {
-	/** 入力の全部(キャッシュの読み書きを含む) */
-	inputTokens: number;
-	outputTokens: number;
-	/** 頭の側が知っている料金で見積もった額(ドル) */
-	costUsd: number;
-	/** inputTokens のうち、キャッシュから読んだ分と書いた分 */
-	cacheReadTokens?: number;
-	cacheWriteTokens?: number;
-	/** 仕事(ThinkRequest の task)ごとの内訳。どこでトークンを使っているかを見るため */
-	byTask?: Record<string, TaskUsage>;
+  /** 入力の全部(キャッシュの読み書きを含む) */
+  inputTokens: number;
+  outputTokens: number;
+  /** 頭の側が知っている料金で見積もった額(ドル) */
+  costUsd: number;
+  /** inputTokens のうち、キャッシュから読んだ分と書いた分 */
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  /** 仕事(ThinkRequest の task)ごとの内訳。どこでトークンを使っているかを見るため */
+  byTask?: Record<string, TaskUsage>;
 }
 
 export interface TaskUsage {
-	calls: number;
-	inputTokens: number;
-	outputTokens: number;
-	cacheReadTokens: number;
+  calls: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
 }
 
 /** 1 回の呼び出しの使用量に、仕事の内訳を付ける */
 export function taskUsage(task: string, u: Usage): Usage {
-	return {
-		...u,
-		byTask: {
-			[task]: {
-				calls: 1,
-				inputTokens: u.inputTokens,
-				outputTokens: u.outputTokens,
-				cacheReadTokens: u.cacheReadTokens ?? 0,
-			},
-		},
-	};
+  return {
+    ...u,
+    byTask: {
+      [task]: {
+        calls: 1,
+        inputTokens: u.inputTokens,
+        outputTokens: u.outputTokens,
+        cacheReadTokens: u.cacheReadTokens ?? 0,
+      },
+    },
+  };
 }
 
 function addByTask(a: Usage["byTask"], b: Usage["byTask"]): Usage["byTask"] {
-	if (!a) return b;
-	if (!b) return a;
-	const out = { ...a };
-	for (const [k, v] of Object.entries(b)) {
-		const w = out[k];
-		out[k] = w
-			? {
-					calls: w.calls + v.calls,
-					inputTokens: w.inputTokens + v.inputTokens,
-					outputTokens: w.outputTokens + v.outputTokens,
-					cacheReadTokens: w.cacheReadTokens + v.cacheReadTokens,
-				}
-			: v;
-	}
-	return out;
+  if (!a) return b;
+  if (!b) return a;
+  const out = { ...a };
+  for (const [k, v] of Object.entries(b)) {
+    const w = out[k];
+    out[k] = w
+      ? {
+          calls: w.calls + v.calls,
+          inputTokens: w.inputTokens + v.inputTokens,
+          outputTokens: w.outputTokens + v.outputTokens,
+          cacheReadTokens: w.cacheReadTokens + v.cacheReadTokens,
+        }
+      : v;
+  }
+  return out;
 }
 
 export interface ThinkRequest {
-	/** ログと料金の内訳に出す名前(explore / reflect など) */
-	task: string;
-	system: string;
-	/** ここまでのやり取り(人との対話)。古い順。最後の問いかけは prompt に置く */
-	history?: Turn[];
-	prompt: string;
-	/** 答えの形。頭はこの JSON だけを返す */
-	schema: JsonSchema;
-	tools?: Tool[];
-	/** 道具を使う往復の上限。超えたら道具を取り上げて答えを出させる */
-	maxToolRounds?: number;
-	/** この 1 回で使ってよい額(ドル)。超えそうなら道具を取り上げて答えを出させる */
-	maxCostUsd?: number;
-	/** 頭の側が持っている調べ物の手段(Claude ならサーバー側の web 検索)を使ってよいか */
-	allowWeb?: boolean;
+  /** ログと料金の内訳に出す名前(explore / reflect など) */
+  task: string;
+  system: string;
+  /** ここまでのやり取り(人との対話)。古い順。最後の問いかけは prompt に置く */
+  history?: Turn[];
+  prompt: string;
+  /** 答えの形。頭はこの JSON だけを返す */
+  schema: JsonSchema;
+  tools?: Tool[];
+  /** 道具を使う往復の上限。超えたら道具を取り上げて答えを出させる */
+  maxToolRounds?: number;
+  /** この 1 回で使ってよい額(ドル)。超えそうなら道具を取り上げて答えを出させる */
+  maxCostUsd?: number;
+  /** 頭の側が持っている調べ物の手段(Claude ならサーバー側の web 検索)を使ってよいか */
+  allowWeb?: boolean;
 }
 
 export interface ThinkResult<T> {
-	output: T;
-	usage: Usage;
+  output: T;
+  usage: Usage;
 }
 
 export interface Head {
-	/** 名前(ログ用。モデル名など) */
-	readonly name: string;
-	think<T>(req: ThinkRequest): Promise<ThinkResult<T>>;
+  /** 名前(ログ用。モデル名など) */
+  readonly name: string;
+  think<T>(req: ThinkRequest): Promise<ThinkResult<T>>;
 }
 
 /** 頭が答えを返せなかった(拒否・形が違う・上限切れ)。足はこの 1 歩を捨てて休む */
 export class HeadError extends Error {
-	constructor(
-		message: string,
-		readonly usage: Usage,
-	) {
-		super(message);
-		this.name = "HeadError";
-	}
+  constructor(
+    message: string,
+    readonly usage: Usage,
+  ) {
+    super(message);
+    this.name = "HeadError";
+  }
 }
 
 /**
@@ -118,45 +118,45 @@ export class HeadError extends Error {
  * 足はこれを持ち主に見せ、同じ key が初めて出たときに通知する(legs/blockers.ts)
  */
 export interface Blockage {
-	/** 同じ原因をまとめる鍵(head:auth・feed:blog・fetch:example.com など) */
-	key: string;
-	title: string;
-	/** 権限の付け方・直し方(Markdown) */
-	remedy: string;
-	detail?: string;
+  /** 同じ原因をまとめる鍵(head:auth・feed:blog・fetch:example.com など) */
+  key: string;
+  title: string;
+  /** 権限の付け方・直し方(Markdown) */
+  remedy: string;
+  detail?: string;
 }
 
 /** 頭の側で弾かれた(鍵が無い・課金・機能が無効)。HeadError と同じく使った分を持つ */
 export class HeadAccessError extends HeadError {
-	constructor(
-		message: string,
-		usage: Usage,
-		readonly blockage: Blockage,
-	) {
-		super(message, usage);
-		this.name = "HeadAccessError";
-	}
+  constructor(
+    message: string,
+    usage: Usage,
+    readonly blockage: Blockage,
+  ) {
+    super(message, usage);
+    this.name = "HeadAccessError";
+  }
 }
 
 export const noUsage = (): Usage => ({
-	inputTokens: 0,
-	outputTokens: 0,
-	costUsd: 0,
+  inputTokens: 0,
+  outputTokens: 0,
+  costUsd: 0,
 });
 
 export const addUsage = (a: Usage, b: Usage): Usage => {
-	const out: Usage = {
-		inputTokens: a.inputTokens + b.inputTokens,
-		outputTokens: a.outputTokens + b.outputTokens,
-		costUsd: a.costUsd + b.costUsd,
-	};
-	const read = (a.cacheReadTokens ?? 0) + (b.cacheReadTokens ?? 0);
-	const write = (a.cacheWriteTokens ?? 0) + (b.cacheWriteTokens ?? 0);
-	if (a.cacheReadTokens !== undefined || b.cacheReadTokens !== undefined)
-		out.cacheReadTokens = read;
-	if (a.cacheWriteTokens !== undefined || b.cacheWriteTokens !== undefined)
-		out.cacheWriteTokens = write;
-	const byTask = addByTask(a.byTask, b.byTask);
-	if (byTask) out.byTask = byTask;
-	return out;
+  const out: Usage = {
+    inputTokens: a.inputTokens + b.inputTokens,
+    outputTokens: a.outputTokens + b.outputTokens,
+    costUsd: a.costUsd + b.costUsd,
+  };
+  const read = (a.cacheReadTokens ?? 0) + (b.cacheReadTokens ?? 0);
+  const write = (a.cacheWriteTokens ?? 0) + (b.cacheWriteTokens ?? 0);
+  if (a.cacheReadTokens !== undefined || b.cacheReadTokens !== undefined)
+    out.cacheReadTokens = read;
+  if (a.cacheWriteTokens !== undefined || b.cacheWriteTokens !== undefined)
+    out.cacheWriteTokens = write;
+  const byTask = addByTask(a.byTask, b.byTask);
+  if (byTask) out.byTask = byTask;
+  return out;
 };

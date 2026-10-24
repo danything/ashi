@@ -55,6 +55,7 @@ Ashi が自分で学ぶために要る権限と、弾かれたときの直し方
 ### 2. Entra ID(画面のログイン)
 
 doany.io の他のアプリと同じく、共有のアプリ登録 `Main`(クライアント ID `b0fa498f-…`)を使う。
+
 1. リダイレクト URI `https://as.doany.io/auth/callback` は `Main` に登録済み(2026-09-24、`az ad app update --web-redirect-uris` で既存の一覧に足した。この az は一覧を丸ごと置き換えるので、足すときは今の一覧を読んでから全部渡す)
 2. クライアントシークレットは写さず、Infisical で `entra-client-secret` に `${prod.auth.auth-secrets.oidc-client-secret}` と書いて参照する
 3. アプリ ロール `admin` があること(`Main` には既にある)
@@ -66,6 +67,7 @@ doany.io の他のアプリと同じく、共有のアプリ登録 `Main`(クラ
 ### 3. 通知(任意)
 
 弾かれたことを画面を開かなくても知るため。
+
 - Mattermost: 統合機能 → 内向きのウェブフック → 追加 → URL を `NOTIFY_WEBHOOK_URL`
 - Slack: Incoming Webhooks のアプリを入れて URL を `NOTIFY_WEBHOOK_URL`
 
@@ -74,6 +76,7 @@ doany.io の他のアプリと同じく、共有のアプリ登録 `Main`(クラ
 ## Ashi の X アカウント
 
 Ashi は自分の X アカウント(DoaRetail)で投稿し、メンションに返信する。投稿も返信も頭が決め(承認なし)、足が数と額の上限で止める(設定の画面の「X」: 1 日 1 ドル・投稿 3・返信 20・メンションを読むのは 60 分おき)。
+
 1. X の開発者ポータルで、xool と同じアプリの「User authentication settings」のコールバック URL に `https://as.doany.io/x/callback` を足す。アプリの権限は Read and write
 2. Infisical の `x-client-id` と `x-client-secret` を、xool の値への参照で入れる(上の表)
 3. X に **DoaRetail で**ログインした状態で、Ashi の `/x` の「Ashi のアカウントをつなぐ」を押す(持ち主のアカウントでつながないこと)。トークンは状態ディレクトリの `x.json`(0600)に入り、画面にも頭にも出ない
@@ -109,6 +112,7 @@ GitHub で読むのは公開イベント(push・PR・issue・スター・fork・
 ## 権限を足しても開けないもの
 
 ガードレールなので、設定では外れない。
+
 - 外の世界に書き込むこと(投稿・送信・購入・登録・フォームの送信)。道具は GET だけ
 - コア原則(`core.md`)を頭が書き換えること。人が書き換えたら `ashi core --accept` で認める
 - 1 日と 1 歩の予算を超えること

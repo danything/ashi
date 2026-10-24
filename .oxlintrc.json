@@ -1,0 +1,16 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "categories": {
+    "correctness": "error"
+  },
+  "rules": {
+    "typescript/no-explicit-any": "error"
+  },
+  "overrides": [
+    {
+      // Svelte の `$effect` は、読むだけの式で何に付いていくかを決める
+      "files": ["**/*.svelte"],
+      "rules": { "no-unused-expressions": "off" }
+    }
+  ]
+}

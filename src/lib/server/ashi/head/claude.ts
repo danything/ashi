@@ -1,15 +1,15 @@
 import Anthropic from "@anthropic-ai/sdk";
 import {
-	addUsage,
-	type Blockage,
-	type Head,
-	HeadAccessError,
-	HeadError,
-	noUsage,
-	type ThinkRequest,
-	type ThinkResult,
-	taskUsage,
-	type Usage,
+  addUsage,
+  type Blockage,
+  type Head,
+  HeadAccessError,
+  HeadError,
+  noUsage,
+  type ThinkRequest,
+  type ThinkResult,
+  taskUsage,
+  type Usage,
 } from "./head.ts";
 
 /**
@@ -17,25 +17,25 @@ import {
  * 書きは 1.25 倍
  */
 const PRICES: Record<string, [number, number, number?]> = {
-	"claude-fable-5-1": [10, 50, 0.25],
-	"claude-fable-5": [10, 50],
-	"claude-opus-5-5": [4, 20, 0.2],
-	"claude-opus-5": [5, 25],
-	"claude-opus-4-8": [5, 25],
-	"claude-sonnet-5-5": [2, 10, 0.2],
-	"claude-sonnet-5": [2, 10],
-	"claude-haiku-5-5": [0.1, 0.5],
-	"claude-haiku-4-5": [1, 5],
+  "claude-fable-5-1": [10, 50, 0.25],
+  "claude-fable-5": [10, 50],
+  "claude-opus-5-5": [4, 20, 0.2],
+  "claude-opus-5": [5, 25],
+  "claude-opus-4-8": [5, 25],
+  "claude-sonnet-5-5": [2, 10, 0.2],
+  "claude-sonnet-5": [2, 10],
+  "claude-haiku-5-5": [0.1, 0.5],
+  "claude-haiku-4-5": [1, 5],
 };
 /**
  * プロンプト(入力・キャッシュの読み書きの合計)が over トークンを超えたら、別の料金になるモデル。
  * Haiku 5.5 は 10 万トークンを超えると入力 0.5・出力 2.5 ドル
  */
 const LONG_PROMPT_PRICES: Record<
-	string,
-	{ over: number; price: [number, number] }
+  string,
+  { over: number; price: [number, number] }
 > = {
-	"claude-haiku-5-5": { over: 100_000, price: [0.5, 2.5] },
+  "claude-haiku-5-5": { over: 100_000, price: [0.5, 2.5] },
 };
 /** web 検索は 1,000 回で 10 ドル */
 const WEB_SEARCH_USD = 0.01;
@@ -48,260 +48,260 @@ const FALLBACK_BETA = "server-side-fallback-2026-07-01";
 
 /** 往復か額の上限に来て道具を取り上げたときに、最後の道具の結果に添える */
 export const TIRED_NOTE =
-	"(足から: この歩みで使える道具の往復か額の上限に来たので、道具はもう使えません。ここまでに読んだことで、答えの形のすべての欄を中身のある文で埋めてください。分からなかったことは分からなかったと書いてください(found や answered の欄があれば、そこにも正直に)。埋め草の文字(x や dummy)は書かないでください)";
+  "(足から: この歩みで使える道具の往復か額の上限に来たので、道具はもう使えません。ここまでに読んだことで、答えの形のすべての欄を中身のある文で埋めてください。分からなかったことは分からなかったと書いてください(found や answered の欄があれば、そこにも正直に)。埋め草の文字(x や dummy)は書かないでください)";
 
 /** サーバー側の道具(web 検索)が途中で止まったときに続けさせる回数の上限 */
 const MAX_CONTINUATIONS = 5;
 
 export interface ClaudeHeadOptions {
-	model?: string;
-	effort?: "low" | "medium" | "high" | "xhigh" | "max";
-	client?: Anthropic;
+  model?: string;
+  effort?: "low" | "medium" | "high" | "xhigh" | "max";
+  client?: Anthropic;
 }
 
 /** 頭の既定。Claude の Messages API を道具の往復込みで 1 回の think にまとめる */
 export class ClaudeHead implements Head {
-	readonly name: string;
-	private readonly client: Anthropic;
-	private readonly effort: NonNullable<ClaudeHeadOptions["effort"]>;
+  readonly name: string;
+  private readonly client: Anthropic;
+  private readonly effort: NonNullable<ClaudeHeadOptions["effort"]>;
 
-	constructor(opts: ClaudeHeadOptions = {}) {
-		this.name = opts.model ?? "claude-opus-5-5";
-		this.effort = opts.effort ?? "high";
-		// 鍵は ANTHROPIC_API_KEY か `ant auth login` のプロファイルから SDK が拾う
-		this.client = opts.client ?? new Anthropic();
-	}
+  constructor(opts: ClaudeHeadOptions = {}) {
+    this.name = opts.model ?? "claude-opus-5-5";
+    this.effort = opts.effort ?? "high";
+    // 鍵は ANTHROPIC_API_KEY か `ant auth login` のプロファイルから SDK が拾う
+    this.client = opts.client ?? new Anthropic();
+  }
 
-	async think<T>(req: ThinkRequest): Promise<ThinkResult<T>> {
-		const tools = req.tools ?? [];
-		const byName = new Map(tools.map((t) => [t.name, t]));
-		const apiTools: Anthropic.Beta.BetaToolUnion[] = tools.map((t) => ({
-			name: t.name,
-			description: t.description,
-			input_schema: t.inputSchema as Anthropic.Beta.BetaTool.InputSchema,
-			strict: true,
-		}));
-		if (req.allowWeb) {
-			apiTools.push({
-				type: "web_search_20260209",
-				name: "web_search",
-				max_uses: 5,
-			});
-		}
+  async think<T>(req: ThinkRequest): Promise<ThinkResult<T>> {
+    const tools = req.tools ?? [];
+    const byName = new Map(tools.map((t) => [t.name, t]));
+    const apiTools: Anthropic.Beta.BetaToolUnion[] = tools.map((t) => ({
+      name: t.name,
+      description: t.description,
+      input_schema: t.inputSchema as Anthropic.Beta.BetaTool.InputSchema,
+      strict: true,
+    }));
+    if (req.allowWeb) {
+      apiTools.push({
+        type: "web_search_20260209",
+        name: "web_search",
+        max_uses: 5,
+      });
+    }
 
-		const messages: Anthropic.Beta.BetaMessageParam[] = [
-			...(req.history ?? []).map((t) => ({ role: t.role, content: t.text })),
-			{ role: "user", content: req.prompt },
-		];
-		let usage = noUsage();
-		let rounds = 0;
-		let continuations = 0;
+    const messages: Anthropic.Beta.BetaMessageParam[] = [
+      ...(req.history ?? []).map((t) => ({ role: t.role, content: t.text })),
+      { role: "user", content: req.prompt },
+    ];
+    let usage = noUsage();
+    let rounds = 0;
+    let continuations = 0;
 
-		while (true) {
-			// 往復か額の上限に来たら道具を取り上げ、ここまでで答えさせる
-			const tired =
-				rounds >= (req.maxToolRounds ?? 8) ||
-				(req.maxCostUsd !== undefined && usage.costUsd >= req.maxCostUsd);
-			// 道具を取り上げるときは、そう伝えてから答えさせる。黙って取り上げると、答えの欄を「x」「(dummy)」
-			// のような埋め草で返し、空のノートで問いが閉じていた(2026-10-18〜22 に 8 本)
-			const last = messages.at(-1);
-			if (
-				tired &&
-				apiTools.length > 0 &&
-				last?.role === "user" &&
-				Array.isArray(last.content) &&
-				!last.content.some((b) => b.type === "text")
-			) {
-				last.content.push({ type: "text", text: TIRED_NOTE });
-			}
-			const res = await this.create(usage, {
-				model: this.name,
-				// 考える分も max_tokens に数える(Opus 5.5 は考えるのを止められない)。長いのでストリームで受ける
-				max_tokens: 64000,
-				betas: [FALLBACK_BETA],
-				fallbacks: "default",
-				cache_control: { type: "ephemeral" },
-				thinking: { type: "adaptive" },
-				output_config: {
-					effort: this.effort,
-					format: { type: "json_schema", schema: req.schema },
-				},
-				system: req.system,
-				messages,
-				...(apiTools.length > 0
-					? {
-							tools: apiTools,
-							tool_choice: tired ? { type: "none" } : { type: "auto" },
-						}
-					: {}),
-			});
-			usage = addUsage(usage, this.price(res, req.task));
+    while (true) {
+      // 往復か額の上限に来たら道具を取り上げ、ここまでで答えさせる
+      const tired =
+        rounds >= (req.maxToolRounds ?? 8) ||
+        (req.maxCostUsd !== undefined && usage.costUsd >= req.maxCostUsd);
+      // 道具を取り上げるときは、そう伝えてから答えさせる。黙って取り上げると、答えの欄を「x」「(dummy)」
+      // のような埋め草で返し、空のノートで問いが閉じていた(2026-10-18〜22 に 8 本)
+      const last = messages.at(-1);
+      if (
+        tired &&
+        apiTools.length > 0 &&
+        last?.role === "user" &&
+        Array.isArray(last.content) &&
+        !last.content.some((b) => b.type === "text")
+      ) {
+        last.content.push({ type: "text", text: TIRED_NOTE });
+      }
+      const res = await this.create(usage, {
+        model: this.name,
+        // 考える分も max_tokens に数える(Opus 5.5 は考えるのを止められない)。長いのでストリームで受ける
+        max_tokens: 64000,
+        betas: [FALLBACK_BETA],
+        fallbacks: "default",
+        cache_control: { type: "ephemeral" },
+        thinking: { type: "adaptive" },
+        output_config: {
+          effort: this.effort,
+          format: { type: "json_schema", schema: req.schema },
+        },
+        system: req.system,
+        messages,
+        ...(apiTools.length > 0
+          ? {
+              tools: apiTools,
+              tool_choice: tired ? { type: "none" } : { type: "auto" },
+            }
+          : {}),
+      });
+      usage = addUsage(usage, this.price(res, req.task));
 
-			switch (res.stop_reason) {
-				case "refusal":
-					throw new HeadError(
-						`頭が断った(${res.stop_details?.category ?? "分類なし"})`,
-						usage,
-					);
-				case "max_tokens":
-					throw new HeadError("答えが長すぎて途中で切れた", usage);
-				case "pause_turn":
-					// web 検索の途中。続きを頼むときは assistant をそのまま戻すだけ
-					if (++continuations > MAX_CONTINUATIONS) {
-						throw new HeadError("web 検索が終わらない", usage);
-					}
-					messages.push({ role: "assistant", content: res.content });
-					continue;
-				case "tool_use": {
-					rounds++;
-					messages.push({ role: "assistant", content: res.content });
-					const calls = res.content.filter(
-						(b): b is Anthropic.Beta.BetaToolUseBlock => b.type === "tool_use",
-					);
-					// 並べて呼ばれた道具の結果は 1 つの user にまとめて返す
-					const results = await Promise.all(
-						calls.map(
-							async (
-								call,
-							): Promise<Anthropic.Beta.BetaToolResultBlockParam> => {
-								const tool = byName.get(call.name);
-								if (!tool) {
-									return {
-										type: "tool_result",
-										tool_use_id: call.id,
-										content: `${call.name} という道具は無い`,
-										is_error: true,
-									};
-								}
-								try {
-									return {
-										type: "tool_result",
-										tool_use_id: call.id,
-										content: await tool.run(call.input),
-									};
-								} catch (e) {
-									return {
-										type: "tool_result",
-										tool_use_id: call.id,
-										content: e instanceof Error ? e.message : String(e),
-										is_error: true,
-									};
-								}
-							},
-						),
-					);
-					messages.push({ role: "user", content: results });
-					continue;
-				}
-				default: {
-					const text = res.content
-						.filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === "text")
-						.map((b) => b.text)
-						.join("");
-					try {
-						return { output: JSON.parse(text) as T, usage };
-					} catch {
-						throw new HeadError(
-							`答えが JSON ではない: ${text.slice(0, 200)}`,
-							usage,
-						);
-					}
-				}
-			}
-		}
-	}
+      switch (res.stop_reason) {
+        case "refusal":
+          throw new HeadError(
+            `頭が断った(${res.stop_details?.category ?? "分類なし"})`,
+            usage,
+          );
+        case "max_tokens":
+          throw new HeadError("答えが長すぎて途中で切れた", usage);
+        case "pause_turn":
+          // web 検索の途中。続きを頼むときは assistant をそのまま戻すだけ
+          if (++continuations > MAX_CONTINUATIONS) {
+            throw new HeadError("web 検索が終わらない", usage);
+          }
+          messages.push({ role: "assistant", content: res.content });
+          continue;
+        case "tool_use": {
+          rounds++;
+          messages.push({ role: "assistant", content: res.content });
+          const calls = res.content.filter(
+            (b): b is Anthropic.Beta.BetaToolUseBlock => b.type === "tool_use",
+          );
+          // 並べて呼ばれた道具の結果は 1 つの user にまとめて返す
+          const results = await Promise.all(
+            calls.map(
+              async (
+                call,
+              ): Promise<Anthropic.Beta.BetaToolResultBlockParam> => {
+                const tool = byName.get(call.name);
+                if (!tool) {
+                  return {
+                    type: "tool_result",
+                    tool_use_id: call.id,
+                    content: `${call.name} という道具は無い`,
+                    is_error: true,
+                  };
+                }
+                try {
+                  return {
+                    type: "tool_result",
+                    tool_use_id: call.id,
+                    content: await tool.run(call.input),
+                  };
+                } catch (e) {
+                  return {
+                    type: "tool_result",
+                    tool_use_id: call.id,
+                    content: e instanceof Error ? e.message : String(e),
+                    is_error: true,
+                  };
+                }
+              },
+            ),
+          );
+          messages.push({ role: "user", content: results });
+          continue;
+        }
+        default: {
+          const text = res.content
+            .filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === "text")
+            .map((b) => b.text)
+            .join("");
+          try {
+            return { output: JSON.parse(text) as T, usage };
+          } catch {
+            throw new HeadError(
+              `答えが JSON ではない: ${text.slice(0, 200)}`,
+              usage,
+            );
+          }
+        }
+      }
+    }
+  }
 
-	/** API を呼ぶ。鍵・課金・権限で弾かれたら、人が直せる形(HeadAccessError)に言い換える */
-	private async create(
-		usage: Usage,
-		params: Anthropic.Beta.MessageCreateParamsNonStreaming,
-	): Promise<Anthropic.Beta.BetaMessage> {
-		try {
-			return await this.client.beta.messages.stream(params).finalMessage();
-		} catch (e) {
-			const b = claudeBlockage(e);
-			if (b) throw new HeadAccessError(b.title, usage, b);
-			throw e;
-		}
-	}
+  /** API を呼ぶ。鍵・課金・権限で弾かれたら、人が直せる形(HeadAccessError)に言い換える */
+  private async create(
+    usage: Usage,
+    params: Anthropic.Beta.MessageCreateParamsNonStreaming,
+  ): Promise<Anthropic.Beta.BetaMessage> {
+    try {
+      return await this.client.beta.messages.stream(params).finalMessage();
+    } catch (e) {
+      const b = claudeBlockage(e);
+      if (b) throw new HeadAccessError(b.title, usage, b);
+      throw e;
+    }
+  }
 
-	private price(res: Anthropic.Beta.BetaMessage, task: string): Usage {
-		const u = res.usage;
-		const cacheRead = u.cache_read_input_tokens ?? 0;
-		const cacheWrite = u.cache_creation_input_tokens ?? 0;
-		const long = LONG_PROMPT_PRICES[res.model] ?? LONG_PROMPT_PRICES[this.name];
-		const [inUsd, outUsd, readUsd = inUsd * 0.1] =
-			long && u.input_tokens + cacheRead + cacheWrite > long.over
-				? long.price
-				: (PRICES[res.model] ?? PRICES[this.name] ?? [5, 25]);
-		const searches = u.server_tool_use?.web_search_requests ?? 0;
-		const costUsd =
-			(u.input_tokens * inUsd +
-				cacheRead * readUsd +
-				cacheWrite * inUsd * 1.25 +
-				u.output_tokens * outUsd) /
-				1_000_000 +
-			searches * WEB_SEARCH_USD;
-		return taskUsage(task, {
-			inputTokens: u.input_tokens + cacheRead + cacheWrite,
-			outputTokens: u.output_tokens,
-			costUsd,
-			cacheReadTokens: cacheRead,
-			cacheWriteTokens: cacheWrite,
-		});
-	}
+  private price(res: Anthropic.Beta.BetaMessage, task: string): Usage {
+    const u = res.usage;
+    const cacheRead = u.cache_read_input_tokens ?? 0;
+    const cacheWrite = u.cache_creation_input_tokens ?? 0;
+    const long = LONG_PROMPT_PRICES[res.model] ?? LONG_PROMPT_PRICES[this.name];
+    const [inUsd, outUsd, readUsd = inUsd * 0.1] =
+      long && u.input_tokens + cacheRead + cacheWrite > long.over
+        ? long.price
+        : (PRICES[res.model] ?? PRICES[this.name] ?? [5, 25]);
+    const searches = u.server_tool_use?.web_search_requests ?? 0;
+    const costUsd =
+      (u.input_tokens * inUsd +
+        cacheRead * readUsd +
+        cacheWrite * inUsd * 1.25 +
+        u.output_tokens * outUsd) /
+        1_000_000 +
+      searches * WEB_SEARCH_USD;
+    return taskUsage(task, {
+      inputTokens: u.input_tokens + cacheRead + cacheWrite,
+      outputTokens: u.output_tokens,
+      costUsd,
+      cacheReadTokens: cacheRead,
+      cacheWriteTokens: cacheWrite,
+    });
+  }
 }
 
 const CONSOLE = "https://platform.claude.com";
 
 /** Claude API のエラーのうち、人が権限や鍵を足せば直るもの */
 export function claudeBlockage(e: unknown): Blockage | undefined {
-	if (!(e instanceof Anthropic.APIError)) return undefined;
-	const msg = e.message;
-	if (e instanceof Anthropic.AuthenticationError) {
-		// サブスク(Pro / Max)の OAuth トークン(claude setup-token が出すもの)は API キーとして通らない
-		if (process.env.ANTHROPIC_API_KEY?.startsWith("sk-ant-oat")) {
-			return {
-				key: "head:auth",
-				title: "Claude のサブスクのトークンが入っている(API キーではない)",
-				detail: msg,
-				remedy: `\`sk-ant-oat\` で始まるのは Claude Code のサブスク用のトークンで、Messages API には使えない。${CONSOLE}/settings/keys で従量課金の API キー(\`sk-ant-api\` で始まる)を作って差し替える。`,
-			};
-		}
-		return {
-			key: "head:auth",
-			title: "Claude API の鍵が通らない",
-			detail: msg,
-			remedy: `${CONSOLE}/settings/keys で API キーを作り、サーバーの環境変数 \`ANTHROPIC_API_KEY\` に入れて再起動する(クラスタなら Infisical の値を差し替えて rollout restart)。`,
-		};
-	}
-	if (/credit balance|billing|purchase credits/i.test(msg)) {
-		return {
-			key: "head:billing",
-			title: "Claude API の残高が足りない",
-			detail: msg,
-			remedy: `${CONSOLE}/settings/billing でクレジットを足す(自動チャージも設定できる)。Ashi の 1 日の上限は設定の画面で変えられる。`,
-		};
-	}
-	if (
-		/web.?search/i.test(msg) &&
-		(e instanceof Anthropic.PermissionDeniedError ||
-			e instanceof Anthropic.BadRequestError)
-	) {
-		return {
-			key: "head:web-search",
-			title: "Claude の web 検索が組織で許可されていない",
-			detail: msg,
-			remedy: `${CONSOLE}/settings/privacy(組織の設定)で web search を有効にする。使わせないなら設定の画面の JSON で allowWeb を false にする。`,
-		};
-	}
-	if (e instanceof Anthropic.PermissionDeniedError) {
-		return {
-			key: "head:permission",
-			title: "Claude API で権限が足りない",
-			detail: msg,
-			remedy: `API キーの属するワークスペースで、設定のモデル(既定 claude-opus-5-5)が使えるか ${CONSOLE}/settings/workspaces で確かめる。`,
-		};
-	}
-	return undefined;
+  if (!(e instanceof Anthropic.APIError)) return undefined;
+  const msg = e.message;
+  if (e instanceof Anthropic.AuthenticationError) {
+    // サブスク(Pro / Max)の OAuth トークン(claude setup-token が出すもの)は API キーとして通らない
+    if (process.env.ANTHROPIC_API_KEY?.startsWith("sk-ant-oat")) {
+      return {
+        key: "head:auth",
+        title: "Claude のサブスクのトークンが入っている(API キーではない)",
+        detail: msg,
+        remedy: `\`sk-ant-oat\` で始まるのは Claude Code のサブスク用のトークンで、Messages API には使えない。${CONSOLE}/settings/keys で従量課金の API キー(\`sk-ant-api\` で始まる)を作って差し替える。`,
+      };
+    }
+    return {
+      key: "head:auth",
+      title: "Claude API の鍵が通らない",
+      detail: msg,
+      remedy: `${CONSOLE}/settings/keys で API キーを作り、サーバーの環境変数 \`ANTHROPIC_API_KEY\` に入れて再起動する(クラスタなら Infisical の値を差し替えて rollout restart)。`,
+    };
+  }
+  if (/credit balance|billing|purchase credits/i.test(msg)) {
+    return {
+      key: "head:billing",
+      title: "Claude API の残高が足りない",
+      detail: msg,
+      remedy: `${CONSOLE}/settings/billing でクレジットを足す(自動チャージも設定できる)。Ashi の 1 日の上限は設定の画面で変えられる。`,
+    };
+  }
+  if (
+    /web.?search/i.test(msg) &&
+    (e instanceof Anthropic.PermissionDeniedError ||
+      e instanceof Anthropic.BadRequestError)
+  ) {
+    return {
+      key: "head:web-search",
+      title: "Claude の web 検索が組織で許可されていない",
+      detail: msg,
+      remedy: `${CONSOLE}/settings/privacy(組織の設定)で web search を有効にする。使わせないなら設定の画面の JSON で allowWeb を false にする。`,
+    };
+  }
+  if (e instanceof Anthropic.PermissionDeniedError) {
+    return {
+      key: "head:permission",
+      title: "Claude API で権限が足りない",
+      detail: msg,
+      remedy: `API キーの属するワークスペースで、設定のモデル(既定 claude-opus-5-5)が使えるか ${CONSOLE}/settings/workspaces で確かめる。`,
+    };
+  }
+  return undefined;
 }

@@ -8,343 +8,343 @@
  * forgejo: ユーザー名(FORGEJO_URL と FORGEJO_TOKEN が要る。非公開リポジトリの動きも読む)
  */
 export interface Feed {
-	id: string;
-	kind: "rss" | "github" | "x" | "forgejo";
-	target: string;
-	title?: string;
+  id: string;
+  kind: "rss" | "github" | "x" | "forgejo";
+  target: string;
+  title?: string;
 }
 
 export interface Config {
-	/**
-	 * 頭の繋ぎ方。api: Messages API を API キーで(従量課金)/
-	 * claude-code: Claude Code の CLI をサブスクのトークンで(head/claude-code.ts)
-	 */
-	head: "api" | "claude-code";
-	/** 頭に使うモデル */
-	model: string;
-	effort: "low" | "medium" | "high" | "xhigh" | "max";
-	/** 1 日(ローカル時刻の 0 時区切り)に歩いてよい歩数。サブスクはドルで測れないので、これで止める */
-	maxStepsPerDay: number;
-	budget: {
-		/** 1 日(ローカル時刻の 0 時区切り)に使ってよい額(ドル) */
-		dailyUsd: number;
-		/** 1 歩で使ってよい額(ドル) */
-		stepUsd: number;
-	};
-	sleep: {
-		/** 1 歩ごとの休みの下限と上限(分)。頭の希望はこの範囲に丸める */
-		minMinutes: number;
-		maxMinutes: number;
-	};
-	/** 同じテーマを続けて歩いてよい歩数 */
-	themeStreakLimit: number;
-	/**
-	 * 直近 themeWindow 歩のうち、同じテーマが themeWindowMax 回に達したら選ばない。
-	 * 連続の上限だけだと、別の系統が間に挟まると交互に同じテーマを歩き続けた(Ashi の改善案、2026-09-25)
-	 */
-	themeWindow: number;
-	themeWindowMax: number;
-	/** 同じ問いで何も見つからなかった回数がこれに達したら、未測定の棚に移して選ばない */
-	missesToPark: number;
-	/**
-	 * よそ者との会話から出た確かめの問いを歩くとき、同じ話し相手の分野から出た確かめの問いを何本まで
-	 * まとめて 1 歩で確かめるか(歩く問いを含む)。1 本ずつだと同じ検索を何度もしていた(Ashi の改善案、2026-10-06)
-	 */
-	verifyBatch: number;
-	/** 1 つのテーマで抱えてよい開いた問いの数。超えたら新しい問いを受け取らない(テーマに寄りすぎないように) */
-	maxOpenPerTheme: number;
-	/** 点数の順ではなく、でたらめに問いを選ぶ(寄り道する)確率 */
-	detourRate: number;
-	/**
-	 * 先回り(持ち主が知らなそうだが、いつか聞きそうなこと)を歩く割合。残りは個性(持ち主の地図に無い方向)。
-	 * どちらを歩くかは足がさいころで決める
-	 */
-	ownerShare: number;
-	/** 持ち主の材料が増えていたら、何歩ごとに持ち主の地図を書き直すか */
-	profileEvery: number;
-	/** 何歩ごとに内省(日記と自己記述)するか */
-	reflectEvery: number;
-	/** 持ち主の足跡。いつ読むかは頭が決める */
-	feeds: Feed[];
-	/** 同じ足跡を読みに行く間隔の下限(時間) */
-	feedMinHours: number;
-	/**
-	 * Ashi の X アカウント。投稿も返信も頭が決め、足は数と額の上限で止める。
-	 * X の API は従量課金(読み 1 件 0.005・投稿 1 件 0.015 ドル、2026-09)
-	 */
-	x: {
-		enabled: boolean;
-		dailyUsd: number;
-		maxPostsPerDay: number;
-		maxRepliesPerDay: number;
-		/** メンションを読みに行く間隔の下限(分) */
-		mentionsEveryMinutes: number;
-	};
-	/**
-	 * よそ者との対話。内省のたびに、持ち主の地図を知らない別のモデルと短く話し、個性の問いの種にする。
-	 * 個性の問いが全部持ち主の関心から派生していた(2026-09-25、ownerPull 24 / 24)ので、外の関心を持ち込む
-	 */
-	stranger: {
-		enabled: boolean;
-		/** 相手のモデル。頭(Opus)と癖が違えばよく、賢さは要らない */
-		model: string;
-		/** 往復の数(相手 → Ashi で 1 往復) */
-		turns: number;
-	};
-	/**
-	 * 世の中の動きを、見出しだけ目にしておく(legs/news.ts)。人が話す前にニュースや窓の外で
-	 * なんとなく知っているのと同じ形にする。話しながら検索はさせない(持ち主の指摘、2026-09-26)
-	 */
-	news: {
-		enabled: boolean;
-		/** RSS / RDF の URL */
-		feeds: string[];
-		/** 読む間隔(時間) */
-		everyHours: number;
-		/** 覚えている日数。過ぎた見出しは忘れる */
-		keepDays: number;
-	};
-	/**
-	 * 持ち主に言ったことの訂正を、話すときにどう出すか。first: 話題に関係なく、会話の最初に短く先に出す /
-	 * relevant: 関係する話題になったときだけ出す
-	 */
-	ownerCorrections: "first" | "relevant";
-	/**
-	 * 個性の系統をこの回数歩くごとに 1 回、自己記述を渡さずに歩く(0 で止める)。
-	 * 自己記述が毎回入っていると、見つけた型が世界の側のものか、自己記述が探させたものかを区別できない
-	 */
-	selfBlindEvery: number;
-	/** 1 歩で増やしてよい問いの数 */
-	maxNewQuestions: number;
-	/** 開いたまま抱えておける問いの数。超えたら点の低いものから手放す */
-	maxOpenQuestions: number;
-	/** 1 歩で道具を使う往復の上限 */
-	maxToolRounds: number;
-	/** 頭の側の web 検索を使うか */
-	allowWeb: boolean;
-	fetch: {
-		/** fetch_url で読む本文の上限(バイト) */
-		maxBytes: number;
-		timeoutMs: number;
-	};
+  /**
+   * 頭の繋ぎ方。api: Messages API を API キーで(従量課金)/
+   * claude-code: Claude Code の CLI をサブスクのトークンで(head/claude-code.ts)
+   */
+  head: "api" | "claude-code";
+  /** 頭に使うモデル */
+  model: string;
+  effort: "low" | "medium" | "high" | "xhigh" | "max";
+  /** 1 日(ローカル時刻の 0 時区切り)に歩いてよい歩数。サブスクはドルで測れないので、これで止める */
+  maxStepsPerDay: number;
+  budget: {
+    /** 1 日(ローカル時刻の 0 時区切り)に使ってよい額(ドル) */
+    dailyUsd: number;
+    /** 1 歩で使ってよい額(ドル) */
+    stepUsd: number;
+  };
+  sleep: {
+    /** 1 歩ごとの休みの下限と上限(分)。頭の希望はこの範囲に丸める */
+    minMinutes: number;
+    maxMinutes: number;
+  };
+  /** 同じテーマを続けて歩いてよい歩数 */
+  themeStreakLimit: number;
+  /**
+   * 直近 themeWindow 歩のうち、同じテーマが themeWindowMax 回に達したら選ばない。
+   * 連続の上限だけだと、別の系統が間に挟まると交互に同じテーマを歩き続けた(Ashi の改善案、2026-09-25)
+   */
+  themeWindow: number;
+  themeWindowMax: number;
+  /** 同じ問いで何も見つからなかった回数がこれに達したら、未測定の棚に移して選ばない */
+  missesToPark: number;
+  /**
+   * よそ者との会話から出た確かめの問いを歩くとき、同じ話し相手の分野から出た確かめの問いを何本まで
+   * まとめて 1 歩で確かめるか(歩く問いを含む)。1 本ずつだと同じ検索を何度もしていた(Ashi の改善案、2026-10-06)
+   */
+  verifyBatch: number;
+  /** 1 つのテーマで抱えてよい開いた問いの数。超えたら新しい問いを受け取らない(テーマに寄りすぎないように) */
+  maxOpenPerTheme: number;
+  /** 点数の順ではなく、でたらめに問いを選ぶ(寄り道する)確率 */
+  detourRate: number;
+  /**
+   * 先回り(持ち主が知らなそうだが、いつか聞きそうなこと)を歩く割合。残りは個性(持ち主の地図に無い方向)。
+   * どちらを歩くかは足がさいころで決める
+   */
+  ownerShare: number;
+  /** 持ち主の材料が増えていたら、何歩ごとに持ち主の地図を書き直すか */
+  profileEvery: number;
+  /** 何歩ごとに内省(日記と自己記述)するか */
+  reflectEvery: number;
+  /** 持ち主の足跡。いつ読むかは頭が決める */
+  feeds: Feed[];
+  /** 同じ足跡を読みに行く間隔の下限(時間) */
+  feedMinHours: number;
+  /**
+   * Ashi の X アカウント。投稿も返信も頭が決め、足は数と額の上限で止める。
+   * X の API は従量課金(読み 1 件 0.005・投稿 1 件 0.015 ドル、2026-09)
+   */
+  x: {
+    enabled: boolean;
+    dailyUsd: number;
+    maxPostsPerDay: number;
+    maxRepliesPerDay: number;
+    /** メンションを読みに行く間隔の下限(分) */
+    mentionsEveryMinutes: number;
+  };
+  /**
+   * よそ者との対話。内省のたびに、持ち主の地図を知らない別のモデルと短く話し、個性の問いの種にする。
+   * 個性の問いが全部持ち主の関心から派生していた(2026-09-25、ownerPull 24 / 24)ので、外の関心を持ち込む
+   */
+  stranger: {
+    enabled: boolean;
+    /** 相手のモデル。頭(Opus)と癖が違えばよく、賢さは要らない */
+    model: string;
+    /** 往復の数(相手 → Ashi で 1 往復) */
+    turns: number;
+  };
+  /**
+   * 世の中の動きを、見出しだけ目にしておく(legs/news.ts)。人が話す前にニュースや窓の外で
+   * なんとなく知っているのと同じ形にする。話しながら検索はさせない(持ち主の指摘、2026-09-26)
+   */
+  news: {
+    enabled: boolean;
+    /** RSS / RDF の URL */
+    feeds: string[];
+    /** 読む間隔(時間) */
+    everyHours: number;
+    /** 覚えている日数。過ぎた見出しは忘れる */
+    keepDays: number;
+  };
+  /**
+   * 持ち主に言ったことの訂正を、話すときにどう出すか。first: 話題に関係なく、会話の最初に短く先に出す /
+   * relevant: 関係する話題になったときだけ出す
+   */
+  ownerCorrections: "first" | "relevant";
+  /**
+   * 個性の系統をこの回数歩くごとに 1 回、自己記述を渡さずに歩く(0 で止める)。
+   * 自己記述が毎回入っていると、見つけた型が世界の側のものか、自己記述が探させたものかを区別できない
+   */
+  selfBlindEvery: number;
+  /** 1 歩で増やしてよい問いの数 */
+  maxNewQuestions: number;
+  /** 開いたまま抱えておける問いの数。超えたら点の低いものから手放す */
+  maxOpenQuestions: number;
+  /** 1 歩で道具を使う往復の上限 */
+  maxToolRounds: number;
+  /** 頭の側の web 検索を使うか */
+  allowWeb: boolean;
+  fetch: {
+    /** fetch_url で読む本文の上限(バイト) */
+    maxBytes: number;
+    timeoutMs: number;
+  };
 }
 
 export const DEFAULT_CONFIG: Config = {
-	head: "api",
-	model: "claude-opus-5-5",
-	maxStepsPerDay: 30,
-	effort: "high",
-	budget: { dailyUsd: 2, stepUsd: 0.5 },
-	sleep: { minMinutes: 10, maxMinutes: 360 },
-	themeStreakLimit: 3,
-	themeWindow: 10,
-	themeWindowMax: 3,
-	missesToPark: 2,
-	verifyBatch: 3,
-	maxOpenPerTheme: 6,
-	detourRate: 0.15,
-	ownerShare: 0.6,
-	profileEvery: 10,
-	reflectEvery: 5,
-	feeds: [],
-	feedMinHours: 6,
-	x: {
-		enabled: false,
-		dailyUsd: 1,
-		maxPostsPerDay: 3,
-		maxRepliesPerDay: 10,
-		mentionsEveryMinutes: 60,
-	},
-	stranger: { enabled: true, model: "claude-sonnet-5-5", turns: 3 },
-	selfBlindEvery: 5,
-	// 持ち主の判断で、関係する話題のときだけ(2026-09-27)
-	ownerCorrections: "relevant",
-	news: {
-		enabled: true,
-		feeds: [
-			"https://www.nhk.or.jp/rss/news/cat0.xml",
-			"https://news.yahoo.co.jp/rss/topics/top-picks.xml",
-		],
-		everyHours: 12,
-		keepDays: 3,
-	},
-	maxNewQuestions: 3,
-	maxOpenQuestions: 50,
-	maxToolRounds: 12,
-	allowWeb: true,
-	fetch: { maxBytes: 200_000, timeoutMs: 15_000 },
+  head: "api",
+  model: "claude-opus-5-5",
+  maxStepsPerDay: 30,
+  effort: "high",
+  budget: { dailyUsd: 2, stepUsd: 0.5 },
+  sleep: { minMinutes: 10, maxMinutes: 360 },
+  themeStreakLimit: 3,
+  themeWindow: 10,
+  themeWindowMax: 3,
+  missesToPark: 2,
+  verifyBatch: 3,
+  maxOpenPerTheme: 6,
+  detourRate: 0.15,
+  ownerShare: 0.6,
+  profileEvery: 10,
+  reflectEvery: 5,
+  feeds: [],
+  feedMinHours: 6,
+  x: {
+    enabled: false,
+    dailyUsd: 1,
+    maxPostsPerDay: 3,
+    maxRepliesPerDay: 10,
+    mentionsEveryMinutes: 60,
+  },
+  stranger: { enabled: true, model: "claude-sonnet-5-5", turns: 3 },
+  selfBlindEvery: 5,
+  // 持ち主の判断で、関係する話題のときだけ(2026-09-27)
+  ownerCorrections: "relevant",
+  news: {
+    enabled: true,
+    feeds: [
+      "https://www.nhk.or.jp/rss/news/cat0.xml",
+      "https://news.yahoo.co.jp/rss/topics/top-picks.xml",
+    ],
+    everyHours: 12,
+    keepDays: 3,
+  },
+  maxNewQuestions: 3,
+  maxOpenQuestions: 50,
+  maxToolRounds: 12,
+  allowWeb: true,
+  fetch: { maxBytes: 200_000, timeoutMs: 15_000 },
 };
 
 const clamp = (
-	v: unknown,
-	min: number,
-	max: number,
-	fallback: number,
+  v: unknown,
+  min: number,
+  max: number,
+  fallback: number,
 ): number =>
-	typeof v === "number" && Number.isFinite(v)
-		? Math.min(max, Math.max(min, v))
-		: fallback;
+  typeof v === "number" && Number.isFinite(v)
+    ? Math.min(max, Math.max(min, v))
+    : fallback;
 
 const EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
 
 /** ashi.json の中身(一部だけでもよい)を既定で埋め、範囲に丸める */
 export function normalizeConfig(raw: unknown): Config {
-	const r = (raw ?? {}) as Partial<Record<keyof Config, unknown>> & {
-		budget?: Partial<Config["budget"]>;
-		sleep?: Partial<Config["sleep"]>;
-		fetch?: Partial<Config["fetch"]>;
-		x?: Partial<Config["x"]>;
-		stranger?: Partial<Config["stranger"]>;
-		news?: Partial<Config["news"]>;
-	};
-	const d = DEFAULT_CONFIG;
-	const minMinutes = clamp(r.sleep?.minMinutes, 1, 24 * 60, d.sleep.minMinutes);
-	const dailyUsd = clamp(r.budget?.dailyUsd, 0, 1000, d.budget.dailyUsd);
-	return {
-		head: r.head === "claude-code" ? "claude-code" : "api",
-		model: typeof r.model === "string" && r.model ? r.model : d.model,
-		maxStepsPerDay: Math.round(
-			clamp(r.maxStepsPerDay, 1, 1000, d.maxStepsPerDay),
-		),
-		effort: EFFORTS.includes(r.effort as Config["effort"])
-			? (r.effort as Config["effort"])
-			: d.effort,
-		budget: {
-			dailyUsd,
-			// 1 歩の上限が 1 日の上限を超えることはない
-			stepUsd: clamp(
-				r.budget?.stepUsd,
-				0,
-				dailyUsd,
-				Math.min(d.budget.stepUsd, dailyUsd),
-			),
-		},
-		sleep: {
-			minMinutes,
-			maxMinutes: clamp(
-				r.sleep?.maxMinutes,
-				minMinutes,
-				7 * 24 * 60,
-				Math.max(minMinutes, d.sleep.maxMinutes),
-			),
-		},
-		themeWindow: Math.round(clamp(r.themeWindow, 1, 100, d.themeWindow)),
-		themeWindowMax: Math.round(
-			clamp(r.themeWindowMax, 1, 100, d.themeWindowMax),
-		),
-		missesToPark: Math.round(clamp(r.missesToPark, 1, 100, d.missesToPark)),
-		verifyBatch: Math.round(clamp(r.verifyBatch, 1, 6, d.verifyBatch)),
-		maxOpenPerTheme: Math.round(
-			clamp(r.maxOpenPerTheme, 1, 100, d.maxOpenPerTheme),
-		),
-		themeStreakLimit: Math.round(
-			clamp(r.themeStreakLimit, 1, 100, d.themeStreakLimit),
-		),
-		detourRate: clamp(r.detourRate, 0, 1, d.detourRate),
-		ownerShare: clamp(r.ownerShare, 0, 1, d.ownerShare),
-		profileEvery: Math.round(clamp(r.profileEvery, 1, 1000, d.profileEvery)),
-		reflectEvery: Math.round(clamp(r.reflectEvery, 1, 1000, d.reflectEvery)),
-		feeds: normalizeFeeds(r.feeds),
-		feedMinHours: clamp(r.feedMinHours, 1, 24 * 30, d.feedMinHours),
-		x: {
-			enabled: typeof r.x?.enabled === "boolean" ? r.x.enabled : d.x.enabled,
-			dailyUsd: clamp(r.x?.dailyUsd, 0, 100, d.x.dailyUsd),
-			maxPostsPerDay: Math.round(
-				clamp(r.x?.maxPostsPerDay, 0, 50, d.x.maxPostsPerDay),
-			),
-			maxRepliesPerDay: Math.round(
-				clamp(r.x?.maxRepliesPerDay, 0, 100, d.x.maxRepliesPerDay),
-			),
-			mentionsEveryMinutes: Math.round(
-				clamp(r.x?.mentionsEveryMinutes, 5, 24 * 60, d.x.mentionsEveryMinutes),
-			),
-		},
-		stranger: {
-			enabled:
-				typeof r.stranger?.enabled === "boolean"
-					? r.stranger.enabled
-					: d.stranger.enabled,
-			model:
-				typeof r.stranger?.model === "string" &&
-				/^claude-[a-z0-9.-]+$/.test(r.stranger.model)
-					? r.stranger.model
-					: d.stranger.model,
-			turns: Math.round(clamp(r.stranger?.turns, 1, 6, d.stranger.turns)),
-		},
-		news: {
-			enabled:
-				typeof r.news?.enabled === "boolean" ? r.news.enabled : d.news.enabled,
-			feeds: Array.isArray(r.news?.feeds)
-				? r.news.feeds
-						.filter(
-							(x): x is string =>
-								typeof x === "string" && /^https?:\/\//.test(x),
-						)
-						.slice(0, 10)
-				: d.news.feeds,
-			everyHours: clamp(r.news?.everyHours, 1, 24 * 7, d.news.everyHours),
-			keepDays: clamp(r.news?.keepDays, 1, 30, d.news.keepDays),
-		},
-		ownerCorrections: r.ownerCorrections === "first" ? "first" : "relevant",
-		selfBlindEvery: Math.round(
-			clamp(r.selfBlindEvery, 0, 100, d.selfBlindEvery),
-		),
-		maxNewQuestions: Math.round(
-			clamp(r.maxNewQuestions, 0, 20, d.maxNewQuestions),
-		),
-		maxOpenQuestions: Math.round(
-			clamp(r.maxOpenQuestions, 1, 1000, d.maxOpenQuestions),
-		),
-		maxToolRounds: Math.round(clamp(r.maxToolRounds, 0, 50, d.maxToolRounds)),
-		allowWeb: typeof r.allowWeb === "boolean" ? r.allowWeb : d.allowWeb,
-		fetch: {
-			maxBytes: Math.round(
-				clamp(r.fetch?.maxBytes, 1_000, 5_000_000, d.fetch.maxBytes),
-			),
-			timeoutMs: Math.round(
-				clamp(r.fetch?.timeoutMs, 1_000, 120_000, d.fetch.timeoutMs),
-			),
-		},
-	};
+  const r = (raw ?? {}) as Partial<Record<keyof Config, unknown>> & {
+    budget?: Partial<Config["budget"]>;
+    sleep?: Partial<Config["sleep"]>;
+    fetch?: Partial<Config["fetch"]>;
+    x?: Partial<Config["x"]>;
+    stranger?: Partial<Config["stranger"]>;
+    news?: Partial<Config["news"]>;
+  };
+  const d = DEFAULT_CONFIG;
+  const minMinutes = clamp(r.sleep?.minMinutes, 1, 24 * 60, d.sleep.minMinutes);
+  const dailyUsd = clamp(r.budget?.dailyUsd, 0, 1000, d.budget.dailyUsd);
+  return {
+    head: r.head === "claude-code" ? "claude-code" : "api",
+    model: typeof r.model === "string" && r.model ? r.model : d.model,
+    maxStepsPerDay: Math.round(
+      clamp(r.maxStepsPerDay, 1, 1000, d.maxStepsPerDay),
+    ),
+    effort: EFFORTS.includes(r.effort as Config["effort"])
+      ? (r.effort as Config["effort"])
+      : d.effort,
+    budget: {
+      dailyUsd,
+      // 1 歩の上限が 1 日の上限を超えることはない
+      stepUsd: clamp(
+        r.budget?.stepUsd,
+        0,
+        dailyUsd,
+        Math.min(d.budget.stepUsd, dailyUsd),
+      ),
+    },
+    sleep: {
+      minMinutes,
+      maxMinutes: clamp(
+        r.sleep?.maxMinutes,
+        minMinutes,
+        7 * 24 * 60,
+        Math.max(minMinutes, d.sleep.maxMinutes),
+      ),
+    },
+    themeWindow: Math.round(clamp(r.themeWindow, 1, 100, d.themeWindow)),
+    themeWindowMax: Math.round(
+      clamp(r.themeWindowMax, 1, 100, d.themeWindowMax),
+    ),
+    missesToPark: Math.round(clamp(r.missesToPark, 1, 100, d.missesToPark)),
+    verifyBatch: Math.round(clamp(r.verifyBatch, 1, 6, d.verifyBatch)),
+    maxOpenPerTheme: Math.round(
+      clamp(r.maxOpenPerTheme, 1, 100, d.maxOpenPerTheme),
+    ),
+    themeStreakLimit: Math.round(
+      clamp(r.themeStreakLimit, 1, 100, d.themeStreakLimit),
+    ),
+    detourRate: clamp(r.detourRate, 0, 1, d.detourRate),
+    ownerShare: clamp(r.ownerShare, 0, 1, d.ownerShare),
+    profileEvery: Math.round(clamp(r.profileEvery, 1, 1000, d.profileEvery)),
+    reflectEvery: Math.round(clamp(r.reflectEvery, 1, 1000, d.reflectEvery)),
+    feeds: normalizeFeeds(r.feeds),
+    feedMinHours: clamp(r.feedMinHours, 1, 24 * 30, d.feedMinHours),
+    x: {
+      enabled: typeof r.x?.enabled === "boolean" ? r.x.enabled : d.x.enabled,
+      dailyUsd: clamp(r.x?.dailyUsd, 0, 100, d.x.dailyUsd),
+      maxPostsPerDay: Math.round(
+        clamp(r.x?.maxPostsPerDay, 0, 50, d.x.maxPostsPerDay),
+      ),
+      maxRepliesPerDay: Math.round(
+        clamp(r.x?.maxRepliesPerDay, 0, 100, d.x.maxRepliesPerDay),
+      ),
+      mentionsEveryMinutes: Math.round(
+        clamp(r.x?.mentionsEveryMinutes, 5, 24 * 60, d.x.mentionsEveryMinutes),
+      ),
+    },
+    stranger: {
+      enabled:
+        typeof r.stranger?.enabled === "boolean"
+          ? r.stranger.enabled
+          : d.stranger.enabled,
+      model:
+        typeof r.stranger?.model === "string" &&
+        /^claude-[a-z0-9.-]+$/.test(r.stranger.model)
+          ? r.stranger.model
+          : d.stranger.model,
+      turns: Math.round(clamp(r.stranger?.turns, 1, 6, d.stranger.turns)),
+    },
+    news: {
+      enabled:
+        typeof r.news?.enabled === "boolean" ? r.news.enabled : d.news.enabled,
+      feeds: Array.isArray(r.news?.feeds)
+        ? r.news.feeds
+            .filter(
+              (x): x is string =>
+                typeof x === "string" && /^https?:\/\//.test(x),
+            )
+            .slice(0, 10)
+        : d.news.feeds,
+      everyHours: clamp(r.news?.everyHours, 1, 24 * 7, d.news.everyHours),
+      keepDays: clamp(r.news?.keepDays, 1, 30, d.news.keepDays),
+    },
+    ownerCorrections: r.ownerCorrections === "first" ? "first" : "relevant",
+    selfBlindEvery: Math.round(
+      clamp(r.selfBlindEvery, 0, 100, d.selfBlindEvery),
+    ),
+    maxNewQuestions: Math.round(
+      clamp(r.maxNewQuestions, 0, 20, d.maxNewQuestions),
+    ),
+    maxOpenQuestions: Math.round(
+      clamp(r.maxOpenQuestions, 1, 1000, d.maxOpenQuestions),
+    ),
+    maxToolRounds: Math.round(clamp(r.maxToolRounds, 0, 50, d.maxToolRounds)),
+    allowWeb: typeof r.allowWeb === "boolean" ? r.allowWeb : d.allowWeb,
+    fetch: {
+      maxBytes: Math.round(
+        clamp(r.fetch?.maxBytes, 1_000, 5_000_000, d.fetch.maxBytes),
+      ),
+      timeoutMs: Math.round(
+        clamp(r.fetch?.timeoutMs, 1_000, 120_000, d.fetch.timeoutMs),
+      ),
+    },
+  };
 }
 
 export const FEED_KINDS: Feed["kind"][] = ["rss", "github", "forgejo", "x"];
 
 function normalizeFeeds(raw: unknown): Feed[] {
-	if (!Array.isArray(raw)) return [];
-	const out: Feed[] = [];
-	for (const f of raw as Partial<Feed>[]) {
-		if (
-			!FEED_KINDS.includes(f?.kind as Feed["kind"]) ||
-			typeof f.target !== "string" ||
-			!f.target
-		)
-			continue;
-		const id =
-			typeof f.id === "string" && f.id ? f.id : `${f.kind}:${f.target}`;
-		if (out.some((x) => x.id === id)) continue;
-		out.push({
-			id,
-			kind: f.kind as Feed["kind"],
-			target: f.target,
-			title: typeof f.title === "string" ? f.title : undefined,
-		});
-	}
-	return out;
+  if (!Array.isArray(raw)) return [];
+  const out: Feed[] = [];
+  for (const f of raw as Partial<Feed>[]) {
+    if (
+      !FEED_KINDS.includes(f?.kind as Feed["kind"]) ||
+      typeof f.target !== "string" ||
+      !f.target
+    )
+      continue;
+    const id =
+      typeof f.id === "string" && f.id ? f.id : `${f.kind}:${f.target}`;
+    if (out.some((x) => x.id === id)) continue;
+    out.push({
+      id,
+      kind: f.kind as Feed["kind"],
+      target: f.target,
+      title: typeof f.title === "string" ? f.title : undefined,
+    });
+  }
+  return out;
 }
 
 /** 画面で選べるモデル(頭・よそ者)。いまの設定がこれ以外でも、そのまま残す */
 export const MODELS = [
-	"claude-opus-5-5",
-	"claude-sonnet-5-5",
-	"claude-fable-5-1",
-	"claude-haiku-5-5",
+  "claude-opus-5-5",
+  "claude-sonnet-5-5",
+  "claude-fable-5-1",
+  "claude-haiku-5-5",
 ] as const;
 
 interface Form {
-	get(name: string): unknown;
-	getAll(name: string): unknown[];
-	has(name: string): boolean;
+  get(name: string): unknown;
+  getAll(name: string): unknown[];
+  has(name: string): boolean;
 }
 
 /**
@@ -353,93 +353,93 @@ interface Form {
  * 範囲は normalizeConfig で丸める
  */
 export function applySettingsForm(cfg: Config, f: Form): Config {
-	const next = structuredClone(cfg) as Config & Record<string, unknown>;
-	const num = (k: string): number | undefined => {
-		const v = f.get(k);
-		if (v === null || v === "") return undefined;
-		const n = Number(v);
-		return Number.isFinite(n) ? n : undefined;
-	};
-	const str = (k: string): string | undefined => {
-		const v = f.get(k);
-		return typeof v === "string" && v.trim() ? v.trim() : undefined;
-	};
-	const bool = (k: string): boolean | undefined =>
-		f.has(`${k}:shown`) ? f.get(k) === "on" : undefined;
-	const set = <T>(v: T | undefined, put: (v: T) => void) => {
-		if (v !== undefined) put(v);
-	};
+  const next = structuredClone(cfg) as Config & Record<string, unknown>;
+  const num = (k: string): number | undefined => {
+    const v = f.get(k);
+    if (v === null || v === "") return undefined;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : undefined;
+  };
+  const str = (k: string): string | undefined => {
+    const v = f.get(k);
+    return typeof v === "string" && v.trim() ? v.trim() : undefined;
+  };
+  const bool = (k: string): boolean | undefined =>
+    f.has(`${k}:shown`) ? f.get(k) === "on" : undefined;
+  const set = <T>(v: T | undefined, put: (v: T) => void) => {
+    if (v !== undefined) put(v);
+  };
 
-	set(str("head"), (v) => {
-		next.head = v === "claude-code" ? "claude-code" : "api";
-	});
-	set(str("model"), (v) => {
-		next.model = v;
-	});
-	set(str("effort"), (v) => {
-		next.effort = v as Config["effort"];
-	});
-	set(num("maxStepsPerDay"), (v) => {
-		next.maxStepsPerDay = v;
-	});
-	set(num("maxToolRounds"), (v) => {
-		next.maxToolRounds = v;
-	});
-	set(num("verifyBatch"), (v) => {
-		next.verifyBatch = v;
-	});
-	set(num("budget.dailyUsd"), (v) => {
-		next.budget.dailyUsd = v;
-	});
-	set(num("budget.stepUsd"), (v) => {
-		next.budget.stepUsd = v;
-	});
-	set(bool("stranger.enabled"), (v) => {
-		next.stranger.enabled = v;
-	});
-	set(str("stranger.model"), (v) => {
-		next.stranger.model = v;
-	});
-	set(num("stranger.turns"), (v) => {
-		next.stranger.turns = v;
-	});
-	set(bool("x.enabled"), (v) => {
-		next.x.enabled = v;
-	});
-	set(num("x.dailyUsd"), (v) => {
-		next.x.dailyUsd = v;
-	});
-	set(num("x.maxPostsPerDay"), (v) => {
-		next.x.maxPostsPerDay = v;
-	});
-	set(num("x.maxRepliesPerDay"), (v) => {
-		next.x.maxRepliesPerDay = v;
-	});
-	set(num("x.mentionsEveryMinutes"), (v) => {
-		next.x.mentionsEveryMinutes = v;
-	});
-	// 足跡は行ごと。消す印の付いた行と、行き先が空の行は落とす
-	if (f.has("feeds:shown")) {
-		const all = (k: string) => f.getAll(k).map((v) => String(v ?? "").trim());
-		const ids = all("feed.id");
-		const kinds = all("feed.kind");
-		const targets = all("feed.target");
-		const titles = all("feed.title");
-		const removed = new Set(all("feed.remove"));
-		next.feeds = ids.flatMap((id, i) => {
-			const target = targets[i] ?? "";
-			const kind = kinds[i] as Feed["kind"];
-			if (!target || removed.has(String(i)) || !FEED_KINDS.includes(kind))
-				return [];
-			return [
-				{
-					id: id || `${kind}-${i + 1}`,
-					kind,
-					target,
-					...(titles[i] ? { title: titles[i] } : {}),
-				},
-			];
-		});
-	}
-	return normalizeConfig(next);
+  set(str("head"), (v) => {
+    next.head = v === "claude-code" ? "claude-code" : "api";
+  });
+  set(str("model"), (v) => {
+    next.model = v;
+  });
+  set(str("effort"), (v) => {
+    next.effort = v as Config["effort"];
+  });
+  set(num("maxStepsPerDay"), (v) => {
+    next.maxStepsPerDay = v;
+  });
+  set(num("maxToolRounds"), (v) => {
+    next.maxToolRounds = v;
+  });
+  set(num("verifyBatch"), (v) => {
+    next.verifyBatch = v;
+  });
+  set(num("budget.dailyUsd"), (v) => {
+    next.budget.dailyUsd = v;
+  });
+  set(num("budget.stepUsd"), (v) => {
+    next.budget.stepUsd = v;
+  });
+  set(bool("stranger.enabled"), (v) => {
+    next.stranger.enabled = v;
+  });
+  set(str("stranger.model"), (v) => {
+    next.stranger.model = v;
+  });
+  set(num("stranger.turns"), (v) => {
+    next.stranger.turns = v;
+  });
+  set(bool("x.enabled"), (v) => {
+    next.x.enabled = v;
+  });
+  set(num("x.dailyUsd"), (v) => {
+    next.x.dailyUsd = v;
+  });
+  set(num("x.maxPostsPerDay"), (v) => {
+    next.x.maxPostsPerDay = v;
+  });
+  set(num("x.maxRepliesPerDay"), (v) => {
+    next.x.maxRepliesPerDay = v;
+  });
+  set(num("x.mentionsEveryMinutes"), (v) => {
+    next.x.mentionsEveryMinutes = v;
+  });
+  // 足跡は行ごと。消す印の付いた行と、行き先が空の行は落とす
+  if (f.has("feeds:shown")) {
+    const all = (k: string) => f.getAll(k).map((v) => String(v ?? "").trim());
+    const ids = all("feed.id");
+    const kinds = all("feed.kind");
+    const targets = all("feed.target");
+    const titles = all("feed.title");
+    const removed = new Set(all("feed.remove"));
+    next.feeds = ids.flatMap((id, i) => {
+      const target = targets[i] ?? "";
+      const kind = kinds[i] as Feed["kind"];
+      if (!target || removed.has(String(i)) || !FEED_KINDS.includes(kind))
+        return [];
+      return [
+        {
+          id: id || `${kind}-${i + 1}`,
+          kind,
+          target,
+          ...(titles[i] ? { title: titles[i] } : {}),
+        },
+      ];
+    });
+  }
+  return normalizeConfig(next);
 }

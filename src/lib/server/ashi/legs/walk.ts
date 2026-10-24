@@ -1,110 +1,110 @@
 import {
-	addUsage,
-	type Blockage,
-	type Head,
-	HeadAccessError,
-	HeadError,
-	noUsage,
-	type Tool,
-	type Usage,
+  addUsage,
+  type Blockage,
+  type Head,
+  HeadAccessError,
+  HeadError,
+  noUsage,
+  type Tool,
+  type Usage,
 } from "../head/head.ts";
 import {
-	EXPLORE_SCHEMA,
-	type ExploreAnswer,
-	explorePrompt,
-	type Material,
-	PROFILE_SCHEMA,
-	type ProfileAnswer,
-	profilePrompt,
-	REFLECT_SCHEMA,
-	type ReflectAnswer,
-	recentConversationsText,
-	reflectPrompt,
-	SEED_SCHEMA,
-	type SeedAnswer,
-	SHRINK_SELF_SCHEMA,
-	seedPrompt,
-	shrinkSelfPrompt,
-	system,
-	type WalkContext,
+  EXPLORE_SCHEMA,
+  type ExploreAnswer,
+  explorePrompt,
+  type Material,
+  PROFILE_SCHEMA,
+  type ProfileAnswer,
+  profilePrompt,
+  REFLECT_SCHEMA,
+  type ReflectAnswer,
+  recentConversationsText,
+  reflectPrompt,
+  SEED_SCHEMA,
+  type SeedAnswer,
+  SHRINK_SELF_SCHEMA,
+  seedPrompt,
+  shrinkSelfPrompt,
+  system,
+  type WalkContext,
 } from "../prompts.ts";
 import {
-	hashText,
-	localDay,
-	newId,
-	type Question,
-	type Store,
-	type Track,
+  hashText,
+  localDay,
+  newId,
+  type Question,
+  type Store,
+  type Track,
 } from "../state.ts";
 import {
-	baselineTotalsFromLog,
-	measureBaseline,
-	recentBaselines,
+  baselineTotalsFromLog,
+  measureBaseline,
+  recentBaselines,
 } from "./baseline.ts";
 import { raiseBlocker, resolveBlockers, webhookNotify } from "./blockers.ts";
 import {
-	conflictKey,
-	noteCitationConflicts,
-	trackConflicts,
-	unsettledConflicts,
+  conflictKey,
+  noteCitationConflicts,
+  trackConflicts,
+  unsettledConflicts,
 } from "./citations.ts";
 import { crawlRequested, feedStatus } from "./feeds.ts";
 import {
-	acceptGroups,
-	acceptIntentions,
-	acceptNewQuestions,
-	acceptPatterns,
-	acceptProposals,
-	acceptSearched,
-	acceptSelf,
-	acceptSelfChanges,
-	addBridgeIdeas,
-	addOwnerCorrections,
-	adviceFollowups,
-	allowance,
-	applyMerges,
-	applyReestimates,
-	blankNote,
-	blindComparison,
-	clampSleep,
-	closeByNote,
-	debtLedger,
-	groupMates,
-	latestNoteByQuestion,
-	markPromised,
-	missedPromises,
-	nextMidnight,
-	normalizeIntentions,
-	ownerHandles,
-	ownerPull,
-	questionIds,
-	readDepthSection,
-	relatedOpen,
-	reopenable,
-	SELF_MAX,
-	selfEvolution,
-	similarPairs,
-	strangerLanding,
-	trimOpenQuestions,
-	unit,
-	walkTrail,
+  acceptGroups,
+  acceptIntentions,
+  acceptNewQuestions,
+  acceptPatterns,
+  acceptProposals,
+  acceptSearched,
+  acceptSelf,
+  acceptSelfChanges,
+  addBridgeIdeas,
+  addOwnerCorrections,
+  adviceFollowups,
+  allowance,
+  applyMerges,
+  applyReestimates,
+  blankNote,
+  blindComparison,
+  clampSleep,
+  closeByNote,
+  debtLedger,
+  groupMates,
+  latestNoteByQuestion,
+  markPromised,
+  missedPromises,
+  nextMidnight,
+  normalizeIntentions,
+  ownerHandles,
+  ownerPull,
+  questionIds,
+  readDepthSection,
+  relatedOpen,
+  reopenable,
+  SELF_MAX,
+  selfEvolution,
+  similarPairs,
+  strangerLanding,
+  trimOpenQuestions,
+  unit,
+  walkTrail,
 } from "./guard.ts";
 import {
-	batchResults,
-	restingThemes,
-	SEEDING,
-	selectQuestion,
-	verifySiblings,
+  batchResults,
+  restingThemes,
+  SEEDING,
+  selectQuestion,
+  verifySiblings,
 } from "./select.ts";
 import { talkWithStranger } from "./stranger.ts";
 import type { GetDeps } from "./tools.ts";
 import {
-	canPost,
-	canReply,
-	looksUnrelated,
-	postToX,
-	xBlockage,
-	xLength,
+  canPost,
+  canReply,
+  looksUnrelated,
+  postToX,
+  xBlockage,
+  xLength,
 } from "./x.ts";
 
 /**
@@ -114,36 +114,36 @@ import {
 
 /** 自己記述を渡さずに歩くとき、自己記述の欄に置く文 */
 const BLIND_SELF =
-	"(この歩みでは、足が自己記述を渡していない。自分がどういう者かを思い出さずに、問いとコア原則だけで歩く。対照のための歩み)";
+  "(この歩みでは、足が自己記述を渡していない。自分がどういう者かを思い出さずに、問いとコア原則だけで歩く。対照のための歩み)";
 
 export interface Legs {
-	store: Store;
-	head: Head;
-	tools: Tool[];
-	now?: () => Date;
-	rng?: () => number;
-	/** 足跡を読むときの通信(テストで差し替える) */
-	net?: GetDeps;
-	env?: Record<string, string | undefined>;
-	/** 弾かれたことの知らせ先(既定は NOTIFY_WEBHOOK_URL) */
-	notify?: (text: string) => Promise<void>;
-	/** よそ者の話し相手(頭と別のモデル)。無ければ話さない */
-	stranger?: Head;
+  store: Store;
+  head: Head;
+  tools: Tool[];
+  now?: () => Date;
+  rng?: () => number;
+  /** 足跡を読むときの通信(テストで差し替える) */
+  net?: GetDeps;
+  env?: Record<string, string | undefined>;
+  /** 弾かれたことの知らせ先(既定は NOTIFY_WEBHOOK_URL) */
+  notify?: (text: string) => Promise<void>;
+  /** よそ者の話し相手(頭と別のモデル)。無ければ話さない */
+  stranger?: Head;
 }
 
 /** X で確かめずに言ったことの問いのうち、まだ元の会話に返していないもの(古い順、10 件まで) */
 export function unreturnedPromises(qs: Question[]): Question[] {
-	return qs
-		.filter((q) => q.origin && !q.repliedAt && q.status !== "dropped")
-		.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-		.slice(0, 10);
+  return qs
+    .filter((q) => q.origin && !q.repliedAt && q.status !== "dropped")
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    .slice(0, 10);
 }
 
 /** 元の会話に返したと印を付ける(内省にもう見せない) */
 function markReplied(store: Store, id: string, now: Date): void {
-	store.updateQuestions((qs) =>
-		qs.map((q) => (q.id === id ? { ...q, repliedAt: now.toISOString() } : q)),
-	);
+  store.updateQuestions((qs) =>
+    qs.map((q) => (q.id === id ? { ...q, repliedAt: now.toISOString() } : q)),
+  );
 }
 
 /**
@@ -151,75 +151,75 @@ function markReplied(store: Store, id: string, now: Date): void {
  * 見つからなかったなら読めなかった。どれでもなければ決めない
  */
 export function mainVerifyResult(
-	q: Question,
-	output: Pick<ExploreAnswer, "checked" | "correction" | "answered" | "found">,
+  q: Question,
+  output: Pick<ExploreAnswer, "checked" | "correction" | "answered" | "found">,
 ): Question["verifyResult"] {
-	const own = (Array.isArray(output.checked) ? output.checked : []).find(
-		(c) => c?.id === q.id,
-	)?.result;
-	if (own === "holds" || own === "wrong" || own === "unreadable") return own;
-	if (typeof output.correction === "string" && output.correction.trim())
-		return "wrong";
-	if (output.answered === true) return "holds";
-	if (output.found === "none") return "unreadable";
-	return undefined;
+  const own = (Array.isArray(output.checked) ? output.checked : []).find(
+    (c) => c?.id === q.id,
+  )?.result;
+  if (own === "holds" || own === "wrong" || own === "unreadable") return own;
+  if (typeof output.correction === "string" && output.correction.trim())
+    return "wrong";
+  if (output.answered === true) return "holds";
+  if (output.found === "none") return "unreadable";
+  return undefined;
 }
 
 /** 頭が知らせてきた「弾かれた」を、形を確かめて 1 歩 3 件まで */
 export function reportedBlocks(v: unknown): Blockage[] {
-	if (!Array.isArray(v)) return [];
-	return v
-		.filter(
-			(x): x is { target: string; reason: string; needed: string } =>
-				typeof x?.target === "string" &&
-				x.target.trim() !== "" &&
-				typeof x.needed === "string",
-		)
-		.slice(0, 3)
-		.map((x) => {
-			const target = x.target.trim().slice(0, 100);
-			return {
-				key: `report:${target.toLowerCase()}`,
-				title: `${target} に入れなかった`,
-				detail: String(x.reason ?? "").slice(0, 500),
-				remedy: x.needed.slice(0, 1000),
-			};
-		});
+  if (!Array.isArray(v)) return [];
+  return v
+    .filter(
+      (x): x is { target: string; reason: string; needed: string } =>
+        typeof x?.target === "string" &&
+        x.target.trim() !== "" &&
+        typeof x.needed === "string",
+    )
+    .slice(0, 3)
+    .map((x) => {
+      const target = x.target.trim().slice(0, 100);
+      return {
+        key: `report:${target.toLowerCase()}`,
+        title: `${target} に入れなかった`,
+        detail: String(x.reason ?? "").slice(0, 500),
+        remedy: x.needed.slice(0, 1000),
+      };
+    });
 }
 
 /** 頭の crawl を受け取る形に。id の照合と間隔の下限は巡回するときに足が見る */
 export const crawlIds = (v: unknown): string[] =>
-	Array.isArray(v)
-		? v.filter((x): x is string => typeof x === "string").slice(0, 10)
-		: [];
+  Array.isArray(v)
+    ? v.filter((x): x is string => typeof x === "string").slice(0, 10)
+    : [];
 
 export type StepOutcome =
-	| {
-			kind: "walked";
-			questionId: string;
-			reason: "score" | "detour" | "echo" | "verify" | "promised";
-			noteId: string;
-			profiled: boolean;
-			reflected: boolean;
-			wakeAt: Date;
-	  }
-	| {
-			kind: "seeded";
-			/** 探させた系統 */
-			track: Track;
-			added: number;
-			profiled: boolean;
-			reflected: boolean;
-			wakeAt: Date;
-	  }
-	| { kind: "asleep"; wakeAt: Date }
-	/** usd: 今日の予算を使い切った / steps: 今日の歩数の上限に来た */
-	| { kind: "broke"; reason: "usd" | "steps"; wakeAt: Date }
-	| { kind: "failed"; error: string; wakeAt: Date }
-	/** core.md が人の承認なしに変わった。人が `ashi core --accept` するまで歩かない */
-	| { kind: "core-changed" }
-	/** 持ち主が止めている。再開されるまで歩かない(再開すると起こされる) */
-	| { kind: "paused"; wakeAt: Date };
+  | {
+      kind: "walked";
+      questionId: string;
+      reason: "score" | "detour" | "echo" | "verify" | "promised";
+      noteId: string;
+      profiled: boolean;
+      reflected: boolean;
+      wakeAt: Date;
+    }
+  | {
+      kind: "seeded";
+      /** 探させた系統 */
+      track: Track;
+      added: number;
+      profiled: boolean;
+      reflected: boolean;
+      wakeAt: Date;
+    }
+  | { kind: "asleep"; wakeAt: Date }
+  /** usd: 今日の予算を使い切った / steps: 今日の歩数の上限に来た */
+  | { kind: "broke"; reason: "usd" | "steps"; wakeAt: Date }
+  | { kind: "failed"; error: string; wakeAt: Date }
+  /** core.md が人の承認なしに変わった。人が `ashi core --accept` するまで歩かない */
+  | { kind: "core-changed" }
+  /** 持ち主が止めている。再開されるまで歩かない(再開すると起こされる) */
+  | { kind: "paused"; wakeAt: Date };
 
 /** 疲れがこれ以上なら、内省の順番を待たずに立ち止まる */
 const TIRED = 0.8;
@@ -228,947 +228,947 @@ const MATERIAL_CHARS = 60_000;
 
 /** 持ち主の材料。新しいものから上限まで、古い順に並べ直して渡す */
 export function gatherMaterials(store: Store): Material[] {
-	const chats: Material[] = store
-		.recentChats(200)
-		.map((c) => ({ kind: "chat" as const, title: c.at, body: c.question }));
-	const sources: Material[] = store
-		.sources()
-		.slice(-30)
-		.reverse()
-		.map((s) => ({
-			kind: "source" as const,
-			title: s.title,
-			body: (store.sourceBody(s.id) ?? "").slice(0, 8_000),
-		}));
-	const out: Material[] = [];
-	let total = 0;
-	// 文章と対話を交互に取り、片方で上限を使い切らない
-	for (let i = 0; i < Math.max(chats.length, sources.length); i++) {
-		for (const m of [sources[i], chats[i]]) {
-			if (!m || total + m.body.length > MATERIAL_CHARS) continue;
-			out.push(m);
-			total += m.body.length;
-		}
-	}
-	return out.reverse();
+  const chats: Material[] = store
+    .recentChats(200)
+    .map((c) => ({ kind: "chat" as const, title: c.at, body: c.question }));
+  const sources: Material[] = store
+    .sources()
+    .slice(-30)
+    .reverse()
+    .map((s) => ({
+      kind: "source" as const,
+      title: s.title,
+      body: (store.sourceBody(s.id) ?? "").slice(0, 8_000),
+    }));
+  const out: Material[] = [];
+  let total = 0;
+  // 文章と対話を交互に取り、片方で上限を使い切らない
+  for (let i = 0; i < Math.max(chats.length, sources.length); i++) {
+    for (const m of [sources[i], chats[i]]) {
+      if (!m || total + m.body.length > MATERIAL_CHARS) continue;
+      out.push(m);
+      total += m.body.length;
+    }
+  }
+  return out.reverse();
 }
 
 export async function step(legs: Legs): Promise<StepOutcome> {
-	const { store, head } = legs;
-	const now = legs.now?.() ?? new Date();
-	const rng = legs.rng ?? Math.random;
-	const notify = legs.notify ?? webhookNotify;
-	const cfg = store.config();
-	const walk = store.walk();
-	const core = store.core();
+  const { store, head } = legs;
+  const now = legs.now?.() ?? new Date();
+  const rng = legs.rng ?? Math.random;
+  const notify = legs.notify ?? webhookNotify;
+  const cfg = store.config();
+  const walk = store.walk();
+  const core = store.core();
 
-	// 持ち主が止めているあいだは何もしない(頭を呼ばない)。再開されると起こされる
-	if (walk.paused)
-		return { kind: "paused", wakeAt: new Date(now.getTime() + 30 * 60_000) };
+  // 持ち主が止めているあいだは何もしない(頭を呼ばない)。再開されると起こされる
+  if (walk.paused)
+    return { kind: "paused", wakeAt: new Date(now.getTime() + 30 * 60_000) };
 
-	if (hashText(core) !== walk.coreHash) {
-		store.log("core-changed");
-		return { kind: "core-changed" };
-	}
-	if (walk.sleepingUntil && new Date(walk.sleepingUntil) > now) {
-		return { kind: "asleep", wakeAt: new Date(walk.sleepingUntil) };
-	}
+  if (hashText(core) !== walk.coreHash) {
+    store.log("core-changed");
+    return { kind: "core-changed" };
+  }
+  if (walk.sleepingUntil && new Date(walk.sleepingUntil) > now) {
+    return { kind: "asleep", wakeAt: new Date(walk.sleepingUntil) };
+  }
 
-	const today = localDay(now);
-	let left = allowance(store.budget(today), cfg);
-	const sleepUntil = (wakeAt: Date) => {
-		store.saveWalk({ ...store.walk(), sleepingUntil: wakeAt.toISOString() });
-		return wakeAt;
-	};
-	if (left <= 0) {
-		store.log("broke", { spentUsd: store.budget(today).spentUsd });
-		return {
-			kind: "broke",
-			reason: "usd",
-			wakeAt: sleepUntil(nextMidnight(now)),
-		};
-	}
-	if ((store.budget(today).steps ?? 0) >= cfg.maxStepsPerDay) {
-		store.log("broke", { steps: cfg.maxStepsPerDay });
-		return {
-			kind: "broke",
-			reason: "steps",
-			wakeAt: sleepUntil(nextMidnight(now)),
-		};
-	}
+  const today = localDay(now);
+  let left = allowance(store.budget(today), cfg);
+  const sleepUntil = (wakeAt: Date) => {
+    store.saveWalk({ ...store.walk(), sleepingUntil: wakeAt.toISOString() });
+    return wakeAt;
+  };
+  if (left <= 0) {
+    store.log("broke", { spentUsd: store.budget(today).spentUsd });
+    return {
+      kind: "broke",
+      reason: "usd",
+      wakeAt: sleepUntil(nextMidnight(now)),
+    };
+  }
+  if ((store.budget(today).steps ?? 0) >= cfg.maxStepsPerDay) {
+    store.log("broke", { steps: cfg.maxStepsPerDay });
+    return {
+      kind: "broke",
+      reason: "steps",
+      wakeAt: sleepUntil(nextMidnight(now)),
+    };
+  }
 
-	// 前の歩みで頭が読みたいと言った足跡を読む(GET だけ。頭は呼ばないので予算は使わない)
-	if (walk.crawlRequests.length > 0) {
-		store.saveWalk({ ...store.walk(), crawlRequests: [] });
-		await crawlRequested(
-			store,
-			walk.crawlRequests,
-			now,
-			legs.net,
-			legs.env,
-			notify,
-		);
-	}
+  // 前の歩みで頭が読みたいと言った足跡を読む(GET だけ。頭は呼ばないので予算は使わない)
+  if (walk.crawlRequests.length > 0) {
+    store.saveWalk({ ...store.walk(), crawlRequests: [] });
+    await crawlRequested(
+      store,
+      walk.crawlRequests,
+      now,
+      legs.net,
+      legs.env,
+      notify,
+    );
+  }
 
-	// 読み取り専用の道具しか頭に渡さない
-	const tools = legs.tools.filter((t) => t.readOnly === true);
-	let spent = noUsage();
-	// 頭が答えたら、頭の側で弾かれていたこと(鍵・課金)は片づいている
-	let thought = false;
-	const charge = (u: Usage) => {
-		thought = true;
-		spent = addUsage(spent, u);
-		left -= u.costUsd;
-		resolveBlockers(store, "head:", now);
-	};
-	const sys = () => system(core, store.self(), store.owner());
-	const minutes = (m: number) => new Date(now.getTime() + m * 60_000);
+  // 読み取り専用の道具しか頭に渡さない
+  const tools = legs.tools.filter((t) => t.readOnly === true);
+  let spent = noUsage();
+  // 頭が答えたら、頭の側で弾かれていたこと(鍵・課金)は片づいている
+  let thought = false;
+  const charge = (u: Usage) => {
+    thought = true;
+    spent = addUsage(spent, u);
+    left -= u.costUsd;
+    resolveBlockers(store, "head:", now);
+  };
+  const sys = () => system(core, store.self(), store.owner());
+  const minutes = (m: number) => new Date(now.getTime() + m * 60_000);
 
-	try {
-		// 持ち主の材料が増えていたら、順番が来たとき(初めてなら今すぐ)地図を書き直す
-		let profiled = false;
-		const materials = store.materialCount();
-		if (
-			materials > walk.profiledMaterials &&
-			(walk.lastProfileStep === 0 ||
-				walk.steps - walk.lastProfileStep >= cfg.profileEvery)
-		) {
-			const { output, usage } = await head.think<ProfileAnswer>({
-				task: "profile",
-				system: sys(),
-				prompt: profilePrompt(gatherMaterials(store), store.questions()),
-				schema: PROFILE_SCHEMA,
-				maxCostUsd: left,
-			});
-			charge(usage);
-			const owner = acceptSelf(output.owner, 8000);
-			if (owner) store.saveOwner(owner);
-			// 地図から出た問いは先回りの系統に固定する
-			const raw = (output.new_questions ?? []).map((q) => ({
-				...q,
-				track: "owner",
-			}));
-			let added = 0;
-			store.updateQuestions((qs) => {
-				const got = acceptNewQuestions(raw, qs, cfg, undefined, now, {
-					source: "profile",
-				});
-				added = got.length;
-				return trimOpenQuestions([...qs, ...got], cfg);
-			});
-			store.saveWalk({
-				...store.walk(),
-				lastProfileStep: Math.max(1, walk.steps),
-				profiledMaterials: materials,
-			});
-			store.log("profiled", {
-				ownerUpdated: Boolean(owner),
-				added,
-				usd: usage.costUsd,
-			});
-			profiled = true;
-		}
+  try {
+    // 持ち主の材料が増えていたら、順番が来たとき(初めてなら今すぐ)地図を書き直す
+    let profiled = false;
+    const materials = store.materialCount();
+    if (
+      materials > walk.profiledMaterials &&
+      (walk.lastProfileStep === 0 ||
+        walk.steps - walk.lastProfileStep >= cfg.profileEvery)
+    ) {
+      const { output, usage } = await head.think<ProfileAnswer>({
+        task: "profile",
+        system: sys(),
+        prompt: profilePrompt(gatherMaterials(store), store.questions()),
+        schema: PROFILE_SCHEMA,
+        maxCostUsd: left,
+      });
+      charge(usage);
+      const owner = acceptSelf(output.owner, 8000);
+      if (owner) store.saveOwner(owner);
+      // 地図から出た問いは先回りの系統に固定する
+      const raw = (output.new_questions ?? []).map((q) => ({
+        ...q,
+        track: "owner",
+      }));
+      let added = 0;
+      store.updateQuestions((qs) => {
+        const got = acceptNewQuestions(raw, qs, cfg, undefined, now, {
+          source: "profile",
+        });
+        added = got.length;
+        return trimOpenQuestions([...qs, ...got], cfg);
+      });
+      store.saveWalk({
+        ...store.walk(),
+        lastProfileStep: Math.max(1, walk.steps),
+        profiledMaterials: materials,
+      });
+      store.log("profiled", {
+        ownerUpdated: Boolean(owner),
+        added,
+        usd: usage.costUsd,
+      });
+      profiled = true;
+    }
 
-		const questions = store.questions();
-		const pick =
-			left > 0
-				? selectQuestion(
-						questions,
-						walk.recentThemes,
-						cfg,
-						rng,
-						now,
-						walk.recentTracks ?? [],
-					)
-				: null;
-		const choice = pick && "question" in pick ? pick : null;
-		const resting = restingThemes(walk.recentThemes, cfg);
-		const ctx = (): WalkContext => ({
-			notes: store.notes(),
-			questions: store.questions(),
-			feeds: feedStatus(store, now),
-			intentions: store.walk().intentions ?? [],
-			bridges: store.bridgeIdeas().slice(-10),
-			recentThemes: walk.recentThemes.filter((t) => t !== SEEDING),
-			resting,
-			maxOpenPerTheme: cfg.maxOpenPerTheme,
-		});
-		let outcome: StepOutcome;
-		let tiredness = 0;
+    const questions = store.questions();
+    const pick =
+      left > 0
+        ? selectQuestion(
+            questions,
+            walk.recentThemes,
+            cfg,
+            rng,
+            now,
+            walk.recentTracks ?? [],
+          )
+        : null;
+    const choice = pick && "question" in pick ? pick : null;
+    const resting = restingThemes(walk.recentThemes, cfg);
+    const ctx = (): WalkContext => ({
+      notes: store.notes(),
+      questions: store.questions(),
+      feeds: feedStatus(store, now),
+      intentions: store.walk().intentions ?? [],
+      bridges: store.bridgeIdeas().slice(-10),
+      recentThemes: walk.recentThemes.filter((t) => t !== SEEDING),
+      resting,
+      maxOpenPerTheme: cfg.maxOpenPerTheme,
+    });
+    let outcome: StepOutcome;
+    let tiredness = 0;
 
-		if (left <= 0) {
-			// 地図を書いたところで予算が尽きた
-			outcome = { kind: "broke", reason: "usd", wakeAt: nextMidnight(now) };
-		} else if (!choice) {
-			// さいころで決めた系統に歩ける問いが無い(尽きた、または同じテーマが続いて休ませている)。
-			// その系統の問いを頭に出させる
-			const track = pick && "seed" in pick ? pick.seed : "self";
-			const { output, usage } = await head.think<SeedAnswer>({
-				task: "seed",
-				system: sys(),
-				prompt: seedPrompt(track, ctx()),
-				schema: SEED_SCHEMA,
-				maxCostUsd: left,
-			});
-			charge(usage);
-			let added: string[] = [];
-			store.updateQuestions((qs) => {
-				// 頭が別の系統を付けてきても、探させた系統に揃える
-				const raw = (output.new_questions ?? []).map((q) => ({ ...q, track }));
-				let got = acceptNewQuestions(raw, qs, cfg, undefined, now, {
-					source: "seed",
-				});
-				// 休ませているテーマは、頭がまた出してきても受け取らない
-				got = got.filter((q) => !resting.includes(q.theme));
-				added = got.map((q) => q.text);
-				return trimOpenQuestions([...qs, ...got], cfg);
-			});
-			// 問いを考えただけの歩みも 1 歩。テーマの連続はここで切れる
-			store.saveWalk({
-				...store.walk(),
-				steps: walk.steps + 1,
-				recentThemes: [SEEDING, ...walk.recentThemes].slice(0, 20),
-				recentTracks: [track, ...(walk.recentTracks ?? [])].slice(0, 20),
-				crawlRequests: crawlIds(output.crawl),
-			});
-			store.log("seeded", { track, added, usd: usage.costUsd });
-			tiredness = unit(output.tiredness);
-			outcome = {
-				kind: "seeded",
-				track,
-				added: added.length,
-				profiled,
-				reflected: false,
-				wakeAt: minutes(clampSleep(output.sleep_minutes, cfg)),
-			};
-		} else {
-			const q = choice.question;
-			// 個性の系統を selfBlindEvery 回歩くごとに 1 回、自己記述を渡さずに歩く(対照のため)。
-			// 見つけた型が世界の側のものか、自己記述が探させたものかを、内省でノートを並べて見比べる
-			const selfWalks =
-				(store.walk().selfWalks ?? 0) + (q.track === "self" ? 1 : 0);
-			const blind =
-				q.track === "self" &&
-				cfg.selfBlindEvery > 0 &&
-				selfWalks % cfg.selfBlindEvery === 0;
-			if (q.track === "self") store.saveWalk({ ...store.walk(), selfWalks });
-			// よそ者の会話から出た確かめの問いは、同じ分野の確かめの問いを束ねて 1 歩で確かめる
-			// 内省で一緒に歩く組にした問い。確かめの問いは checked で、ほかは also_answered で返させる
-			const mates = groupMates(q, store.walk().walkGroups, store.questions());
-			const siblings = [
-				...verifySiblings(q, store.questions(), cfg.verifyBatch),
-				...mates.filter((x) => x.verify),
-			].filter((x, i, xs) => xs.findIndex((y) => y.id === x.id) === i);
-			// 確かめの問いと近い、開いている問い。同じ資料で答えが出るなら一緒に
-			const related = [
-				...relatedOpen(q, store.questions()),
-				...mates.filter((x) => !x.verify),
-			].filter((x, i, xs) => xs.findIndex((y) => y.id === x.id) === i);
-			const { output, usage } = await head.think<ExploreAnswer>({
-				task: "explore",
-				system: blind ? system(core, BLIND_SELF, store.owner()) : sys(),
-				prompt: explorePrompt(q, choice.reason, ctx(), siblings, related),
-				schema: EXPLORE_SCHEMA,
-				tools,
-				allowWeb: cfg.allowWeb,
-				maxToolRounds: cfg.maxToolRounds,
-				maxCostUsd: left,
-			});
-			charge(usage);
+    if (left <= 0) {
+      // 地図を書いたところで予算が尽きた
+      outcome = { kind: "broke", reason: "usd", wakeAt: nextMidnight(now) };
+    } else if (!choice) {
+      // さいころで決めた系統に歩ける問いが無い(尽きた、または同じテーマが続いて休ませている)。
+      // その系統の問いを頭に出させる
+      const track = pick && "seed" in pick ? pick.seed : "self";
+      const { output, usage } = await head.think<SeedAnswer>({
+        task: "seed",
+        system: sys(),
+        prompt: seedPrompt(track, ctx()),
+        schema: SEED_SCHEMA,
+        maxCostUsd: left,
+      });
+      charge(usage);
+      let added: string[] = [];
+      store.updateQuestions((qs) => {
+        // 頭が別の系統を付けてきても、探させた系統に揃える
+        const raw = (output.new_questions ?? []).map((q) => ({ ...q, track }));
+        let got = acceptNewQuestions(raw, qs, cfg, undefined, now, {
+          source: "seed",
+        });
+        // 休ませているテーマは、頭がまた出してきても受け取らない
+        got = got.filter((q) => !resting.includes(q.theme));
+        added = got.map((q) => q.text);
+        return trimOpenQuestions([...qs, ...got], cfg);
+      });
+      // 問いを考えただけの歩みも 1 歩。テーマの連続はここで切れる
+      store.saveWalk({
+        ...store.walk(),
+        steps: walk.steps + 1,
+        recentThemes: [SEEDING, ...walk.recentThemes].slice(0, 20),
+        recentTracks: [track, ...(walk.recentTracks ?? [])].slice(0, 20),
+        crawlRequests: crawlIds(output.crawl),
+      });
+      store.log("seeded", { track, added, usd: usage.costUsd });
+      tiredness = unit(output.tiredness);
+      outcome = {
+        kind: "seeded",
+        track,
+        added: added.length,
+        profiled,
+        reflected: false,
+        wakeAt: minutes(clampSleep(output.sleep_minutes, cfg)),
+      };
+    } else {
+      const q = choice.question;
+      // 個性の系統を selfBlindEvery 回歩くごとに 1 回、自己記述を渡さずに歩く(対照のため)。
+      // 見つけた型が世界の側のものか、自己記述が探させたものかを、内省でノートを並べて見比べる
+      const selfWalks =
+        (store.walk().selfWalks ?? 0) + (q.track === "self" ? 1 : 0);
+      const blind =
+        q.track === "self" &&
+        cfg.selfBlindEvery > 0 &&
+        selfWalks % cfg.selfBlindEvery === 0;
+      if (q.track === "self") store.saveWalk({ ...store.walk(), selfWalks });
+      // よそ者の会話から出た確かめの問いは、同じ分野の確かめの問いを束ねて 1 歩で確かめる
+      // 内省で一緒に歩く組にした問い。確かめの問いは checked で、ほかは also_answered で返させる
+      const mates = groupMates(q, store.walk().walkGroups, store.questions());
+      const siblings = [
+        ...verifySiblings(q, store.questions(), cfg.verifyBatch),
+        ...mates.filter((x) => x.verify),
+      ].filter((x, i, xs) => xs.findIndex((y) => y.id === x.id) === i);
+      // 確かめの問いと近い、開いている問い。同じ資料で答えが出るなら一緒に
+      const related = [
+        ...relatedOpen(q, store.questions()),
+        ...mates.filter((x) => !x.verify),
+      ].filter((x, i, xs) => xs.findIndex((y) => y.id === x.id) === i);
+      const { output, usage } = await head.think<ExploreAnswer>({
+        task: "explore",
+        system: blind ? system(core, BLIND_SELF, store.owner()) : sys(),
+        prompt: explorePrompt(q, choice.reason, ctx(), siblings, related),
+        schema: EXPLORE_SCHEMA,
+        tools,
+        allowWeb: cfg.allowWeb,
+        maxToolRounds: cfg.maxToolRounds,
+        maxCostUsd: left,
+      });
+      charge(usage);
 
-			const findings = String(output.findings ?? "").trim();
-			// 書き損じ(本文が空・埋め草)はノートにせず、問いも閉じない。歩いた回数だけ足して約束の印を消し
-			// (同じ問いを先回しで何度も引かない)、失敗として残す
-			const blank = blankNote({
-				title: output.title,
-				summary: output.summary,
-				findings,
-			});
-			if (blank) {
-				store.updateQuestions((qs) =>
-					qs.map((x) => {
-						if (x.id !== q.id) return x;
-						const { promised: _p, ...rest } = x;
-						return {
-							...rest,
-							visits: x.visits + 1,
-							lastVisitedAt: now.toISOString(),
-							blankNotes: (x.blankNotes ?? 0) + 1,
-						};
-					}),
-				);
-				store.saveWalk({
-					...store.walk(),
-					steps: walk.steps + 1,
-					recentThemes: [q.theme, ...walk.recentThemes].slice(0, 20),
-					recentTracks: [q.track, ...(walk.recentTracks ?? [])].slice(0, 20),
-				});
-				throw new Error(
-					`書き損じの答え(${blank})。問い ${q.id} はノートにせず開いたまま`,
-				);
-			}
-			const noteId = newId();
-			// 出典をどこまで読めたか。足がノートの末尾に残す
-			const depth = readDepthSection(output.sources_read, findings);
-			const title = String(output.title || q.text).slice(0, 200);
-			const summary = String(output.summary ?? "").slice(0, 500);
-			store.addNote(
-				{
-					id: noteId,
-					title,
-					theme: q.theme,
-					questionId: q.id,
-					summary,
-					createdAt: now.toISOString(),
-					...(blind ? { blind: true } : {}),
-					...(depth.shallow ? { shallow: depth.shallow } : {}),
-				},
-				`# ${title}\n\n問い: ${q.text}\n\n${findings}\n${depth.text}`,
-			);
-			let added: string[] = [];
-			let bridged: string[] = [];
-			const searched = acceptSearched(output.searched);
-			const missed = output.found === "none" && output.answered !== true;
-			let parked = false;
-			const batch = batchResults(output.checked, siblings);
-			let alsoAnswered: string[] = [];
-			store.updateQuestions((qs) => {
-				const updated = qs.map((x) => {
-					// 束ねて確かめた問い。合う・外れは閉じ、読めなかったものは見つからなかった回数に足す
-					const r = batch.get(x.id);
-					if (r && x.status === "open") {
-						const misses = (x.misses ?? 0) + (r === "unreadable" ? 1 : 0);
-						return {
-							...x,
-							visits: x.visits + 1,
-							lastVisitedAt: now.toISOString(),
-							misses,
-							verifyResult: r,
-							status:
-								r === "unreadable"
-									? misses >= cfg.missesToPark
-										? ("parked" as const)
-										: x.status
-									: ("answered" as const),
-						};
-					}
-					if (x.id !== q.id) return x;
-					// 確かめの問いの結果を残す(内省の借りの台帳で、外れた借りから書いた自己記述の行を見直させる)
-					const verifyResult = x.verify
-						? mainVerifyResult(q, output)
-						: undefined;
-					// 見つからなかった回数を数え、上限に達したら未測定の棚へ(同じ所をぐるぐる探さない)
-					const misses = (x.misses ?? 0) + (missed ? 1 : 0);
-					parked = output.answered !== true && misses >= cfg.missesToPark;
-					// 歩いたら、次の一歩の約束の印は消す(約束は果たした)
-					const { promised: _promised, ...rest } = x;
-					return {
-						...rest,
-						visits: x.visits + 1,
-						lastVisitedAt: now.toISOString(),
-						misses,
-						searchedWhere: [
-							...new Set([...(x.searchedWhere ?? []), ...searched]),
-						].slice(-20),
-						...(verifyResult ? { verifyResult } : {}),
-						status:
-							output.answered === true
-								? ("answered" as const)
-								: parked
-									? ("parked" as const)
-									: x.status,
-					};
-				});
-				const got = acceptNewQuestions(
-					output.new_questions,
-					updated,
-					cfg,
-					q.id,
-					now,
-					{ source: "explore" },
-				);
-				added = got.map((a) => a.text);
-				// 個性の問いから生まれた先回りの問い = 個性で得た見方を持ち主の側へ持ち帰ったもの
-				if (q.track === "self")
-					bridged = got.filter((a) => a.track === "owner").map((a) => a.text);
-				// 添えた近い問いのうち、このノートで答えが出たものを閉じる
-				const near = new Set(related.map((x) => x.id));
-				const c = closeByNote(
-					updated,
-					(Array.isArray(output.also_answered) ? output.also_answered : [])
-						.filter((id) => typeof id === "string" && near.has(id))
-						.map((id) => ({ question_id: id, note_id: noteId })),
-					[{ id: noteId }],
-					now,
-				);
-				alsoAnswered = c.closed.map((x) => x.id);
-				return trimOpenQuestions([...c.questions, ...got], cfg);
-			});
-			addBridgeIdeas(
-				store,
-				output.bridge_ideas,
-				q.track === "self" ? noteId : undefined,
-				now,
-			);
-			store.saveWalk({
-				...store.walk(),
-				steps: walk.steps + 1,
-				recentThemes: [q.theme, ...walk.recentThemes].slice(0, 20),
-				recentTracks: [q.track, ...(walk.recentTracks ?? [])].slice(0, 20),
-				crawlRequests: crawlIds(output.crawl),
-			});
-			// 頭が歩いていて弾かれたと知らせてきたもの。画面の「弾かれたこと」には出すが、通知はしない
-			// (有料の論文や判例誌のたびに鳴って、持ち主が手を打てないものばかりだった)
-			for (const b of reportedBlocks(output.blocked)) {
-				await raiseBlocker(store, "report", b, now, async () => {});
-			}
-			// X で確かめずに言ったことが違っていたら、その返信に続けて訂正する
-			let corrected: string | undefined;
-			let uncorrected: string | undefined;
-			const correction =
-				typeof output.correction === "string" ? output.correction.trim() : "";
-			// 出せなかったときは黙らない(9/28、長すぎた訂正が消えて約束の返事が届かなかった)
-			if (q.origin && correction && xLength(correction) > 280)
-				uncorrected = `長すぎる(${xLength(correction)} / 280)`;
-			else if (q.origin && correction && !canReply(store, cfg, now))
-				uncorrected = "今日はもう返信できない";
-			else if (q.origin && correction) {
-				try {
-					await postToX(
-						store,
-						correction,
-						now,
-						{
-							tweetId: q.origin.replyId,
-							conversationId: q.origin.conversationId,
-						},
-						legs.env ?? process.env,
-						legs.net?.fetch ?? fetch,
-					);
-					corrected = correction;
-					markReplied(store, q.id, now);
-				} catch (e) {
-					await raiseBlocker(store, "x", xBlockage(e), now, notify);
-				}
-			}
-			// 持ち主に言ったことが違っていたら、訂正を台帳に溜める(次に話すときに頭に見せる)
-			// 合っていた・答えが出たときも、持ち主に渡すまで台帳に残す。答えのノートができて問いが閉じても、
-			// 持ち主には何も届いていなかった(Ashi の改善案、2026-10-23)
-			const ownerResult =
-				!q.origin && q.verify && q.source === "chat"
-					? mainVerifyResult(q, output)
-					: undefined;
-			const ownerNote =
-				!correction && (ownerResult === "holds" || output.answered === true)
-					? `前に話したときに記憶で言った「${q.text.slice(0, 120)}」を確かめた。${ownerResult === "holds" ? "合っていた" : "答えが出た"}(ノート ${noteId}「${title.slice(0, 80)}」)`
-					: "";
-			if (
-				!q.origin &&
-				q.verify &&
-				q.source === "chat" &&
-				(correction || ownerNote)
-			) {
-				const w2 = store.walk();
-				store.saveWalk({
-					...w2,
-					ownerCorrections: addOwnerCorrections(
-						w2.ownerCorrections,
-						correction || ownerNote,
-						now,
-						q.id,
-						correction ? undefined : "answer",
-					),
-				});
-			}
-			store.log("walked", {
-				questionId: q.id,
-				question: q.text,
-				...(blind ? { blind: true } : {}),
-				theme: q.theme,
-				track: q.track,
-				corrected,
-				...(uncorrected ? { uncorrected, correction } : {}),
-				reason: choice.reason,
-				score: choice.score,
-				// その歩みで休ませていたテーマ(歩かれなかった問いの理由に使う)
-				resting,
-				...(batch.size ? { batch: Object.fromEntries(batch) } : {}),
-				...(alsoAnswered.length ? { alsoAnswered } : {}),
-				noteId,
-				answered: output.answered === true,
-				added,
-				bridged,
-				found: output.found,
-				parked,
-				usd: usage.costUsd,
-			});
-			tiredness = unit(output.tiredness);
-			outcome = {
-				kind: "walked",
-				questionId: q.id,
-				reason: choice.reason,
-				noteId,
-				profiled,
-				reflected: false,
-				wakeAt: minutes(clampSleep(output.sleep_minutes, cfg)),
-			};
-		}
+      const findings = String(output.findings ?? "").trim();
+      // 書き損じ(本文が空・埋め草)はノートにせず、問いも閉じない。歩いた回数だけ足して約束の印を消し
+      // (同じ問いを先回しで何度も引かない)、失敗として残す
+      const blank = blankNote({
+        title: output.title,
+        summary: output.summary,
+        findings,
+      });
+      if (blank) {
+        store.updateQuestions((qs) =>
+          qs.map((x) => {
+            if (x.id !== q.id) return x;
+            const { promised: _p, ...rest } = x;
+            return {
+              ...rest,
+              visits: x.visits + 1,
+              lastVisitedAt: now.toISOString(),
+              blankNotes: (x.blankNotes ?? 0) + 1,
+            };
+          }),
+        );
+        store.saveWalk({
+          ...store.walk(),
+          steps: walk.steps + 1,
+          recentThemes: [q.theme, ...walk.recentThemes].slice(0, 20),
+          recentTracks: [q.track, ...(walk.recentTracks ?? [])].slice(0, 20),
+        });
+        throw new Error(
+          `書き損じの答え(${blank})。問い ${q.id} はノートにせず開いたまま`,
+        );
+      }
+      const noteId = newId();
+      // 出典をどこまで読めたか。足がノートの末尾に残す
+      const depth = readDepthSection(output.sources_read, findings);
+      const title = String(output.title || q.text).slice(0, 200);
+      const summary = String(output.summary ?? "").slice(0, 500);
+      store.addNote(
+        {
+          id: noteId,
+          title,
+          theme: q.theme,
+          questionId: q.id,
+          summary,
+          createdAt: now.toISOString(),
+          ...(blind ? { blind: true } : {}),
+          ...(depth.shallow ? { shallow: depth.shallow } : {}),
+        },
+        `# ${title}\n\n問い: ${q.text}\n\n${findings}\n${depth.text}`,
+      );
+      let added: string[] = [];
+      let bridged: string[] = [];
+      const searched = acceptSearched(output.searched);
+      const missed = output.found === "none" && output.answered !== true;
+      let parked = false;
+      const batch = batchResults(output.checked, siblings);
+      let alsoAnswered: string[] = [];
+      store.updateQuestions((qs) => {
+        const updated = qs.map((x) => {
+          // 束ねて確かめた問い。合う・外れは閉じ、読めなかったものは見つからなかった回数に足す
+          const r = batch.get(x.id);
+          if (r && x.status === "open") {
+            const misses = (x.misses ?? 0) + (r === "unreadable" ? 1 : 0);
+            return {
+              ...x,
+              visits: x.visits + 1,
+              lastVisitedAt: now.toISOString(),
+              misses,
+              verifyResult: r,
+              status:
+                r === "unreadable"
+                  ? misses >= cfg.missesToPark
+                    ? ("parked" as const)
+                    : x.status
+                  : ("answered" as const),
+            };
+          }
+          if (x.id !== q.id) return x;
+          // 確かめの問いの結果を残す(内省の借りの台帳で、外れた借りから書いた自己記述の行を見直させる)
+          const verifyResult = x.verify
+            ? mainVerifyResult(q, output)
+            : undefined;
+          // 見つからなかった回数を数え、上限に達したら未測定の棚へ(同じ所をぐるぐる探さない)
+          const misses = (x.misses ?? 0) + (missed ? 1 : 0);
+          parked = output.answered !== true && misses >= cfg.missesToPark;
+          // 歩いたら、次の一歩の約束の印は消す(約束は果たした)
+          const { promised: _promised, ...rest } = x;
+          return {
+            ...rest,
+            visits: x.visits + 1,
+            lastVisitedAt: now.toISOString(),
+            misses,
+            searchedWhere: [
+              ...new Set([...(x.searchedWhere ?? []), ...searched]),
+            ].slice(-20),
+            ...(verifyResult ? { verifyResult } : {}),
+            status:
+              output.answered === true
+                ? ("answered" as const)
+                : parked
+                  ? ("parked" as const)
+                  : x.status,
+          };
+        });
+        const got = acceptNewQuestions(
+          output.new_questions,
+          updated,
+          cfg,
+          q.id,
+          now,
+          { source: "explore" },
+        );
+        added = got.map((a) => a.text);
+        // 個性の問いから生まれた先回りの問い = 個性で得た見方を持ち主の側へ持ち帰ったもの
+        if (q.track === "self")
+          bridged = got.filter((a) => a.track === "owner").map((a) => a.text);
+        // 添えた近い問いのうち、このノートで答えが出たものを閉じる
+        const near = new Set(related.map((x) => x.id));
+        const c = closeByNote(
+          updated,
+          (Array.isArray(output.also_answered) ? output.also_answered : [])
+            .filter((id) => typeof id === "string" && near.has(id))
+            .map((id) => ({ question_id: id, note_id: noteId })),
+          [{ id: noteId }],
+          now,
+        );
+        alsoAnswered = c.closed.map((x) => x.id);
+        return trimOpenQuestions([...c.questions, ...got], cfg);
+      });
+      addBridgeIdeas(
+        store,
+        output.bridge_ideas,
+        q.track === "self" ? noteId : undefined,
+        now,
+      );
+      store.saveWalk({
+        ...store.walk(),
+        steps: walk.steps + 1,
+        recentThemes: [q.theme, ...walk.recentThemes].slice(0, 20),
+        recentTracks: [q.track, ...(walk.recentTracks ?? [])].slice(0, 20),
+        crawlRequests: crawlIds(output.crawl),
+      });
+      // 頭が歩いていて弾かれたと知らせてきたもの。画面の「弾かれたこと」には出すが、通知はしない
+      // (有料の論文や判例誌のたびに鳴って、持ち主が手を打てないものばかりだった)
+      for (const b of reportedBlocks(output.blocked)) {
+        await raiseBlocker(store, "report", b, now, async () => {});
+      }
+      // X で確かめずに言ったことが違っていたら、その返信に続けて訂正する
+      let corrected: string | undefined;
+      let uncorrected: string | undefined;
+      const correction =
+        typeof output.correction === "string" ? output.correction.trim() : "";
+      // 出せなかったときは黙らない(9/28、長すぎた訂正が消えて約束の返事が届かなかった)
+      if (q.origin && correction && xLength(correction) > 280)
+        uncorrected = `長すぎる(${xLength(correction)} / 280)`;
+      else if (q.origin && correction && !canReply(store, cfg, now))
+        uncorrected = "今日はもう返信できない";
+      else if (q.origin && correction) {
+        try {
+          await postToX(
+            store,
+            correction,
+            now,
+            {
+              tweetId: q.origin.replyId,
+              conversationId: q.origin.conversationId,
+            },
+            legs.env ?? process.env,
+            legs.net?.fetch ?? fetch,
+          );
+          corrected = correction;
+          markReplied(store, q.id, now);
+        } catch (e) {
+          await raiseBlocker(store, "x", xBlockage(e), now, notify);
+        }
+      }
+      // 持ち主に言ったことが違っていたら、訂正を台帳に溜める(次に話すときに頭に見せる)
+      // 合っていた・答えが出たときも、持ち主に渡すまで台帳に残す。答えのノートができて問いが閉じても、
+      // 持ち主には何も届いていなかった(Ashi の改善案、2026-10-23)
+      const ownerResult =
+        !q.origin && q.verify && q.source === "chat"
+          ? mainVerifyResult(q, output)
+          : undefined;
+      const ownerNote =
+        !correction && (ownerResult === "holds" || output.answered === true)
+          ? `前に話したときに記憶で言った「${q.text.slice(0, 120)}」を確かめた。${ownerResult === "holds" ? "合っていた" : "答えが出た"}(ノート ${noteId}「${title.slice(0, 80)}」)`
+          : "";
+      if (
+        !q.origin &&
+        q.verify &&
+        q.source === "chat" &&
+        (correction || ownerNote)
+      ) {
+        const w2 = store.walk();
+        store.saveWalk({
+          ...w2,
+          ownerCorrections: addOwnerCorrections(
+            w2.ownerCorrections,
+            correction || ownerNote,
+            now,
+            q.id,
+            correction ? undefined : "answer",
+          ),
+        });
+      }
+      store.log("walked", {
+        questionId: q.id,
+        question: q.text,
+        ...(blind ? { blind: true } : {}),
+        theme: q.theme,
+        track: q.track,
+        corrected,
+        ...(uncorrected ? { uncorrected, correction } : {}),
+        reason: choice.reason,
+        score: choice.score,
+        // その歩みで休ませていたテーマ(歩かれなかった問いの理由に使う)
+        resting,
+        ...(batch.size ? { batch: Object.fromEntries(batch) } : {}),
+        ...(alsoAnswered.length ? { alsoAnswered } : {}),
+        noteId,
+        answered: output.answered === true,
+        added,
+        bridged,
+        found: output.found,
+        parked,
+        usd: usage.costUsd,
+      });
+      tiredness = unit(output.tiredness);
+      outcome = {
+        kind: "walked",
+        questionId: q.id,
+        reason: choice.reason,
+        noteId,
+        profiled,
+        reflected: false,
+        wakeAt: minutes(clampSleep(output.sleep_minutes, cfg)),
+      };
+    }
 
-		// X のメンションへの返事は歩みとは別(legs/converse.ts、サーバーのタイマーから)
+    // X のメンションへの返事は歩みとは別(legs/converse.ts、サーバーのタイマーから)
 
-		// 内省。順番が来たか、疲れていたら。予算が残っていなければ次へ持ち越す
-		const w = store.walk();
-		if (
-			outcome.kind !== "broke" &&
-			(w.steps - w.lastReflectStep >= cfg.reflectEvery || tiredness >= TIRED) &&
-			left > 0
-		) {
-			// 内省の前に、よそ者と短く話す。話したことを内省の材料にして、自己記述まで届かせる
-			// (内省のあとに話していたので、会話から残るのが問いだけだった。Ashi の指摘、2026-09-25)。
-			// つまずいても歩み自体は失敗にしない(個性の種が 1 回減るだけ)
-			if (legs.stranger && cfg.stranger.enabled) {
-				try {
-					const talk = await talkWithStranger({
-						store,
-						head,
-						stranger: legs.stranger,
-						turns: cfg.stranger.turns,
-						now,
-						rng,
-					});
-					charge(talk.usage);
-				} catch (e) {
-					if (e instanceof HeadError) charge(e.usage);
-					store.log("stranger-failed", {
-						error: e instanceof Error ? e.message : String(e),
-					});
-				}
-			}
-			// 型の当たり率の基準線を測る(1 日 1 回)。つまずいても内省は続ける
-			try {
-				const b = await measureBaseline({ store, head, now, rng });
-				if (b) charge(b.usage);
-			} catch (e) {
-				if (e instanceof HeadError) charge(e.usage);
-				store.log("baseline-failed", {
-					error: e instanceof Error ? e.message : String(e),
-				});
-			}
-			const selfBefore = store.self();
-			// ノートの著者の食い違い。続けて出たら確かめの問いを積む
-			const conflicts = unsettledConflicts(
-				noteCitationConflicts(store),
-				store.questions(),
-				store.walk().settledConflicts,
-			);
-			trackConflicts(store, conflicts, now);
-			const { output, usage } = await head.think<ReflectAnswer>({
-				task: "reflect",
-				system: sys(),
-				prompt: reflectPrompt(
-					store.notes(),
-					store.diary(today),
-					w.recentThemes.slice(0, 10),
-					w.intentions ?? [],
-					store.proposals(),
-					store.xAccount() && cfg.x.enabled
-						? {
-								// リンクだけの無関係な返信は材料にしない
-								conversations: recentConversationsText(
-									store.conversations().map((c) => ({
-										...c,
-										messages: c.messages.filter(
-											(m) => m.byAshi || !looksUnrelated(m.text),
-										),
-									})),
-								),
-								canPost: canPost(store, cfg, now),
-								canReply: canReply(store, cfg, now),
-								promises: unreturnedPromises(store.questions()),
-								returned: store
-									.questions()
-									.filter((q) => q.origin && q.repliedAt)
-									.sort((a, b) =>
-										(b.repliedAt ?? "").localeCompare(a.repliedAt ?? ""),
-									)
-									.slice(0, 5),
-							}
-						: undefined,
-					{
-						questions: store.questions(),
-						similar: similarPairs(store.questions()),
-						pull: ownerPull(store.questions(), ownerHandles(cfg)),
-						notes: latestNoteByQuestion(store.notes()),
-					},
-					{
-						dialogues: store.recentDialogues(3),
-						chats: store.recentChats(5),
-						followups: adviceFollowups(store.recentChats(30), store.notes()),
-						stances: (store.walk().stances ?? []).slice(0, 10),
-						landing: strangerLanding(store.questions(), ownerHandles(cfg)),
-						trail: (() => {
-							const t = walkTrail(store.recentLog(300), w.intentions ?? []);
-							return {
-								...t,
-								missing: missedPromises(
-									t.promised.filter((id) => !t.kept.includes(id)),
-									store.questions(),
-									restingThemes(w.recentThemes, cfg),
-									t.steps,
-								),
-							};
-						})(),
-						blind: blindComparison(store.notes(), store.questions()),
-						evolution: selfEvolution(store.selfHistory()),
-						lastSelf: w.lastSelf,
-						baseline: recentBaselines(store.recentLog(1000), 2),
-						baselineTotals:
-							store.walk().baselineTotals ??
-							baselineTotalsFromLog(store.recentLog(100_000)),
-						citations: conflicts,
-						debts: debtLedger(store.questions(), now, 14, store.notes()),
-						shallowNotes: store
-							.notes()
-							.filter((n) => (n.shallow ?? 0) > 0)
-							.slice(-10)
-							.reverse(),
-					},
-				),
-				schema: REFLECT_SCHEMA,
-				maxCostUsd: left,
-			});
-			charge(usage);
-			const diary =
-				typeof output.diary === "string"
-					? output.diary.trim().slice(0, 8000)
-					: "";
-			if (diary)
-				store.appendDiary(
-					today,
-					`## ${now.toTimeString().slice(0, 5)}\n\n${diary}`,
-				);
-			let rawSelf = typeof output.self === "string" ? output.self.trim() : "";
-			let self = acceptSelf(rawSelf);
-			// 上限を超えたら、同じ内省の中で字数を示して 1 回だけ縮めさせる(黙って捨てて、直しがまるごと
-			// 消えていた。次の内省で伝えるだけだと 1 回分遅れる。Ashi の改善案、2026-09-27)
-			if (rawSelf.length > SELF_MAX) {
-				try {
-					const shrunk = await head.think<{ self: string }>({
-						task: "reflect-shrink",
-						system: sys(),
-						prompt: shrinkSelfPrompt(rawSelf, SELF_MAX),
-						schema: SHRINK_SELF_SCHEMA,
-					});
-					charge(shrunk.usage);
-					const again =
-						typeof shrunk.output.self === "string"
-							? shrunk.output.self.trim()
-							: "";
-					store.log("self-shrunk", { from: rawSelf.length, to: again.length });
-					if (again) {
-						rawSelf = again;
-						self = acceptSelf(again);
-					}
-				} catch (e) {
-					if (e instanceof HeadError) charge(e.usage);
-				}
-			}
-			if (self) store.saveSelf(self, now);
-			// 捨てたときは黙らない。記録し、次の内省で頭に伝える
-			if (rawSelf && !self)
-				store.log("self-rejected", { length: rawSelf.length, max: SELF_MAX });
-			// 内省で気づいた、持ち主に言ったことの訂正も台帳へ
-			if (
-				Array.isArray(output.owner_corrections) &&
-				output.owner_corrections.length
-			) {
-				const w3 = store.walk();
-				store.saveWalk({
-					...w3,
-					ownerCorrections: addOwnerCorrections(
-						w3.ownerCorrections,
-						output.owner_corrections,
-						now,
-					),
-				});
-			}
-			const patterns = acceptPatterns(output.patterns);
-			if (patterns.length)
-				store.saveWalk({ ...store.walk(), selfPatterns: patterns });
-			// 自己記述を何が動かしたか。頭の申告と、実際に変わったかを並べて残す。
-			// 変わったのに申告が無ければ「申告なし」として数える(申告も頭の自己申告なので)
-			const changes = acceptSelfChanges(output.self_changes);
-			const changed = Boolean(self) && self?.trim() !== selfBefore.trim();
-			if (changed || changes.length)
-				store.log("self-changed", {
-					changed,
-					changes,
-					undeclared: changed && changes.length === 0,
-				});
-			store.saveWalk({
-				...store.walk(),
-				lastSelf: {
-					at: now.toISOString(),
-					result: !rawSelf
-						? "missing"
-						: !self
-							? "rejected"
-							: changed
-								? "saved"
-								: "unchanged",
-					length: rawSelf.length,
-					declared: changes.length,
-					// 保存されなかった直しは中身ごと残し、次の内省で「未反映の直し」として並べる
-					...(rawSelf && !self
-						? { unapplied: changes.map((c) => c.what) }
-						: {}),
-				},
-			});
-			const { proposals, added: proposed } = acceptProposals(
-				output.proposals,
-				store.proposals(),
-				now,
-			);
-			store.saveProposals(proposals);
-			// 頭が決めた統合とテーマの付け替えを、足が状態に当てる
-			let merged = 0;
-			let renamed = 0;
-			let renames = new Map<string, string>();
-			let closedByNote: { id: string; note: string }[] = [];
-			let reestimated: {
-				id: string;
-				from: number[];
-				to: number[];
-				why: string;
-			}[] = [];
-			store.updateQuestions((qs) => {
-				const r = applyMerges(qs, output.merges, output.themes);
-				merged = r.merged;
-				renamed = r.renamed;
-				renames = r.renames;
-				const c = closeByNote(
-					r.questions,
-					output.close_by_note,
-					store.notes(),
-					now,
-				);
-				closedByNote = c.closed;
-				// 見立ての付け直し(作ったときの値のまま、ずれて残っていた)
-				const e = applyReestimates(c.questions, output.reestimate);
-				reestimated = e.changed;
-				return e.questions;
-			});
-			addBridgeIdeas(store, output.bridge_ideas, undefined, now);
-			// 著者の食い違いの決着(別の論文だった・どちらかの誤りをノートで確かめた)は、それ以後一覧から外す
-			const knownNotes = new Set(store.notes().map((n) => n.id));
-			const settled = { ...(store.walk().settledConflicts ?? {}) };
-			for (const x of Array.isArray(output.conflicts_settled)
-				? output.conflicts_settled
-				: []) {
-				if (
-					typeof x?.authors !== "string" ||
-					(x.kind !== "year" && x.kind !== "status") ||
-					!knownNotes.has(String(x.note_id))
-				)
-					continue;
-				settled[conflictKey(x)] = {
-					verdict: String(x.verdict ?? ""),
-					noteId: String(x.note_id),
-					at: now.toISOString(),
-				};
-			}
-			// 次の一歩は内省のたびに書き直す(古い意図を引きずらない)
-			// 付け替えたテーマは歩いた記録にも当てる。古い名前が残ると、同じテーマの歩みが 2 つの名前に
-			// 割れて、休ませる判定(themeWindowMax)がしばらく効かなかった(Ashi の指摘、2026-09-25)
-			const latest = store.walk();
-			store.saveWalk({
-				...latest,
-				recentThemes: latest.recentThemes.map((t) => renames.get(t) ?? t),
-				lastReflectStep: w.steps,
-				// 一緒に歩く組は内省のたびに書き直す
-				walkGroups: acceptGroups(output.walk_together, store.questions()),
-				settledConflicts: settled,
-				intentions: normalizeIntentions(
-					acceptIntentions(output.next_steps),
-					store.notes(),
-					store.questions(),
-				),
-			});
-			// 次の一歩に書いた問いに印を付ける(続けて書かれたら、足が先に歩く)。上限で手放されていたら開き直す
-			let reopened: string[] = [];
-			store.updateQuestions((qs) => {
-				const ids = new Set(
-					(store.walk().intentions ?? []).flatMap(questionIds),
-				);
-				reopened = qs
-					.filter((x) => ids.has(x.id) && reopenable(x))
-					.map((x) => x.id);
-				return markPromised(qs, store.walk().intentions ?? []);
-			});
-			// 外に出したいこと(新しい投稿 1 件と、約束への返信 1 件まで)。上限と長さは足が見る
-			const posts = (Array.isArray(output.posts) ? output.posts : []).filter(
-				(p) => typeof p?.text === "string" && p.text.trim(),
-			);
-			const promise = (id: unknown) =>
-				typeof id === "string" && id.trim()
-					? unreturnedPromises(store.questions()).find(
-							(q) => q.id === id.trim(),
-						)
-					: undefined;
-			const post = posts.find((p) => !promise(p.reply_to));
-			const answer = posts.find((p) => promise(p.reply_to));
-			let posted: string | undefined;
-			let replied: string | undefined;
-			const unposted: string[] = [];
-			const send = async (text: string, to?: Question): Promise<boolean> => {
-				if (xLength(text) > 280) {
-					unposted.push(`長すぎる(${xLength(text)} / 280): ${text}`);
-					return false;
-				}
-				try {
-					await postToX(
-						store,
-						text,
-						now,
-						to?.origin
-							? {
-									tweetId: to.origin.replyId,
-									conversationId: to.origin.conversationId,
-								}
-							: undefined,
-						legs.env ?? process.env,
-						legs.net?.fetch ?? fetch,
-					);
-					return true;
-				} catch (e) {
-					await raiseBlocker(store, "x", xBlockage(e), now, notify);
-					return false;
-				}
-			};
-			if (post && canPost(store, cfg, now)) {
-				const text = post.text.trim();
-				if (await send(text)) posted = text;
-			}
-			const to = answer ? promise(answer.reply_to) : undefined;
-			if (answer && to && canReply(store, cfg, now)) {
-				const text = answer.text.trim();
-				if (await send(text, to)) {
-					replied = text;
-					markReplied(store, to.id, now);
-				}
-			}
-			store.log("reflected", {
-				selfUpdated: Boolean(self),
-				proposed,
-				merged,
-				...(closedByNote.length ? { closedByNote } : {}),
-				...(reestimated.length ? { reestimated } : {}),
-				renamed,
-				posted,
-				replied,
-				...(reopened.length ? { reopened } : {}),
-				...(unposted.length > 0 ? { unposted } : {}),
-				usd: usage.costUsd,
-			});
-			if (outcome.kind === "walked" || outcome.kind === "seeded")
-				outcome = { ...outcome, reflected: true };
-		}
+    // 内省。順番が来たか、疲れていたら。予算が残っていなければ次へ持ち越す
+    const w = store.walk();
+    if (
+      outcome.kind !== "broke" &&
+      (w.steps - w.lastReflectStep >= cfg.reflectEvery || tiredness >= TIRED) &&
+      left > 0
+    ) {
+      // 内省の前に、よそ者と短く話す。話したことを内省の材料にして、自己記述まで届かせる
+      // (内省のあとに話していたので、会話から残るのが問いだけだった。Ashi の指摘、2026-09-25)。
+      // つまずいても歩み自体は失敗にしない(個性の種が 1 回減るだけ)
+      if (legs.stranger && cfg.stranger.enabled) {
+        try {
+          const talk = await talkWithStranger({
+            store,
+            head,
+            stranger: legs.stranger,
+            turns: cfg.stranger.turns,
+            now,
+            rng,
+          });
+          charge(talk.usage);
+        } catch (e) {
+          if (e instanceof HeadError) charge(e.usage);
+          store.log("stranger-failed", {
+            error: e instanceof Error ? e.message : String(e),
+          });
+        }
+      }
+      // 型の当たり率の基準線を測る(1 日 1 回)。つまずいても内省は続ける
+      try {
+        const b = await measureBaseline({ store, head, now, rng });
+        if (b) charge(b.usage);
+      } catch (e) {
+        if (e instanceof HeadError) charge(e.usage);
+        store.log("baseline-failed", {
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+      const selfBefore = store.self();
+      // ノートの著者の食い違い。続けて出たら確かめの問いを積む
+      const conflicts = unsettledConflicts(
+        noteCitationConflicts(store),
+        store.questions(),
+        store.walk().settledConflicts,
+      );
+      trackConflicts(store, conflicts, now);
+      const { output, usage } = await head.think<ReflectAnswer>({
+        task: "reflect",
+        system: sys(),
+        prompt: reflectPrompt(
+          store.notes(),
+          store.diary(today),
+          w.recentThemes.slice(0, 10),
+          w.intentions ?? [],
+          store.proposals(),
+          store.xAccount() && cfg.x.enabled
+            ? {
+                // リンクだけの無関係な返信は材料にしない
+                conversations: recentConversationsText(
+                  store.conversations().map((c) => ({
+                    ...c,
+                    messages: c.messages.filter(
+                      (m) => m.byAshi || !looksUnrelated(m.text),
+                    ),
+                  })),
+                ),
+                canPost: canPost(store, cfg, now),
+                canReply: canReply(store, cfg, now),
+                promises: unreturnedPromises(store.questions()),
+                returned: store
+                  .questions()
+                  .filter((q) => q.origin && q.repliedAt)
+                  .sort((a, b) =>
+                    (b.repliedAt ?? "").localeCompare(a.repliedAt ?? ""),
+                  )
+                  .slice(0, 5),
+              }
+            : undefined,
+          {
+            questions: store.questions(),
+            similar: similarPairs(store.questions()),
+            pull: ownerPull(store.questions(), ownerHandles(cfg)),
+            notes: latestNoteByQuestion(store.notes()),
+          },
+          {
+            dialogues: store.recentDialogues(3),
+            chats: store.recentChats(5),
+            followups: adviceFollowups(store.recentChats(30), store.notes()),
+            stances: (store.walk().stances ?? []).slice(0, 10),
+            landing: strangerLanding(store.questions(), ownerHandles(cfg)),
+            trail: (() => {
+              const t = walkTrail(store.recentLog(300), w.intentions ?? []);
+              return {
+                ...t,
+                missing: missedPromises(
+                  t.promised.filter((id) => !t.kept.includes(id)),
+                  store.questions(),
+                  restingThemes(w.recentThemes, cfg),
+                  t.steps,
+                ),
+              };
+            })(),
+            blind: blindComparison(store.notes(), store.questions()),
+            evolution: selfEvolution(store.selfHistory()),
+            lastSelf: w.lastSelf,
+            baseline: recentBaselines(store.recentLog(1000), 2),
+            baselineTotals:
+              store.walk().baselineTotals ??
+              baselineTotalsFromLog(store.recentLog(100_000)),
+            citations: conflicts,
+            debts: debtLedger(store.questions(), now, 14, store.notes()),
+            shallowNotes: store
+              .notes()
+              .filter((n) => (n.shallow ?? 0) > 0)
+              .slice(-10)
+              .reverse(),
+          },
+        ),
+        schema: REFLECT_SCHEMA,
+        maxCostUsd: left,
+      });
+      charge(usage);
+      const diary =
+        typeof output.diary === "string"
+          ? output.diary.trim().slice(0, 8000)
+          : "";
+      if (diary)
+        store.appendDiary(
+          today,
+          `## ${now.toTimeString().slice(0, 5)}\n\n${diary}`,
+        );
+      let rawSelf = typeof output.self === "string" ? output.self.trim() : "";
+      let self = acceptSelf(rawSelf);
+      // 上限を超えたら、同じ内省の中で字数を示して 1 回だけ縮めさせる(黙って捨てて、直しがまるごと
+      // 消えていた。次の内省で伝えるだけだと 1 回分遅れる。Ashi の改善案、2026-09-27)
+      if (rawSelf.length > SELF_MAX) {
+        try {
+          const shrunk = await head.think<{ self: string }>({
+            task: "reflect-shrink",
+            system: sys(),
+            prompt: shrinkSelfPrompt(rawSelf, SELF_MAX),
+            schema: SHRINK_SELF_SCHEMA,
+          });
+          charge(shrunk.usage);
+          const again =
+            typeof shrunk.output.self === "string"
+              ? shrunk.output.self.trim()
+              : "";
+          store.log("self-shrunk", { from: rawSelf.length, to: again.length });
+          if (again) {
+            rawSelf = again;
+            self = acceptSelf(again);
+          }
+        } catch (e) {
+          if (e instanceof HeadError) charge(e.usage);
+        }
+      }
+      if (self) store.saveSelf(self, now);
+      // 捨てたときは黙らない。記録し、次の内省で頭に伝える
+      if (rawSelf && !self)
+        store.log("self-rejected", { length: rawSelf.length, max: SELF_MAX });
+      // 内省で気づいた、持ち主に言ったことの訂正も台帳へ
+      if (
+        Array.isArray(output.owner_corrections) &&
+        output.owner_corrections.length
+      ) {
+        const w3 = store.walk();
+        store.saveWalk({
+          ...w3,
+          ownerCorrections: addOwnerCorrections(
+            w3.ownerCorrections,
+            output.owner_corrections,
+            now,
+          ),
+        });
+      }
+      const patterns = acceptPatterns(output.patterns);
+      if (patterns.length)
+        store.saveWalk({ ...store.walk(), selfPatterns: patterns });
+      // 自己記述を何が動かしたか。頭の申告と、実際に変わったかを並べて残す。
+      // 変わったのに申告が無ければ「申告なし」として数える(申告も頭の自己申告なので)
+      const changes = acceptSelfChanges(output.self_changes);
+      const changed = Boolean(self) && self?.trim() !== selfBefore.trim();
+      if (changed || changes.length)
+        store.log("self-changed", {
+          changed,
+          changes,
+          undeclared: changed && changes.length === 0,
+        });
+      store.saveWalk({
+        ...store.walk(),
+        lastSelf: {
+          at: now.toISOString(),
+          result: !rawSelf
+            ? "missing"
+            : !self
+              ? "rejected"
+              : changed
+                ? "saved"
+                : "unchanged",
+          length: rawSelf.length,
+          declared: changes.length,
+          // 保存されなかった直しは中身ごと残し、次の内省で「未反映の直し」として並べる
+          ...(rawSelf && !self
+            ? { unapplied: changes.map((c) => c.what) }
+            : {}),
+        },
+      });
+      const { proposals, added: proposed } = acceptProposals(
+        output.proposals,
+        store.proposals(),
+        now,
+      );
+      store.saveProposals(proposals);
+      // 頭が決めた統合とテーマの付け替えを、足が状態に当てる
+      let merged = 0;
+      let renamed = 0;
+      let renames = new Map<string, string>();
+      let closedByNote: { id: string; note: string }[] = [];
+      let reestimated: {
+        id: string;
+        from: number[];
+        to: number[];
+        why: string;
+      }[] = [];
+      store.updateQuestions((qs) => {
+        const r = applyMerges(qs, output.merges, output.themes);
+        merged = r.merged;
+        renamed = r.renamed;
+        renames = r.renames;
+        const c = closeByNote(
+          r.questions,
+          output.close_by_note,
+          store.notes(),
+          now,
+        );
+        closedByNote = c.closed;
+        // 見立ての付け直し(作ったときの値のまま、ずれて残っていた)
+        const e = applyReestimates(c.questions, output.reestimate);
+        reestimated = e.changed;
+        return e.questions;
+      });
+      addBridgeIdeas(store, output.bridge_ideas, undefined, now);
+      // 著者の食い違いの決着(別の論文だった・どちらかの誤りをノートで確かめた)は、それ以後一覧から外す
+      const knownNotes = new Set(store.notes().map((n) => n.id));
+      const settled = { ...store.walk().settledConflicts };
+      for (const x of Array.isArray(output.conflicts_settled)
+        ? output.conflicts_settled
+        : []) {
+        if (
+          typeof x?.authors !== "string" ||
+          (x.kind !== "year" && x.kind !== "status") ||
+          !knownNotes.has(String(x.note_id))
+        )
+          continue;
+        settled[conflictKey(x)] = {
+          verdict: String(x.verdict ?? ""),
+          noteId: String(x.note_id),
+          at: now.toISOString(),
+        };
+      }
+      // 次の一歩は内省のたびに書き直す(古い意図を引きずらない)
+      // 付け替えたテーマは歩いた記録にも当てる。古い名前が残ると、同じテーマの歩みが 2 つの名前に
+      // 割れて、休ませる判定(themeWindowMax)がしばらく効かなかった(Ashi の指摘、2026-09-25)
+      const latest = store.walk();
+      store.saveWalk({
+        ...latest,
+        recentThemes: latest.recentThemes.map((t) => renames.get(t) ?? t),
+        lastReflectStep: w.steps,
+        // 一緒に歩く組は内省のたびに書き直す
+        walkGroups: acceptGroups(output.walk_together, store.questions()),
+        settledConflicts: settled,
+        intentions: normalizeIntentions(
+          acceptIntentions(output.next_steps),
+          store.notes(),
+          store.questions(),
+        ),
+      });
+      // 次の一歩に書いた問いに印を付ける(続けて書かれたら、足が先に歩く)。上限で手放されていたら開き直す
+      let reopened: string[] = [];
+      store.updateQuestions((qs) => {
+        const ids = new Set(
+          (store.walk().intentions ?? []).flatMap(questionIds),
+        );
+        reopened = qs
+          .filter((x) => ids.has(x.id) && reopenable(x))
+          .map((x) => x.id);
+        return markPromised(qs, store.walk().intentions ?? []);
+      });
+      // 外に出したいこと(新しい投稿 1 件と、約束への返信 1 件まで)。上限と長さは足が見る
+      const posts = (Array.isArray(output.posts) ? output.posts : []).filter(
+        (p) => typeof p?.text === "string" && p.text.trim(),
+      );
+      const promise = (id: unknown) =>
+        typeof id === "string" && id.trim()
+          ? unreturnedPromises(store.questions()).find(
+              (q) => q.id === id.trim(),
+            )
+          : undefined;
+      const post = posts.find((p) => !promise(p.reply_to));
+      const answer = posts.find((p) => promise(p.reply_to));
+      let posted: string | undefined;
+      let replied: string | undefined;
+      const unposted: string[] = [];
+      const send = async (text: string, to?: Question): Promise<boolean> => {
+        if (xLength(text) > 280) {
+          unposted.push(`長すぎる(${xLength(text)} / 280): ${text}`);
+          return false;
+        }
+        try {
+          await postToX(
+            store,
+            text,
+            now,
+            to?.origin
+              ? {
+                  tweetId: to.origin.replyId,
+                  conversationId: to.origin.conversationId,
+                }
+              : undefined,
+            legs.env ?? process.env,
+            legs.net?.fetch ?? fetch,
+          );
+          return true;
+        } catch (e) {
+          await raiseBlocker(store, "x", xBlockage(e), now, notify);
+          return false;
+        }
+      };
+      if (post && canPost(store, cfg, now)) {
+        const text = post.text.trim();
+        if (await send(text)) posted = text;
+      }
+      const to = answer ? promise(answer.reply_to) : undefined;
+      if (answer && to && canReply(store, cfg, now)) {
+        const text = answer.text.trim();
+        if (await send(text, to)) {
+          replied = text;
+          markReplied(store, to.id, now);
+        }
+      }
+      store.log("reflected", {
+        selfUpdated: Boolean(self),
+        proposed,
+        merged,
+        ...(closedByNote.length ? { closedByNote } : {}),
+        ...(reestimated.length ? { reestimated } : {}),
+        renamed,
+        posted,
+        replied,
+        ...(reopened.length ? { reopened } : {}),
+        ...(unposted.length > 0 ? { unposted } : {}),
+        usd: usage.costUsd,
+      });
+      if (outcome.kind === "walked" || outcome.kind === "seeded")
+        outcome = { ...outcome, reflected: true };
+    }
 
-		// 疲れていたら上限まで休む
-		if (tiredness >= TIRED && "wakeAt" in outcome) {
-			const long = minutes(cfg.sleep.maxMinutes);
-			if (outcome.wakeAt < long) outcome = { ...outcome, wakeAt: long };
-		}
-		if ("wakeAt" in outcome) sleepUntil(outcome.wakeAt);
-		return outcome;
-	} catch (e) {
-		if (e instanceof HeadError) {
-			thought = true;
-			spent = addUsage(spent, e.usage);
-		}
-		// サブスクの上限に当たったら、戻るまで何度叩いても同じなので上限まで休む
-		let rest = cfg.sleep.minMinutes;
-		if (e instanceof HeadAccessError) {
-			await raiseBlocker(store, "head", e.blockage, now, notify);
-			if (e.blockage.key === "head:subscription-limit")
-				rest = cfg.sleep.maxMinutes;
-		}
-		const error = e instanceof Error ? e.message : String(e);
-		store.log("failed", { error, usd: spent.costUsd });
-		return {
-			kind: "failed",
-			error,
-			wakeAt: sleepUntil(minutes(rest)),
-		};
-	} finally {
-		// 失敗した歩みの分も必ず数える。頭を呼んだら 1 歩
-		store.charge(today, spent, thought);
-	}
+    // 疲れていたら上限まで休む
+    if (tiredness >= TIRED && "wakeAt" in outcome) {
+      const long = minutes(cfg.sleep.maxMinutes);
+      if (outcome.wakeAt < long) outcome = { ...outcome, wakeAt: long };
+    }
+    if ("wakeAt" in outcome) sleepUntil(outcome.wakeAt);
+    return outcome;
+  } catch (e) {
+    if (e instanceof HeadError) {
+      thought = true;
+      spent = addUsage(spent, e.usage);
+    }
+    // サブスクの上限に当たったら、戻るまで何度叩いても同じなので上限まで休む
+    let rest = cfg.sleep.minMinutes;
+    if (e instanceof HeadAccessError) {
+      await raiseBlocker(store, "head", e.blockage, now, notify);
+      if (e.blockage.key === "head:subscription-limit")
+        rest = cfg.sleep.maxMinutes;
+    }
+    const error = e instanceof Error ? e.message : String(e);
+    store.log("failed", { error, usd: spent.costUsd });
+    return {
+      kind: "failed",
+      error,
+      wakeAt: sleepUntil(minutes(rest)),
+    };
+  } finally {
+    // 失敗した歩みの分も必ず数える。頭を呼んだら 1 歩
+    store.charge(today, spent, thought);
+  }
 }
 
 /** 止められるまで歩き続ける。休んでいる間は眠る。wake() で早く起こせる */
 export class Walker {
-	private wakeEarly: (() => void) | undefined;
-	running = false;
-	/** いま 1 歩の途中か(頭を待っている間など)。学びのリセットはこの間はしない */
-	stepping = false;
+  private wakeEarly: (() => void) | undefined;
+  running = false;
+  /** いま 1 歩の途中か(頭を待っている間など)。学びのリセットはこの間はしない */
+  stepping = false;
 
-	constructor(
-		private readonly legs: Legs,
-		private readonly onStep?: (o: StepOutcome) => void,
-	) {}
+  constructor(
+    private readonly legs: Legs,
+    private readonly onStep?: (o: StepOutcome) => void,
+  ) {}
 
-	async run(signal?: AbortSignal): Promise<void> {
-		this.running = true;
-		try {
-			while (!signal?.aborted) {
-				let o: StepOutcome;
-				this.stepping = true;
-				try {
-					o = await step(this.legs);
-				} catch (e) {
-					// 状態ファイルが読めない等。1 歩を落としても歩き続ける
-					this.legs.store.log("crashed", {
-						error: e instanceof Error ? e.message : String(e),
-					});
-					o = {
-						kind: "failed",
-						error: String(e),
-						wakeAt: new Date(Date.now() + 60_000),
-					};
-				} finally {
-					this.stepping = false;
-				}
-				this.onStep?.(o);
-				if (o.kind === "core-changed") return;
-				const ms =
-					o.wakeAt.getTime() - (this.legs.now?.() ?? new Date()).getTime();
-				if (ms > 0) await this.sleep(ms, signal);
-			}
-		} finally {
-			this.running = false;
-		}
-	}
+  async run(signal?: AbortSignal): Promise<void> {
+    this.running = true;
+    try {
+      while (!signal?.aborted) {
+        let o: StepOutcome;
+        this.stepping = true;
+        try {
+          o = await step(this.legs);
+        } catch (e) {
+          // 状態ファイルが読めない等。1 歩を落としても歩き続ける
+          this.legs.store.log("crashed", {
+            error: e instanceof Error ? e.message : String(e),
+          });
+          o = {
+            kind: "failed",
+            error: String(e),
+            wakeAt: new Date(Date.now() + 60_000),
+          };
+        } finally {
+          this.stepping = false;
+        }
+        this.onStep?.(o);
+        if (o.kind === "core-changed") return;
+        const ms =
+          o.wakeAt.getTime() - (this.legs.now?.() ?? new Date()).getTime();
+        if (ms > 0) await this.sleep(ms, signal);
+      }
+    } finally {
+      this.running = false;
+    }
+  }
 
-	/** 休みを切り上げて、すぐ次の 1 歩へ */
-	wake(): void {
-		const w = this.legs.store.walk();
-		this.legs.store.saveWalk({ ...w, sleepingUntil: undefined });
-		this.wakeEarly?.();
-	}
+  /** 休みを切り上げて、すぐ次の 1 歩へ */
+  wake(): void {
+    const w = this.legs.store.walk();
+    this.legs.store.saveWalk({ ...w, sleepingUntil: undefined });
+    this.wakeEarly?.();
+  }
 
-	private sleep(ms: number, signal?: AbortSignal): Promise<void> {
-		return new Promise((resolve) => {
-			const done = () => {
-				clearTimeout(t);
-				signal?.removeEventListener("abort", done);
-				this.wakeEarly = undefined;
-				resolve();
-			};
-			// setTimeout の上限(約 24.8 日)を超えないように
-			const t = setTimeout(done, Math.min(ms, 2 ** 31 - 1));
-			this.wakeEarly = done;
-			signal?.addEventListener("abort", done, { once: true });
-		});
-	}
+  private sleep(ms: number, signal?: AbortSignal): Promise<void> {
+    return new Promise((resolve) => {
+      const done = () => {
+        clearTimeout(t);
+        signal?.removeEventListener("abort", done);
+        this.wakeEarly = undefined;
+        resolve();
+      };
+      // setTimeout の上限(約 24.8 日)を超えないように
+      const t = setTimeout(done, Math.min(ms, 2 ** 31 - 1));
+      this.wakeEarly = done;
+      signal?.addEventListener("abort", done, { once: true });
+    });
+  }
 }

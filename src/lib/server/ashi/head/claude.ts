@@ -46,6 +46,10 @@ const WEB_SEARCH_USD = 0.01;
  */
 const FALLBACK_BETA = "server-side-fallback-2026-07-01";
 
+/** 往復か額の上限に来て道具を取り上げたときに、最後の道具の結果に添える */
+export const TIRED_NOTE =
+	"(足から: この歩みで使える道具の往復か額の上限に来たので、道具はもう使えません。ここまでに読んだことで、答えの形のすべての欄を中身のある文で埋めてください。分からなかったことは分からなかったと書いてください(found や answered の欄があれば、そこにも正直に)。埋め草の文字(x や dummy)は書かないでください)";
+
 /** サーバー側の道具(web 検索)が途中で止まったときに続けさせる回数の上限 */
 const MAX_CONTINUATIONS = 5;
 
@@ -98,6 +102,18 @@ export class ClaudeHead implements Head {
 			const tired =
 				rounds >= (req.maxToolRounds ?? 8) ||
 				(req.maxCostUsd !== undefined && usage.costUsd >= req.maxCostUsd);
+			// 道具を取り上げるときは、そう伝えてから答えさせる。黙って取り上げると、答えの欄を「x」「(dummy)」
+			// のような埋め草で返し、空のノートで問いが閉じていた(2026-10-18〜22 に 8 本)
+			const last = messages.at(-1);
+			if (
+				tired &&
+				apiTools.length > 0 &&
+				last?.role === "user" &&
+				Array.isArray(last.content) &&
+				!last.content.some((b) => b.type === "text")
+			) {
+				last.content.push({ type: "text", text: TIRED_NOTE });
+			}
 			const res = await this.create(usage, {
 				model: this.name,
 				// 考える分も max_tokens に数える(Opus 5.5 は考えるのを止められない)。長いのでストリームで受ける

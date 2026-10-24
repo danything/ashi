@@ -52,7 +52,9 @@ export const q = (over: Partial<Question> = {}): Question => ({
 export const explore = (over: Record<string, unknown> = {}) => ({
 	title: "ノートの題",
 	summary: "要約",
-	findings: "本文",
+	// 書き損じ(blankNote)に当たらない長さにしておく
+	findings:
+		"本文。調べた結果を書いたノートの中身で、書き損じとみなされない程度の長さの文章を置いておく。",
 	answered: false,
 	new_questions: [],
 	tiredness: 0.2,

@@ -212,26 +212,35 @@ export function selectQuestion(
 		.filter((t) => t !== SEEDING)
 		.slice(0, cfg.themeWindow)
 		.filter((t) => t === VERIFY_THEME).length;
-	const overdue = (verifiedLately < VERIFY_WINDOW_MAX ? questions : [])
+	// 持ち主との対話で記憶で言ったことは、日を置かず、確かめの枠の上限も越えて先に確かめる。テーマ
+	// 「確かめること」を休ませていて、持ち主の「今調べて回答して」が 4 歩のあいだ歩かれなかった
+	// (Ashi の改善案、2026-10-22)。よそ者への借りはこれまでどおり
+	const owner = (q: Question) => !q.origin && q.verify && q.source === "chat";
+	const overdue = questions
 		.filter(
 			(q) =>
 				q.status === "open" &&
-				q.track === track &&
+				// 持ち主への借りは系統のさいころも待たない
+				(q.track === track || owner(q)) &&
 				(q.verify || q.origin) &&
 				q.visits === 0 &&
-				now.getTime() - Date.parse(q.createdAt) >= VERIFY_AFTER_DAYS * 86400e3,
+				(owner(q) ||
+					(verifiedLately < VERIFY_WINDOW_MAX &&
+						now.getTime() - Date.parse(q.createdAt) >=
+							VERIFY_AFTER_DAYS * 86400e3)),
 		)
-		// 枠が限られるので、相手が返事を待っている X の約束を先に
+		// 枠が限られるので、相手が返事を待っている X の約束と持ち主への借りを先に
 		.sort(
 			(a, b) =>
 				Number(!a.origin) - Number(!b.origin) ||
+				Number(!owner(a)) - Number(!owner(b)) ||
 				a.createdAt.localeCompare(b.createdAt),
 		)[0];
 	if (overdue)
 		return {
 			question: overdue,
 			score: score(overdue),
-			track,
+			track: overdue.track,
 			reason: "verify",
 		};
 	// 内省の次の一歩に 2 回続けて書かれた問いは、1 回必ず歩く(休ませているテーマでも。歩いたら印は消える)。

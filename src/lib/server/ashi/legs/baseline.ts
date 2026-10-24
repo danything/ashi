@@ -1,5 +1,6 @@
 import type { Head, JsonSchema, Usage } from "../head/head.ts";
 import { localDay, type Store } from "../state.ts";
+import { blankNote, noteFindings } from "./guard.ts";
 
 /**
  * 自分の「型」の当たり率の基準線を測る。
@@ -177,7 +178,18 @@ export async function measureBaseline(opts: {
 			.filter((q) => q.track === "self")
 			.map((q) => q.id),
 	);
-	const selfNotes = store.notes().filter((n) => selfIds.has(n.questionId));
+	// 書き損じのノート(本文が空・埋め草)は、対照にも分母にも入れない。題と問いの行だけで 200 字を超え、
+	// 空のノートが対照の 1 本に数えられていた(Ashi の改善案、2026-10-20)
+	const selfNotes = store
+		.notes()
+		.filter((n) => selfIds.has(n.questionId))
+		.filter(
+			(n) =>
+				!blankNote({
+					title: n.title,
+					findings: noteFindings(store.noteBody(n.id) ?? ""),
+				}),
+		);
 	const questionText = new Map(store.questions().map((q) => [q.id, q.text]));
 	const carries = (questionId: string) =>
 		patterns.some((p) => (questionText.get(questionId) ?? "").includes(p));

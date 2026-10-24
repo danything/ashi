@@ -64,6 +64,7 @@ import {
 	allowance,
 	applyMerges,
 	applyReestimates,
+	blankNote,
 	blindComparison,
 	clampSleep,
 	closeByNote,
@@ -475,8 +476,38 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 			});
 			charge(usage);
 
-			const noteId = newId();
 			const findings = String(output.findings ?? "").trim();
+			// 書き損じ(本文が空・埋め草)はノートにせず、問いも閉じない。歩いた回数だけ足して約束の印を消し
+			// (同じ問いを先回しで何度も引かない)、失敗として残す
+			const blank = blankNote({
+				title: output.title,
+				summary: output.summary,
+				findings,
+			});
+			if (blank) {
+				store.updateQuestions((qs) =>
+					qs.map((x) => {
+						if (x.id !== q.id) return x;
+						const { promised: _p, ...rest } = x;
+						return {
+							...rest,
+							visits: x.visits + 1,
+							lastVisitedAt: now.toISOString(),
+							blankNotes: (x.blankNotes ?? 0) + 1,
+						};
+					}),
+				);
+				store.saveWalk({
+					...store.walk(),
+					steps: walk.steps + 1,
+					recentThemes: [q.theme, ...walk.recentThemes].slice(0, 20),
+					recentTracks: [q.track, ...(walk.recentTracks ?? [])].slice(0, 20),
+				});
+				throw new Error(
+					`書き損じの答え(${blank})。問い ${q.id} はノートにせず開いたまま`,
+				);
+			}
+			const noteId = newId();
 			// 出典をどこまで読めたか。足がノートの末尾に残す
 			const depth = readDepthSection(output.sources_read, findings);
 			const title = String(output.title || q.text).slice(0, 200);
@@ -621,15 +652,31 @@ export async function step(legs: Legs): Promise<StepOutcome> {
 				}
 			}
 			// 持ち主に言ったことが違っていたら、訂正を台帳に溜める(次に話すときに頭に見せる)
-			if (!q.origin && q.verify && q.source === "chat" && correction) {
+			// 合っていた・答えが出たときも、持ち主に渡すまで台帳に残す。答えのノートができて問いが閉じても、
+			// 持ち主には何も届いていなかった(Ashi の改善案、2026-10-23)
+			const ownerResult =
+				!q.origin && q.verify && q.source === "chat"
+					? mainVerifyResult(q, output)
+					: undefined;
+			const ownerNote =
+				!correction && (ownerResult === "holds" || output.answered === true)
+					? `前に話したときに記憶で言った「${q.text.slice(0, 120)}」を確かめた。${ownerResult === "holds" ? "合っていた" : "答えが出た"}(ノート ${noteId}「${title.slice(0, 80)}」)`
+					: "";
+			if (
+				!q.origin &&
+				q.verify &&
+				q.source === "chat" &&
+				(correction || ownerNote)
+			) {
 				const w2 = store.walk();
 				store.saveWalk({
 					...w2,
 					ownerCorrections: addOwnerCorrections(
 						w2.ownerCorrections,
-						correction,
+						correction || ownerNote,
 						now,
 						q.id,
+						correction ? undefined : "answer",
 					),
 				});
 			}

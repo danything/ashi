@@ -105,6 +105,8 @@ export interface Question {
 	verifyResult?: "holds" | "wrong" | "unreadable";
 	/** 探して何も見つからなかった回数 */
 	misses?: number;
+	/** 書き損じ(本文が空・埋め草)の答えが返ってきた回数。ノートにはしていない */
+	blankNotes?: number;
 	/** これまでに探した場所(検索語・サイト・資料)。同じ所を探し直さないように次の歩みで見せる */
 	searchedWhere?: string[];
 	/** どの問いを歩いていて生まれたか */
@@ -256,6 +258,8 @@ export interface Walk {
 		text: string;
 		at: string;
 		questionId?: string;
+		/** answer: 訂正ではなく、持ち主に聞かれて確かめた答えの渡し待ち(話題に関係なく渡す) */
+		kind?: "answer";
 	}[];
 	/** 型の当たり率の基準線を最後に測った日(1 日 1 回。legs/baseline.ts) */
 	lastBaselineDay?: string;

@@ -60,6 +60,15 @@ describe("citationConflicts", () => {
 			]),
 		).toEqual([]);
 	});
+
+	test("文頭の冠詞は著者とみなさない", () => {
+		expect(
+			citationConflicts([
+				{ id: "n1", text: "The 2021 の報告では査読前とされた" },
+				{ id: "n2", text: "The 2023 に採録された" },
+			]),
+		).toEqual([]);
+	});
 });
 
 test("localStamp は日記の見出しと同じローカル時刻にする", () => {

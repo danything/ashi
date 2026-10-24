@@ -109,6 +109,9 @@ export function getTools(): Tool[] {
 		ok(host: string) {
 			resolveBlockers(store, `fetch:${host}`, new Date());
 		},
+		denied(host: string, status: number) {
+			store.log("fetch-denied", { host, status });
+		},
 	};
 	return [
 		fetchUrlTool(store.config(), {}, watch),

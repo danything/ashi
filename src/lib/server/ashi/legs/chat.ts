@@ -1,4 +1,5 @@
 import {
+	addUsage,
 	type Head,
 	HeadAccessError,
 	HeadError,
@@ -107,29 +108,51 @@ export async function chat(
 	thinking.set(by, { question: text, at: now.toISOString() });
 	const phrases = phraseLedger(store).map((p) => p.text);
 	try {
-		const { output, usage } = await head.think<ChatAnswer>({
-			task: "chat",
-			system: system(store.core(), store.self(), store.owner()),
-			history: turns,
-			prompt: chatPrompt(
-				text,
-				store.notes(),
-				store.questions(),
-				feedStatus(store, now),
-				blockersText(store),
-				newsBlock(store.news().items),
-				correctionsBlock(
-					store.walk().ownerCorrections ?? [],
-					cfg.ownerCorrections,
-				),
-				phrases,
+		const prompt = chatPrompt(
+			text,
+			store.notes(),
+			store.questions(),
+			feedStatus(store, now),
+			blockersText(store),
+			newsBlock(store.news().items),
+			correctionsBlock(
+				store.walk().ownerCorrections ?? [],
+				cfg.ownerCorrections,
 			),
-			schema: CHAT_SCHEMA,
-			tools: ctx.tools.filter((t) => t.readOnly === true),
-			maxToolRounds: 4,
-			maxCostUsd: left,
-		});
+			phrases,
+		);
+		const ask = (extra: string, tools: Tool[], maxCostUsd: number) =>
+			head.think<ChatAnswer>({
+				task: "chat",
+				system: system(store.core(), store.self(), store.owner()),
+				history: turns,
+				prompt: `${prompt}${extra}`,
+				schema: CHAT_SCHEMA,
+				tools,
+				maxToolRounds: 4,
+				maxCostUsd,
+			});
+		let { output, usage } = await ask(
+			"",
+			ctx.tools.filter((t) => t.readOnly === true),
+			left,
+		);
 		store.charge(today, usage);
+		// 返事が空なら、道具を外して一度だけ作り直させる。持ち主の「今調べて回答して」に空で 2 回返していた
+		// (Ashi の改善案、2026-10-21)
+		let empty = !String(output.reply ?? "").trim();
+		if (empty && left - usage.costUsd > 0) {
+			const again = await ask(
+				"\n\n(前の答えは reply が空でした。道具はもう使えません。ここまでに分かったことと、分からなかったことで返事を書いてください)",
+				[],
+				left - usage.costUsd,
+			);
+			store.charge(today, again.usage);
+			usage = addUsage(usage, again.usage);
+			output = again.output;
+			empty = !String(output.reply ?? "").trim();
+		}
+		if (empty) store.log("failed", { task: "chat", error: "返事が空だった" });
 		resolveBlockers(store, "head:", now);
 		let added: string[] = [];
 		store.updateQuestions((qs) => {
@@ -174,7 +197,9 @@ export async function chat(
 					).includes(c.id),
 			),
 		});
-		let reply = String(output.reply ?? "").trim() || "(返事が空でした)";
+		let reply =
+			String(output.reply ?? "").trim() ||
+			"返事を作れなかった(頭が 2 回続けて空の返事を返した)。もう一度話しかけてください。";
 		// 持ち主が指摘した言い回しは台帳に、頼まれた改善案は「直すこと」に積む
 		const flagged = addPhrases(store, output.flagged_phrases, "owner", now);
 		const { proposals, added: proposed } = acceptProposals(

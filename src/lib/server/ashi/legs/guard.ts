@@ -865,13 +865,13 @@ export function adviceFollowups(
 
 /** 持ち主への訂正を台帳に足す(ほぼ同じものは重ねない、20 件まで) */
 export function addOwnerCorrections(
-	prev:
-		| { id: string; text: string; at: string; questionId?: string }[]
-		| undefined,
+	prev: OwnerCorrection[] | undefined,
 	texts: unknown,
 	now: Date,
 	questionId?: string,
-): { id: string; text: string; at: string; questionId?: string }[] {
+	/** answer: 訂正ではなく、確かめて合っていた・答えが出た知らせ(話題に関係なく渡す) */
+	kind?: "answer",
+): OwnerCorrection[] {
 	const out = [...(prev ?? [])];
 	for (const t of (Array.isArray(texts) ? texts : [texts]).slice(0, 5)) {
 		if (typeof t !== "string" || !t.trim()) continue;
@@ -884,9 +884,47 @@ export function addOwnerCorrections(
 			text,
 			at: now.toISOString(),
 			...(questionId ? { questionId } : {}),
+			...(kind ? { kind } : {}),
 		});
 	}
 	return out.slice(-20);
+}
+
+type OwnerCorrection = {
+	id: string;
+	text: string;
+	at: string;
+	questionId?: string;
+	kind?: "answer";
+};
+
+/** 本文がこの字数(空白を除く)に満たないノートは、書き損じとして扱う */
+export const NOTE_MIN_CHARS = 40;
+const PLACEHOLDER = /^\(?\s*(x|dummy|tbd|todo|n\/a|-|…|\.\.\.)\s*\)?$/i;
+
+/**
+ * 書き損じのノートか(本文が空・埋め草だけ)。理由を返す。空のノートで確かめの問いが閉じ、借りが台帳から
+ * 消えていた(「x」「(dummy)」、2026-10-18〜22 に 8 本。Ashi の改善案、2026-10-19)
+ */
+export function blankNote(n: {
+	title?: string;
+	summary?: string;
+	findings?: string;
+}): string | undefined {
+	const body = (n.findings ?? "").replace(/\s/g, "");
+	if (PLACEHOLDER.test((n.title ?? "").trim())) return `題が埋め草(${n.title})`;
+	if (PLACEHOLDER.test(body)) return `本文が埋め草(${body})`;
+	if (body.length < NOTE_MIN_CHARS) return `本文が ${body.length} 字しかない`;
+	return undefined;
+}
+
+/** ノートの本文から、足が付けた題(# …)と問いの行を除いた、頭が書いた分 */
+export function noteFindings(body: string): string {
+	return body
+		.split("\n")
+		.filter((l) => !/^# /.test(l) && !/^問い: /.test(l))
+		.join("\n")
+		.trim();
 }
 
 /** 外で確かめずに言ったこと。1 回 8 件まで、1 件 200 字まで(3 件で切って取りこぼしていた) */

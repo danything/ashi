@@ -40,7 +40,10 @@ const GENERIC = new Set(
 		"International National American European Japanese Institute Center Centre Department " +
 		"Report Reports Medicine Medical Health Economics Economic Management Marketing Consumer " +
 		"Behavior Behaviour Social Cognitive Experimental Applied Computational Language Linguistics " +
-		"Transactions Archives Handbook Encyclopedia Library Online Open Data Survey Analysis"
+		"Transactions Archives Handbook Encyclopedia Library Online Open Data Survey Analysis " +
+		// 文頭の冠詞・代名詞・接続の語(「The」を著者として拾っていた。Ashi の改善案、2026-10-22)
+		"The This That These Those There Their They Its And But For From With When Where While " +
+		"After Before Since Also See Table Figure Fig Section Chapter Version Edition Vol"
 	).split(" "),
 );
 

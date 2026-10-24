@@ -7,7 +7,7 @@ import {
 	refreshNews,
 } from "../src/lib/server/ashi/legs/news.ts";
 import { step } from "../src/lib/server/ashi/legs/walk.ts";
-import { FakeHead, freshStore } from "./helpers.ts";
+import { explore, FakeHead, freshStore } from "./helpers.ts";
 
 const now = new Date("2026-09-26T12:00:00+09:00");
 const rss = (items: [string, string][]) =>
@@ -141,15 +141,7 @@ describe("持ち主への訂正の台帳", () => {
 		const store = freshStore(["a"]);
 		store.saveWalk({ ...store.walk(), steps: 4 });
 		const walker = new FakeHead({
-			explore: () => ({
-				title: "t",
-				summary: "s",
-				findings: "f",
-				answered: false,
-				new_questions: [],
-				tiredness: 0.2,
-				sleep_minutes: 30,
-			}),
+			explore: () => explore(),
 			reflect: () => ({
 				diary: "d",
 				self: "私は寄り道が好きな歩き手で、問いの連鎖を追うのが楽しい。",

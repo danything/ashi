@@ -221,6 +221,8 @@ export const WALLED = /(^|\.)(researchgate\.net|academia\.edu)$/;
 export interface FetchWatch {
 	blocked(host: string, status: number | "private"): void;
 	ok(host: string): void;
+	/** 401・403。持ち主に知らせず、記録だけ残す */
+	denied?(host: string, status: number): void;
 }
 
 export function fetchUrlTool(
@@ -253,6 +255,13 @@ export function fetchUrlTool(
 			// 片づかないまま残った)
 			if (r.status >= 400 && WALLED.test(r.url.hostname))
 				return `${r.status} ${r.url}\n\n(${r.url.hostname} はロボットに読ませない。論文なら、題か DOI で find_papers を引いて公開版(PMC・リポジトリ・著者版)を read_paper で読む)`;
+			// ログインや締め出しの 401・403 も、持ち主には手の打ちようが無い(Ashi はログインしない)ので、
+			// 「弾かれたこと」に積まずに別の道を示す。出版社のページ(ScienceDirect・Cell など)が積もり続け、
+			// 片づかないまま残っていた(2026-10-24)
+			if (r.status === 401 || r.status === 403) {
+				watch?.denied?.(r.url.hostname, r.status);
+				return `${r.status} ${r.url}\n\n(${r.url.hostname} に締め出された。論文なら find_papers で公開版を探して read_paper で読む。それ以外のページは archived_copy で Wayback の写しを探す)\n\n${(r.body ? (/html/.test(r.type) ? htmlToText(r.body) : r.body) : "").slice(0, 2000)}`;
+			}
 			if (r.status >= 400) watch?.blocked(r.url.hostname, r.status);
 			else watch?.ok(r.url.hostname);
 			if (r.pdf)

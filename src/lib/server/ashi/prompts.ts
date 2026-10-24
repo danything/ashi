@@ -1472,17 +1472,27 @@ ${reply}
 
 /** 持ち主に伝えていない訂正を、話すときに見せる形 */
 export function correctionsBlock(
-	items: { id: string; text: string; at: string }[],
+	items: { id: string; text: string; at: string; kind?: "answer" }[],
 	mode: "first" | "relevant",
 ): string {
-	if (!items.length) return "";
-	return `持ち主に伝えていない訂正(前に持ち主に言ったことのうち、あとで外れていた・弱かったと分かったもの):
-${items.map((c) => `- [${c.id}] ${c.text}`).join("\n")}
+	const fixes = items.filter((c) => c.kind !== "answer");
+	const answers = items.filter((c) => c.kind === "answer");
+	const blocks: string[] = [];
+	if (fixes.length)
+		blocks.push(`持ち主に伝えていない訂正(前に持ち主に言ったことのうち、あとで外れていた・弱かったと分かったもの):
+${fixes.map((c) => `- [${c.id}] ${c.text}`).join("\n")}
 ${
 	mode === "first"
 		? "持ち主の話題に関係なく、返事の最初に短く伝えてください(持ち主がそう決めています)。"
 		: "持ち主の話がこの訂正に関係するときに伝えてください。"
-} 伝えたら delivered_corrections に ID を入れてください(足が台帳から消します)。`;
+}`);
+	// 持ち主に聞かれて確かめた答えは、話題に関係なく渡す(閉じた借りが持ち主に届いていなかった)
+	if (answers.length)
+		blocks.push(`持ち主にまだ渡していない答え(前に持ち主に記憶で言い、あとで確かめたもの):
+${answers.map((c) => `- [${c.id}] ${c.text}`).join("\n")}
+持ち主の話題に関係なく、返事の中で短く伝えてください。`);
+	if (!blocks.length) return "";
+	return `${blocks.join("\n\n")}\n伝えたら delivered_corrections に ID を入れてください(足が台帳から消します)。`;
 }
 
 export function chatPrompt(

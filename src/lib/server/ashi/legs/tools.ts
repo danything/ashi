@@ -91,12 +91,33 @@ export async function assertPublicUrl(
   return url;
 }
 
+/** 中身ごと落とす要素。閉じずに終わるものは最後まで落とす */
+const DROPPED_BLOCK = /<(script|style|noscript|svg)\b[\s\S]*?(?:<\/\1\s*>|$)/gi;
+/** タグ。HTML の生の `<` は必ずタグの始まりなので、閉じずに終わるものも落とす */
+const TAG = /<[^>]*(?:>|$)/g;
+
+/**
+ * 変わらなくなるまで消す。一度だけだと `<scr<script>ipt>` のように、
+ * 消したあとの継ぎ目に新しいタグができることがある
+ */
+function removeUntilStable(text: string, pattern: RegExp): string {
+  let out = text;
+  let previous: string;
+  do {
+    previous = out;
+    out = out.replace(pattern, "");
+  } while (out !== previous);
+  return out;
+}
+
 /** HTML から本文らしい文字だけを残す(雑でよい。読むのは頭) */
 export function htmlToText(html: string): string {
-  return html
-    .replace(/<(script|style|noscript|svg)[\s\S]*?<\/\1>/gi, "")
-    .replace(/<br\s*\/?>|<\/(p|div|li|h[1-6]|tr)>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
+  const withoutBlocks = removeUntilStable(html, DROPPED_BLOCK);
+  const breaks = withoutBlocks.replace(
+    /<br\s*\/?>|<\/(p|div|li|h[1-6]|tr)>/gi,
+    "\n",
+  );
+  return removeUntilStable(breaks, TAG)
     .replace(/&nbsp;/g, " ")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")

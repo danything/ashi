@@ -202,7 +202,9 @@ describe("PMC の本文の読み方", () => {
     expect(out).toContain("NCBI BioC");
     expect(out).toContain("## RESULTS\nBrain temperature did not change.");
     expect(out).not.toContain("Siegel JM (2009)");
-    expect(hits.some((h) => h.includes("pmc.ncbi.nlm.nih.gov"))).toBe(false);
+    expect(hits.some((h) => new URL(h).host === "pmc.ncbi.nlm.nih.gov")).toBe(
+      false,
+    );
   });
 
   test("どこでも読めなければ、当たった先を並べて返す", async () => {

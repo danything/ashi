@@ -96,6 +96,27 @@ describe("htmlToText", () => {
   test("style と script を落とす", () => {
     expect(htmlToText("<style>a{}</style><div>本文</div>")).toBe("本文");
   });
+
+  test("消したあとの継ぎ目にできるタグも残さない", () => {
+    for (const input of [
+      "<scr<script>ipt>alert(1)</script>",
+      "<<script>script>alert(1)",
+      "<scr<script>x</script>ipt>alert(1)</script>本文",
+      "<<<b>b>b>本文",
+    ])
+      expect(htmlToText(input)).not.toMatch(/<[a-z/!]/i);
+    expect(htmlToText("<scr<script>x</script>ipt>本文</script>")).toBe("");
+  });
+
+  test("閉じずに終わるタグや script も落とす", () => {
+    expect(htmlToText("本文<script")).toBe("本文");
+    expect(htmlToText("本文<script>alert(1)")).toBe("本文");
+    expect(htmlToText("本文<div class=")).toBe("本文");
+  });
+
+  test("実体参照は本文の文字として戻す", () => {
+    expect(htmlToText("<p>1 &lt; 2 &amp;amp; 3</p>")).toBe("1 < 2 &amp; 3");
+  });
 });
 
 describe("noteTools", () => {

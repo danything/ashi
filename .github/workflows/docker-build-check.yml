@@ -7,6 +7,10 @@ on:
     # 読みに行って、ジョブの無いまま赤くなっていた(下の if はそれより前に落ちるので効かない)
     paths-ignore: ["deploy/**"]
 
+# 読んでビルドするだけ (push はしない)。gha のキャッシュはトークンの権限とは別に渡る
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest

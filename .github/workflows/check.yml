@@ -13,6 +13,10 @@ concurrency:
   group: check-${{ github.ref }}
   cancel-in-progress: true
 
+# 読むだけなので、トークンにはこれだけ渡す
+permissions:
+  contents: read
+
 # 警告もエラーも落とす: oxlint は correctness を error に、svelte-check は --fail-on-warnings、
 # ビルドは vite.config.ts で警告を失敗に
 jobs:

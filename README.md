@@ -123,7 +123,7 @@ SvelteKit。ログインは Entra ID で、同じプロセスが歩みも回す(
 
 ## デプロイ
 
-lgtm と同じ形。`deploy/argocd.yaml` を ArgoCD の ApplicationSet が拾い、`deploy/` を namespace `ashi` に同期する。公開は <https://as.doany.io>(HTTPRoute を Cilium Gateway に付ける)。main に push すると `docker-publish.yml` が ghcr.io/danything/ashi を焼き、イメージのタグを差し替える PR を作って自分でマージする。秘密は Infisical の `/ashi/ashi-secrets`(鍵の一覧は [docs/permissions.md](docs/permissions.md))。状態ディレクトリは PVC `ashi-data`(k8up がファイルとして取る)。Pod は 1 つで Recreate(歩くのは 1 プロセスだけ)。
+lgtm と同じ形。`deploy/argocd.yaml` を ArgoCD の ApplicationSet が拾い、`deploy/` を namespace `ashi` に同期する。公開は <https://as.doany.io>(HTTPRoute を Cilium Gateway に付ける)。main に push すると `docker-publish.yml` が ghcr.io/danything/ashi を焼き、イメージのタグを差し替える PR を作って自分でマージする。秘密は Infisical の `/ashi/ashi-secrets`(鍵の一覧は [docs/permissions.md](docs/permissions.md))。状態ディレクトリは PVC `ashi-data`(VolSync がスナップショットで取る)。Pod は 1 つで Recreate(歩くのは 1 プロセスだけ)。
 
 ## 手元で
 

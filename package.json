@@ -28,7 +28,7 @@
     "marked": "^18.1.2",
     "oxlint": "^1.90.0",
     "svelte": "^5.57.3",
-    "svelte-check": "^4.7.7",
+    "svelte-check": "^4.7.8",
     "three": "^0.187.0",
     "typescript": "~6.0.3",
     "unpdf": "^2.1.0",

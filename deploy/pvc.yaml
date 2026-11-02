@@ -7,6 +7,13 @@ metadata:
   name: ashi-data
   namespace: ashi
 spec:
+  # 新しく作るときは VolSync が R2 の最新から中身を埋める(volsync.yaml の ashi-data-dst)。今ある PVC には効かない
+  dataSourceRef:
+    {
+      apiGroup: volsync.backube,
+      kind: ReplicationDestination,
+      name: ashi-data-dst,
+    }
   accessModes:
     - ReadWriteOnce
   storageClassName: local-path

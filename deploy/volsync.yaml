@@ -20,11 +20,9 @@ spec:
         projectSlug: doa
         envSlug: prod
         secretsPath: /backup/backup
-        recursive: false
   managedKubeSecretReferences:
     - secretName: volsync-ashi-data
       secretNamespace: ashi
-      creationPolicy: Orphan
       template:
         data:
           RESTIC_REPOSITORY: "s3:{{ .endpoint.Value }}/{{ .bucket.Value }}/volsync/ashi/ashi-data"

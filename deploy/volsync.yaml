@@ -7,8 +7,6 @@ kind: InfisicalSecret
 metadata:
   name: volsync
   namespace: ashi
-  annotations:
-    argocd.argoproj.io/sync-options: Prune=false,SkipDryRunOnMissingResource=true
 spec:
   hostAPI: http://infisical.infisical.svc:8080/api
   authentication:
@@ -22,11 +20,9 @@ spec:
         projectSlug: doa
         envSlug: prod
         secretsPath: /backup/backup
-        recursive: false
   managedKubeSecretReferences:
     - secretName: volsync-ashi-data
       secretNamespace: ashi
-      creationPolicy: Orphan
       template:
         data:
           RESTIC_REPOSITORY: "s3:{{ .endpoint.Value }}/{{ .bucket.Value }}/volsync/ashi/ashi-data"
@@ -40,8 +36,6 @@ kind: ReplicationSource
 metadata:
   name: ashi-data
   namespace: ashi
-  annotations:
-    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   sourcePVC: ashi-data
   trigger:
@@ -59,8 +53,6 @@ kind: ReplicationDestination
 metadata:
   name: ashi-data-dst
   namespace: ashi
-  annotations:
-    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   trigger:
     manual: restore-once

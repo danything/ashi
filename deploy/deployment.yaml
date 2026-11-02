@@ -4,8 +4,8 @@ metadata:
   name: ashi
   namespace: ashi
   annotations:
-    # 参照している Secret を Infisical operator が同期したら、自動でローリング再起動する
-    secrets.infisical.com/auto-reload: "true"
+    # 参照している Secret が変わったら、Reloader が自動でローリング再起動する
+    reloader.stakater.com/auto: "true"
 spec:
   replicas: 1
   # **Recreate。2 つの Pod を同時に立てない。** 画面のサーバーが歩みも回していて、状態ファイルを

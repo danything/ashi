@@ -138,8 +138,8 @@ bun run build      # 画面と CLI(build/cli.js)
 
 main に入ると `docker-publish.yml` がイメージを焼き、`deploy/deployment.yaml` のタグを差し替える PR を作って自分でマージする。ArgoCD が `deploy/argocd.yaml` を拾って as.doany.io に出す。
 
-- 設定は画面の「設定」(/settings)だけで変える。保存先は PVC の ashi.json。環境変数(deployment.yaml・Infisical)に置くのは鍵と置き場所だけで、設定は混ぜない(持ち主の指摘、2026-10-03)。前の版の `ASHI_CONFIG`・`ASHI_FEEDS`・settings.json は、起動時に一度だけ ashi.json に取り込み(`store.importLegacyConfig`、印は config-imported.json)、以後は読まない
-- 秘密は Infisical の `/ashi/ashi-secrets`(鍵の一覧は `deploy/secret.yaml` の先頭)
+- 設定は画面の「設定」(/settings)だけで変える。保存先は PVC の ashi.json。環境変数(deployment.yaml・secrets.sops.yaml)に置くのは鍵と置き場所だけで、設定は混ぜない(持ち主の指摘、2026-10-03)。前の版の `ASHI_CONFIG`・`ASHI_FEEDS`・settings.json は、起動時に一度だけ ashi.json に取り込み(`store.importLegacyConfig`、印は config-imported.json)、以後は読まない
+- 秘密は `deploy/secrets.sops.yaml`(SOPS で暗号化した SopsSecret が Secret `ashi-secrets` を作る。鍵の一覧はファイルの先頭)
 - 頭はクラスタでは `api`(Messages API)。Max のプランに付く月ごとの API クレジット(Max 20x で $200、繰り越さない。Claude Code には使えない)で払う。2026-10-18 に `claude-code`(サブスク)から替えた。数字の前後を比べるときはこの日で区切る。1 日の予算(`budget.dailyUsd`)と歩数(`maxStepsPerDay`)で止める。サブスクの頃に、手元の Claude Code と週の上限を分け合うので 15 歩・道具の往復 8 回・effort medium に絞った
 - 設定の画面で保存した値は再起動なしで効く(歩みには、呼ぶたびに今の設定の頭へ取り次ぐ頭を渡す。X を止めたらストリームも切る)
 

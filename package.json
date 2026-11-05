@@ -15,7 +15,7 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --tsgo --fail-on-warnings"
   },
   "devDependencies": {
-    "3d-force-graph": "^1.80.1",
+    "3d-force-graph": "^1.80.2",
     "@anthropic-ai/sdk": "^1.5.0",
     "@picocss/pico": "^2.1.1",
     "@sveltejs/adapter-bun": "^1.0.0",

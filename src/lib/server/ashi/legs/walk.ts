@@ -599,8 +599,11 @@ export async function step(legs: Legs): Promise<StepOutcome> {
           const verifyResult = x.verify
             ? mainVerifyResult(q, output)
             : undefined;
-          // 見つからなかった回数を数え、上限に達したら未測定の棚へ(同じ所をぐるぐる探さない)
-          const misses = (x.misses ?? 0) + (missed ? 1 : 0);
+          // 見つからなかった回数を数え、上限に達したら未測定の棚へ(同じ所をぐるぐる探さない)。1 本で歩いた
+          // 確かめの問いが自分の ID で unreadable のときも、束ねた相手と同じく数える
+          const misses =
+            (x.misses ?? 0) +
+            (missed || (verifyResult === "unreadable" && !answered) ? 1 : 0);
           parked = !answered && misses >= cfg.missesToPark;
           // 歩いたら、次の一歩の約束の印は消す(約束は果たした)
           const { promised: _promised, ...rest } = x;

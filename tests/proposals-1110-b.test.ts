@@ -618,6 +618,30 @@ describe("P14: 核は合い、言い足しだけ外れた確かめの結果(over
     expect(after?.verifyNote).toHaveLength(VERIFY_NOTE_MAX);
   });
 
+  test("一本で歩いた確かめの問いが読めなかったら、見つからなかった回数が付き、点数は下がらない", async () => {
+    const store = freshStore();
+    const debt = q({
+      id: "solo0002",
+      track: "owner",
+      verify: true,
+      source: "stranger",
+    });
+    store.saveQuestions([debt]);
+    await walkOnce(store, {
+      answered: false,
+      found: "partial",
+      checked: [{ id: "solo0002", result: "unreadable", note: "" }],
+    });
+    const after = store.questions()[0];
+    expect(after).toMatchObject({
+      status: "open",
+      visits: 1,
+      misses: 1,
+      verifyResult: "unreadable",
+    });
+    expect(after && score(after)).toBe(score(debt));
+  });
+
   test("確かめの問いでなければ、checked の指示を出さない", () => {
     expect(explorePrompt(q({ id: "plain001" }), "score", ctx())).not.toContain(
       "結果を checked に、この問いの ID",

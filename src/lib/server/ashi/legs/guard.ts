@@ -7,7 +7,7 @@ import {
   type Question,
   type Store,
 } from "../state.ts";
-import { byRank, score, VERIFY_THEME } from "./select.ts";
+import { byRank, score, VERIFY_THEME, walkedCount } from "./select.ts";
 
 /**
  * ガードレール。頭が何を言っても、ここを通したものだけが状態に残る。
@@ -317,11 +317,16 @@ export function ownerPull(
  *   Ashi の改善案、2026-09-26)
  * - 残り(total - home - own)が、よそ者が本当に新しく持ち込んだテーマ
  * テーマは受け取るときに近い問いのテーマへ揃えるので(acceptNewQuestions)、引き戻されたものは既存のテーマに入る
+ *
+ * 確かめの借り(verify)は着地に数えず、本数だけ別に返す(verify)。借りは足がテーマ「確かめること」に
+ * 入れるので、頭がどこへ着地させたかの物差しにならない。持ち主への借りが同じテーマにあるあいだは
+ * 全部 home に入り、新しいテーマには決してならなかった(278 本のうち 114 本が借り。Ashi の改善案、
+ * 2026-11-10)
  */
 export function strangerLanding(
   qs: Question[],
   ownerHandles: string[],
-): { home: number; own: number; total: number } {
+): { home: number; own: number; total: number; verify: number } {
   const byId = new Map(qs.map((q) => [q.id, q]));
   const handles = new Set(ownerHandles.map((h) => h.toLowerCase()));
   const rooted = new Set(
@@ -341,7 +346,8 @@ export function strangerLanding(
     const had = selfSince.get(q.theme);
     if (!had || q.createdAt < had) selfSince.set(q.theme, q.createdAt);
   }
-  const s = qs.filter((q) => q.source === "stranger" && !q.mergedInto);
+  const all = qs.filter((q) => q.source === "stranger" && !q.mergedInto);
+  const s = all.filter((q) => !q.verify);
   let home = 0;
   let own = 0;
   for (const q of s) {
@@ -351,7 +357,7 @@ export function strangerLanding(
       if (since && since < q.createdAt) own++;
     }
   }
-  return { home, own, total: s.length };
+  return { home, own, total: s.length, verify: all.length - s.length };
 }
 
 /** 自己記述を渡さずに歩いた個性のノートと、渡して歩いた個性のノートを数件ずつ(新しい順) */
@@ -476,6 +482,27 @@ export function patternHits(
     .filter((p) => p.firstReply);
 }
 
+/**
+ * よそ者との会話の Ashi の返事ごとに、自分の型の言葉が何回出たか。出なかった返事は入れない。
+ * 最初の返事しか見ておらず、3 つ目の返事に型を 2 つ並べても見えなかった(Ashi の改善案、2026-10-26)。
+ * 文字の一致だけなので、言い換えた型は拾えない
+ */
+export function patternsByReply(
+  turns: { by: "stranger" | "ashi"; text: string }[],
+  patterns: string[],
+): { reply: number; hits: { word: string; count: number }[] }[] {
+  const words = [...new Set(patterns.filter((w) => w.trim() !== ""))];
+  return turns
+    .filter((t) => t.by === "ashi")
+    .map((t, i) => ({
+      reply: i + 1,
+      hits: words
+        .map((word) => ({ word, count: t.text.split(word).length - 1 }))
+        .filter((h) => h.count > 0),
+    }))
+    .filter((r) => r.hits.length > 0);
+}
+
 /** 文の中の問い ID(8 桁の 16 進) */
 export const questionIds = (s: string): string[] =>
   s.match(/\b[0-9a-f]{8}\b/g) ?? [];
@@ -514,19 +541,31 @@ export function normalizeIntentions(
  * 内省の close_by_note を当てる。開いた問いを、答えの出たノートで閉じる(answeredBy にノートの ID)。
  * merges は開いた問いどうしにしか使えず、閉じた問いと同じことを聞く問いが開いたまま残っていた
  * (Ashi の改善案、2026-10-10)。ノートが無い・問いが開いていないものは当てない。1 回 10 件まで
+ *
+ * 新しく確かめられず束ね直しただけのノート(Note.incomplete)は答えにしない。断ったものは refused に
+ * 返す(黙って捨てない)
  */
 export function closeByNote(
   qs: Question[],
   raw: unknown,
-  notes: { id: string }[],
+  notes: { id: string; incomplete?: boolean }[],
   now: Date,
-): { questions: Question[]; closed: { id: string; note: string }[] } {
-  const known = new Set(notes.map((n) => n.id));
+): {
+  questions: Question[];
+  closed: { id: string; note: string }[];
+  refused: { id: string; note: string }[];
+} {
+  const known = new Set(notes.filter((n) => !n.incomplete).map((n) => n.id));
+  const unfinished = new Set(
+    notes.filter((n) => n.incomplete).map((n) => n.id),
+  );
   const want = new Map<string, string>();
+  const refused: { id: string; note: string }[] = [];
   for (const x of (Array.isArray(raw) ? raw : []).slice(0, 10)) {
     const q = typeof x?.question_id === "string" ? x.question_id.trim() : "";
     const n = typeof x?.note_id === "string" ? x.note_id.trim() : "";
     if (q && known.has(n)) want.set(q, n);
+    else if (q && unfinished.has(n)) refused.push({ id: q, note: n });
   }
   const closed: { id: string; note: string }[] = [];
   const questions = qs.map((q) => {
@@ -541,7 +580,7 @@ export function closeByNote(
       lastVisitedAt: now.toISOString(),
     };
   });
-  return { questions, closed };
+  return { questions, closed, refused };
 }
 
 /**
@@ -584,15 +623,20 @@ export function debtLedger(
   };
 }
 
-/** 問いごとの、いちばん新しいノート */
+/**
+ * 問いごとの、いちばん新しいノート。答えのノートとして頭に見せるものなので、新しく確かめられず
+ * 束ね直しただけのノート(incomplete)は外す
+ */
 export function latestNoteByQuestion(
   notes: Note[],
 ): Record<string, { id: string; title: string }> {
   const out: Record<string, { id: string; title: string }> = {};
   for (const n of [...notes].sort((a, b) =>
     a.createdAt.localeCompare(b.createdAt),
-  ))
+  )) {
+    if (n.incomplete) continue;
     out[n.questionId] = { id: n.id, title: n.title };
+  }
   return out;
 }
 
@@ -635,13 +679,18 @@ export function acceptGroups(raw: unknown, qs: Question[]): string[][] {
   return out;
 }
 
-/** この問いと組になっている、開いている問い */
+/**
+ * この問いと組になっている、開いている問い。内省の組(walkGroups)に加えて、足が会話の直後に結んだ
+ * 裏表の組(pairOf)も読む。どちらの側から歩いても相手が出るよう、両方の向きを見る
+ */
 export function groupMates(
   q: Question,
   groups: string[][] | undefined,
   qs: Question[],
 ): Question[] {
   const ids = new Set((groups ?? []).filter((g) => g.includes(q.id)).flat());
+  if (q.pairOf) ids.add(q.pairOf);
+  for (const x of qs) if (x.pairOf === q.id) ids.add(x.id);
   ids.delete(q.id);
   return qs.filter((x) => ids.has(x.id) && x.status === "open");
 }
@@ -728,11 +777,18 @@ export function markPromised(qs: Question[], intentions: string[]): Question[] {
 /** 点数の内訳を 1 行で(select.ts の score と同じ式) */
 export function scoreBreakdown(q: Question): string {
   const base = 0.4 * q.interest + 0.35 * q.importance + 0.25 * q.feasibility;
+  // 確かめきれなかった歩み(misses)は、歩いた回数の減点に数えない
+  const walked = walkedCount(q);
+  const missed = q.visits - walked;
   const parts = [
     `見立て ${base.toFixed(2)}(面白さ ${q.interest}・大事さ ${q.importance}・歩けそうか ${q.feasibility}。問いを作ったときの値で、あとからは変わらない)`,
     q.visits === 0
       ? "まだ歩いていない +0.15"
-      : `歩いた ${q.visits} 回 −${(0.12 * q.visits).toFixed(2)}`,
+      : walked === 0
+        ? `歩いた ${q.visits} 回はどれも確かめきれなかったので、歩いていない扱い +0.15`
+        : missed > 0
+          ? `歩いた ${q.visits} 回のうち確かめきれなかった ${missed} 回を除いて ${walked} 回 −${(0.12 * walked).toFixed(2)}`
+          : `歩いた ${q.visits} 回 −${(0.12 * q.visits).toFixed(2)}`,
   ];
   return `${score(q).toFixed(2)} = ${parts.join("、")}`;
 }
@@ -863,7 +919,10 @@ export function adviceFollowups(
   return out;
 }
 
-/** 持ち主への訂正を台帳に足す(ほぼ同じものは重ねない、20 件まで) */
+/**
+ * 持ち主に渡すものを台帳に足す(ほぼ同じものは重ねない、まだ渡していないものは 20 件まで)。
+ * 渡した印の付いたものとも比べる(渡したばかりのことを積み直さない)
+ */
 export function addOwnerCorrections(
   prev: OwnerCorrection[] | undefined,
   texts: unknown,
@@ -887,16 +946,150 @@ export function addOwnerCorrections(
       ...(kind ? { kind } : {}),
     });
   }
-  return out.slice(-20);
+  return capCorrections(out, now);
 }
 
-type OwnerCorrection = {
+export type OwnerCorrection = {
   id: string;
   text: string;
   at: string;
   questionId?: string;
   kind?: "answer";
+  /** 持ち主に渡した時刻。無ければ、まだ渡していない(この欄の無い古い項目もそう読む) */
+  deliveredAt?: string;
 };
+
+const CORRECTIONS_MAX = 20;
+/** 渡した印の付いたものを残す日数。ふつうは次の内省で一度見せて落とす。内省が来ないときの上限 */
+const DELIVERED_KEEP_DAYS = 7;
+
+/** まだ渡していないものは新しい 20 件、渡したものは 7 日以内の新しい 20 件に保つ(並びは変えない) */
+function capCorrections(list: OwnerCorrection[], now: Date): OwnerCorrection[] {
+  const pending = list.filter((c) => !c.deliveredAt).slice(-CORRECTIONS_MAX);
+  const fresh = now.getTime() - DELIVERED_KEEP_DAYS * 86400e3;
+  const delivered = list
+    .filter((c) => c.deliveredAt && Date.parse(c.deliveredAt) >= fresh)
+    .slice(-CORRECTIONS_MAX);
+  const keep = new Set([...pending, ...delivered]);
+  return list.filter((c) => keep.has(c));
+}
+
+/** 台帳のうち、まだ持ち主に渡していないもの */
+export const pendingCorrections = (
+  list: OwnerCorrection[] | undefined,
+): OwnerCorrection[] => (list ?? []).filter((c) => !c.deliveredAt);
+
+/**
+ * 持ち主に渡したもの(頭の申告 delivered_corrections の ID)に、渡した時刻の印を付ける。
+ * 消すだけだと、内省が「溜まったまま」と「もう渡した」を区別できなかった(Ashi の改善案、2026-11-02)
+ */
+export function markDelivered(
+  prev: OwnerCorrection[] | undefined,
+  ids: unknown,
+  now: Date,
+): { ledger: OwnerCorrection[]; delivered: string[] } {
+  const told = new Set(
+    (Array.isArray(ids) ? ids : []).filter(
+      (x): x is string => typeof x === "string",
+    ),
+  );
+  const delivered: string[] = [];
+  const ledger = (prev ?? []).map((c) => {
+    if (c.deliveredAt || !told.has(c.id)) return c;
+    delivered.push(c.id);
+    return { ...c, deliveredAt: now.toISOString() };
+  });
+  return { ledger: capCorrections(ledger, now), delivered };
+}
+
+/** 内省で一度見せた「渡したもの」を台帳から落とす(shown は内省に見せたときの ID) */
+export function dropShownDelivered(
+  prev: OwnerCorrection[] | undefined,
+  shown: string[],
+): OwnerCorrection[] {
+  const ids = new Set(shown);
+  return (prev ?? []).filter((c) => !(c.deliveredAt && ids.has(c.id)));
+}
+
+/**
+ * 内省に見せる、持ち主に渡すものの台帳。まだ渡していないもの・前回の内省の後に渡したもの・
+ * 前回の内省(since)の後に持ち主との対話があったか。対話が無かったのか、話したのに渡さなかったのかを
+ * 内省が区別できなかった(Ashi の改善案、2026-10-27・11-02)
+ */
+export function ownerHandoffs(
+  ledger: OwnerCorrection[] | undefined,
+  chats: { at: string }[],
+  since?: string,
+): {
+  pending: OwnerCorrection[];
+  delivered: OwnerCorrection[];
+  chats: { count: number; lastAt?: string };
+} {
+  const after = chats
+    .map((c) => c.at)
+    .filter((at) => !since || at > since)
+    .sort();
+  return {
+    pending: pendingCorrections(ledger),
+    delivered: (ledger ?? []).filter((c) => c.deliveredAt),
+    chats: { count: after.length, lastAt: after.at(-1) },
+  };
+}
+
+/** 文字 2 つ組のうち、ひらがなだけのもの(助詞や活用語尾)を除く。短い文どうしの近さを測るため */
+const contentGrams = (text: string): Set<string> =>
+  new Set([...bigrams(text)].filter((g) => !/^[ぁ-ゟ]+$/.test(g)));
+
+/** 自分について言った文の、中身の文字の組のうちこれ以上がノートの題・要約に出ていたら「近いノート」とする */
+export const CLAIM_NOTE_MIN = 0.3;
+const CLAIM_GRAMS_MIN = 4;
+
+/**
+ * よそ者との会話で自分について言った文ごとに、題と要約の文字が一番近いノートを添える。頭は呼ばない。
+ * sourced は、そのノートが外の出典を読んで書かれたか(本文に URL か「読めた深さ」の節がある)。
+ * 読んだことを経験のように言っていても、文だけでは内省で気づけなかった(Ashi の改善案、2026-11-09)。
+ * 文字の近さだけの手がかりで、歩いて確かめたことか読んだことかの判定はしない(読み分けるのは頭)
+ */
+export function claimNotes(
+  claims: string[],
+  notes: Note[],
+  body: (id: string) => string | undefined,
+): Record<
+  string,
+  { id: string; title: string; sourced: boolean; near: number }
+> {
+  const out: Record<
+    string,
+    { id: string; title: string; sourced: boolean; near: number }
+  > = {};
+  if (!claims.length || !notes.length) return out;
+  const grams = notes.map((n) => ({
+    n,
+    g: contentGrams(`${n.title} ${n.summary}`),
+  }));
+  for (const claim of new Set(claims)) {
+    const c = contentGrams(claim);
+    // 短すぎる文は、たまたまの一致で当たるので測らない
+    if (c.size < CLAIM_GRAMS_MIN) continue;
+    let best: { n: Note; near: number } | undefined;
+    // 同じ近さなら新しいノートを取る(notes は古い順)
+    for (const { n, g } of grams) {
+      let hit = 0;
+      for (const x of c) if (g.has(x)) hit++;
+      const near = hit / c.size;
+      if (near >= CLAIM_NOTE_MIN && (!best || near >= best.near))
+        best = { n, near };
+    }
+    if (!best) continue;
+    out[claim] = {
+      id: best.n.id,
+      title: best.n.title,
+      sourced: /https?:\/\/|## 読めた深さ/.test(body(best.n.id) ?? ""),
+      near: Math.round(best.near * 100) / 100,
+    };
+  }
+  return out;
+}
 
 /** 本文がこの字数(空白を除く)に満たないノートは、書き損じとして扱う */
 export const NOTE_MIN_CHARS = 40;
@@ -1042,6 +1235,71 @@ export function mergeClaims(declared: string[], marked: string[]): string[] {
     if (!out.some((d) => jaccard(g, bigrams(d)) >= SIMILAR)) out.push(m);
   }
   return out.slice(0, CLAIMS_MAX);
+}
+
+/**
+ * 二つの主張の重なり係数(共通の bigram ÷ 短いほうの bigram の数)。片方がもう片方にほぼ含まれるかを見る。
+ * Jaccard は長さが違うと下がり、同じ主張の短い言い直しを拾えない。短すぎる文(bigram 4 つ未満)は比べない
+ */
+export function containment(a: string, b: string): number {
+  const x = bigrams(a);
+  const y = bigrams(b);
+  const small = Math.min(x.size, y.size);
+  if (small < 4) return 0;
+  let n = 0;
+  for (const g of x) if (y.has(g)) n++;
+  return n / small;
+}
+
+/** これ以上重なっていれば、同じ会話から出た同じ主張とみなす */
+export const CONTAINED = 0.6;
+
+/**
+ * 同じ会話から出た二つの主張が、ほぼ同じか・片方がもう片方に含まれるか。問いにする前に、種類
+ * (言ったこと・さいころ・引っ込めたこと)をまたいで比べる。札の付いた問いの全文どうしの近さ(NEAR_DUPLICATE)
+ * では、札が違うぶん言い換えが通り、同じ主張が 2 本積まれて内省で手で統合していた(Ashi の改善案、2026-10-28)
+ */
+export const sameClaim = (a: string, b: string): boolean =>
+  containment(a, b) >= CONTAINED;
+
+/** 自分の前の発言を指す言い方 */
+const BACKREF = /さっき|先ほど|さきほど|先に言った|前に言った|上で言った/;
+
+/** ひらがなだけの bigram(助詞・語尾)を除いた、中身の語の bigram */
+const contentBigrams = (text: string): Set<string> =>
+  new Set(
+    [...bigrams(text)].filter((g) => !/^[\p{Script=Hiragana}ー]+$/u.test(g)),
+  );
+
+/** 取り消しの文と元の主張で、これだけ中身の語の bigram が重なれば組にする */
+export const PAIR_MIN = 3;
+
+/**
+ * 同じ会話から出た主張のうち、自分の前の発言を取り消す・言い直す文(「さっき〜と並べたのは雑でした」)と、
+ * その元の主張の組([取り消しの文, 元の主張])。片方の答えが出ればもう片方も決まるのに、別々の借りとして
+ * 別々に歩いていた(Ashi の改善案、2026-11-06)。足は組にして一緒に歩かせるだけで、向きは決めない
+ * (取り消しが本当に逆の主張かは中身の判断。歩く頭が checked に両方の結果を書く)
+ */
+export function retractionPairs(claims: string[]): [string, string][] {
+  const out: [string, string][] = [];
+  for (const c of claims) {
+    if (!BACKREF.test(c)) continue;
+    const g = contentBigrams(c);
+    let best: string | undefined;
+    let most = 0;
+    for (const o of claims) {
+      if (o === c || BACKREF.test(o)) continue;
+      const h = contentBigrams(o);
+      let n = 0;
+      for (const x of g) if (h.has(x)) n++;
+      if (n > most) {
+        best = o;
+        most = n;
+      }
+    }
+    if (best && most >= PAIR_MIN) out.push([c, best]);
+  }
+  return out;
 }
 
 /** 確かめずに言ったことを、確かめる問いの形にする。where は「X で @誰々 さんに」など */

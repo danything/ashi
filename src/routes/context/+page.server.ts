@@ -18,7 +18,10 @@ export const load: PageServerLoad = () => {
     system: system(core, store.self(), store.owner()),
     config: JSON.stringify(store.config(), null, 2),
     intentions: store.walk().intentions ?? [],
-    corrections: store.walk().ownerCorrections ?? [],
+    // 渡した印の付いたものは出さない(次の内省で一度見せてから落とす)
+    corrections: (store.walk().ownerCorrections ?? []).filter(
+      (c) => !c.deliveredAt,
+    ),
     bridges: store.bridgeIdeas().slice().reverse(),
     stranger: store.config().stranger,
     dialogues: store.recentDialogues(5),

@@ -271,7 +271,12 @@ describe("話したことを内省に届ける", () => {
       q({ track: "self", theme: "稼働表", source: "stranger" }),
       q({ track: "self", theme: "アリの巣", source: "stranger" }),
     ];
-    expect(strangerLanding(qs, [])).toEqual({ home: 1, own: 0, total: 2 });
+    expect(strangerLanding(qs, [])).toEqual({
+      home: 1,
+      own: 0,
+      total: 2,
+      verify: 0,
+    });
   });
 });
 
@@ -296,7 +301,12 @@ describe("Ashi の改善案(2026-09-26)", () => {
         createdAt: "2026-09-25T05:00:00Z",
       }),
     ];
-    expect(strangerLanding(qs, [])).toEqual({ home: 0, own: 1, total: 2 });
+    expect(strangerLanding(qs, [])).toEqual({
+      home: 0,
+      own: 1,
+      total: 2,
+      verify: 0,
+    });
   });
 
   test("会話で記憶だけで言ったことは、確かめる問い(verify)にして控える", async () => {

@@ -59,6 +59,9 @@ export type QuestionStatus = "open" | "answered" | "dropped" | "parked";
  */
 export type Track = "owner" | "self";
 
+/** 確かめの問いの結果。holds: 合う / overstated: 核は合い、言い足しが外れ / wrong: 外れ / unreadable: 読めなかった */
+export type VerifyResult = "holds" | "overstated" | "wrong" | "unreadable";
+
 export interface Question {
   id: string;
   text: string;
@@ -92,6 +95,12 @@ export interface Question {
    */
   verifyKind?: "pushback" | "spot" | "sweeping" | "retract";
   /**
+   * 同じ会話から出た、裏表の確かめの問いの相手の ID(引っ込めた主張ときっかけの相手の主張、取り消しの文と
+   * 元の主張)。片方の答えでもう片方も決まるので、足が一緒に歩かせる(guard.ts の groupMates)。内省の
+   * walkGroups は内省のたびに書き直されるので、会話の直後に足が結ぶ組は問いの側に持つ(Ashi の改善案、2026-11-06)
+   */
+  pairOf?: string;
+  /**
    * 内省の次の一歩に、続けて書かれた回数。2 回以上なら足が先に歩き、開いた問いの上限で手放さない。
    * 3 回続けて書いても選ばれず、上限で黙って手放されてもいた(Ashi の改善案、2026-09-26)。歩いたら消す
    */
@@ -102,9 +111,18 @@ export interface Question {
   answeredBy?: string;
   /** 内省で見立てを付け直した回数(reestimate)。甘く付け直していないかを見るため */
   reestimated?: number;
-  /** 確かめの問いの結果(合う / 外れ / 読めなかった)。自己記述の出どころを見直すため */
-  verifyResult?: "holds" | "wrong" | "unreadable";
-  /** 探して何も見つからなかった回数 */
+  /**
+   * 確かめの問いの結果(合う / 核は合い言い足しが外れ / 外れ / 読めなかった)。自己記述の出どころを
+   * 見直すため。overstated は、主張の核は合っていて、言い方・言い足しだけが外れていたもの。二択だと
+   * 核ごと外れた主張と混ざった(Ashi の改善案、2026-10-25)
+   */
+  verifyResult?: VerifyResult;
+  /** 確かめの結果に頭が添えた一行(overstated なら外れた語句)。足が VERIFY_NOTE_MAX 字で切る */
+  verifyNote?: string;
+  /**
+   * 探して何も見つからなかった回数。確かめきれなかった歩み(束ねて読めなかった・新しく確かめられず
+   * 束ね直しただけ)もここに足す。点数の歩いた回数からは引く(select.ts の score)
+   */
   misses?: number;
   /** 書き損じ(本文が空・埋め草)の答えが返ってきた回数。ノートにはしていない */
   blankNotes?: number;
@@ -140,6 +158,11 @@ export interface Note {
   blind?: boolean;
   /** 要旨だけ・読めなかった出典の数(sources_read)。内省で読み直す候補として並べる */
   shallow?: number;
+  /**
+   * 道具の上限などで今回新しく確かめられず、前のノートを束ね直しただけのノート(頭の申告)。問いを
+   * 閉じる根拠にしない(Ashi の改善案、2026-11-04)
+   */
+  incomplete?: true;
 }
 
 export interface Proposal {
@@ -251,8 +274,10 @@ export interface Walk {
   /** 内省で頭が挙げた、自分の型の言葉。よそ者との会話で持ち込んでいないかを数える */
   selfPatterns?: string[];
   /**
-   * 持ち主に言ったことの訂正で、まだ伝えていないもの。話すときに頭に見せ、伝えたら消す
-   * (持ち主が話題を振らないと訂正を出す機会が無かった。Ashi の改善案、2026-09-27)
+   * 持ち主に渡すものの台帳。持ち主に言ったことの訂正と、内省で持ち主に渡すと決めたこと。
+   * まだ渡していないものを話すときに頭に見せ、渡したら deliveredAt の印を付ける。印の付いたものは
+   * 次の内省で一度見せてから落とす(持ち主が話題を振らないと訂正を出す機会が無かった。Ashi の改善案、
+   * 2026-09-27。消すだけだと、内省が「溜まったまま」と「もう渡した」を区別できなかった、2026-11-10)
    */
   ownerCorrections?: {
     id: string;
@@ -261,6 +286,8 @@ export interface Walk {
     questionId?: string;
     /** answer: 訂正ではなく、持ち主に聞かれて確かめた答えの渡し待ち(話題に関係なく渡す) */
     kind?: "answer";
+    /** 持ち主に渡した時刻。無ければ、まだ渡していない */
+    deliveredAt?: string;
   }[];
   /** 型の当たり率の基準線を最後に測った日(1 日 1 回。legs/baseline.ts) */
   lastBaselineDay?: string;
@@ -833,6 +860,24 @@ export class Store {
     return tailJsonl<ChatEntry>(this.path("chat.jsonl"), n);
   }
 
+  /**
+   * 持ち主に言ったことの確かめの問いを歩くときに渡す、持ち主への返事。問いが生まれた返事(at が問いの
+   * createdAt と同じ)を先に取り、残りの枠をそれより後の返事の新しいほうから埋める。全部で n 通まで、古い順
+   */
+  chatsAround(ats: string[], n: number): ChatEntry[] {
+    if (ats.length === 0 || n <= 0) return [];
+    const all = tailJsonl<ChatEntry>(
+      this.path("chat.jsonl"),
+      Number.MAX_SAFE_INTEGER,
+    );
+    const first = ats.reduce((a, b) => (a < b ? a : b));
+    const born = all.filter((c) => ats.includes(c.at)).slice(-n);
+    const later = all
+      .filter((c) => c.at > first && !ats.includes(c.at))
+      .slice(0, Math.max(0, n - born.length));
+    return [...born, ...later].sort((a, b) => a.at.localeCompare(b.at));
+  }
+
   appendDialogue(d: Dialogue): void {
     appendFileSync(this.path("dialogues.jsonl"), `${JSON.stringify(d)}\n`);
   }
@@ -925,6 +970,14 @@ export interface Dialogue {
    */
   patterns?: { word: string; firstReply: boolean; strangerFirst: boolean }[];
   /**
+   * 自分の型の言葉が出た Ashi の返事(reply は何番目の返事か)と、語ごとの回数。出なかった返事は入れない。
+   * 最初の返事だけ見ていて、3 つ目の返事に型を 2 つ並べても見えなかった(Ashi の改善案、2026-10-26)
+   */
+  patternsByReply?: {
+    reply: number;
+    hits: { word: string; count: number }[];
+  }[];
+  /**
    * 相手の話を、確かめずに受け入れたもの。自分が外に言ったこと(確かめの問いにする)とは分け、
    * 内省で見せるだけにする(Ashi の改善案、2026-10-03)
    */
@@ -935,17 +988,20 @@ export interface Dialogue {
   pushedBack?: string[];
   /** 相手の言葉を受けて引っ込めた Ashi の主張と、きっかけの相手の主張(両方を確かめの問いにする) */
   /** backing: きっかけの相手の主張に添えられていたもの(出典・確度・なし) */
+  /** checkable: false なら、比喩や解釈の言い方で確かめる事実が無く、確かめの問いにしなかった(記録だけ) */
   retracted?: {
     mine: string;
     because: string;
     backing?: "出典" | "確度" | "なし";
+    checkable?: false;
   }[];
   /** Ashi の返事に、自己記述や直前のよそ者との会話と同じ言い回しが出たもの(legs/style.ts の carriedPhrases) */
   carried?: { reply: number; phrase: string; from: string }[];
   /** 足が拾った、総称・全称・確度の語を含む Ashi の発言(legs/style.ts の SWEEPING) */
   sweeping?: string[];
   /** 足がさいころで選んだ Ashi の言い切った文と、頭が取り出した確かめる事実(無ければ空) */
-  spot?: { sentence: string; claim: string };
+  /** duplicate: 同じ会話の別の確かめの問いと同じ主張だったので、さいころの問いは積まなかった(残した側の主張) */
+  spot?: { sentence: string; claim: string; duplicate?: string };
 }
 
 export interface ChatEntry {

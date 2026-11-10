@@ -16,7 +16,10 @@ import {
   markedClaims,
   mergeClaims,
   patternHits,
+  patternsByReply,
   type RawQuestion,
+  retractionPairs,
+  sameClaim,
   trimOpenQuestions,
 } from "./guard.ts";
 import { carriedPhrases, SWEEPING, sweepingSentences } from "./style.ts";
@@ -184,7 +187,7 @@ export async function talkWithStranger(opts: {
   // 「記憶で言います」と断ったまま確かめない、が起きていた)
   // 足が印で拾うのは、頭が判定した後に出た締めの発言だけ。それより前の文は締めで頭に分けさせた
   const closing = turns.at(-1)?.by === "ashi" ? [turns.at(-1)?.text ?? ""] : [];
-  const claims = mergeClaims(
+  const said = mergeClaims(
     acceptClaims(final.unverified),
     markedClaims(closing),
   );
@@ -206,19 +209,38 @@ export async function talkWithStranger(opts: {
       const b = (r as { backing?: unknown }).backing;
       const backing =
         b === "出典" || b === "確度" || b === "なし" ? b : undefined;
+      // 比喩や解釈の言い方で、出典を探しても本当か嘘か決まらない主張は、確かめの問いにせず記録だけ残す
+      // (一歩を使っても答えの出ない問いが棚に残った。Ashi の改善案、2026-10-30)。申告が無い・真偽値で
+      // ないときは、これまで通り問いにする
+      const checkable = (r as { checkable?: unknown }).checkable;
       return {
         mine: r.mine.trim().slice(0, 200),
         because: r.because.trim().slice(0, 200),
         ...(backing ? { backing } : {}),
+        ...(checkable === false ? { checkable: false as const } : {}),
       };
     });
-  const spotClaim = text(final.spot_check).slice(0, 200);
+  // 確かめの問いにする、引っ込めた主張
+  const asked = retracted.filter((r) => r.checkable !== false);
+  // 引っ込めた主張と同じ主張が「言ったこと」にもあれば、引っ込めた側の 1 本にする
+  const claims = said.filter((c) => !asked.some((r) => sameClaim(c, r.mine)));
+  // さいころの文から取り出した事実が、同じ会話の別の確かめの問いと同じ主張なら積まない。残すのは
+  // 先に申告した側で、落としたことは会話の記録(spot.duplicate)に残す(Ashi の改善案、2026-10-28)
+  const spotRaw = text(final.spot_check).slice(0, 200);
+  const spotDuplicate = spotRaw
+    ? [
+        ...claims,
+        ...pushedBack,
+        ...asked.flatMap((r) => [r.mine, r.because]),
+      ].find((c) => sameClaim(spotRaw, c))
+    : undefined;
+  const spotClaim = spotDuplicate ? "" : spotRaw;
   if (
     raw.length ||
     claims.length ||
     pushedBack.length ||
     spotClaim ||
-    retracted.length
+    asked.length
   ) {
     const cfg = store.config();
     const from = {
@@ -267,7 +289,7 @@ export async function talkWithStranger(opts: {
         ),
         "pushback",
       );
-      for (const r of retracted) {
+      for (const r of asked) {
         put(
           claimQuestions(
             [r.mine],
@@ -294,6 +316,23 @@ export async function talkWithStranger(opts: {
           ),
           "spot",
         );
+      // 裏表の問いを組にする(片方を歩くとき、もう片方も一緒に渡す)。引っ込めた主張ときっかけの相手の主張、
+      // 自分の前の発言を取り消す文と元の主張。向きは決めない(歩く頭が checked に両方の結果を書く)
+      const asking = (claim: string) =>
+        checks.find((x) => x.text.startsWith(`「${claim}」は本当か`));
+      const pair = (a?: Question, b?: Question) => {
+        if (!a || !b || a.id === b.id) return;
+        a.pairOf ??= b.id;
+        b.pairOf ??= a.id;
+      };
+      for (const r of asked) pair(asking(r.mine), asking(r.because));
+      for (const [back, original] of retractionPairs([
+        ...claims,
+        ...pushedBack,
+        ...asked.map((r) => r.mine),
+        ...(spotClaim ? [spotClaim] : []),
+      ]))
+        pair(asking(back), asking(original));
       added = [...got, ...checks].map((q) => q.text);
       return trimOpenQuestions([...qs, ...got, ...checks], cfg);
     });
@@ -318,6 +357,8 @@ export async function talkWithStranger(opts: {
         })),
     ],
   );
+  // 型の言葉は、全部の返事についても数える(最初の返事だけだと、後の返事に並べた型が見えなかった)
+  const byReply = patternsByReply(turns, store.walk().selfPatterns ?? []);
   const dialogue: Dialogue = {
     at: now.toISOString(),
     model: stranger.name,
@@ -331,10 +372,24 @@ export async function talkWithStranger(opts: {
     ...(retracted.length ? { retracted } : {}),
     ...(carried.length ? { carried } : {}),
     ...(sweeping.length ? { sweeping } : {}),
-    ...(spot ? { spot: { sentence: spot, claim: spotClaim } } : {}),
+    ...(spot
+      ? {
+          spot: {
+            sentence: spot,
+            claim: spotRaw,
+            ...(spotDuplicate ? { duplicate: spotDuplicate } : {}),
+          },
+        }
+      : {}),
     patterns: patternHits(turns, store.walk().selfPatterns ?? []),
+    ...(byReply.length ? { patternsByReply: byReply } : {}),
   };
   store.appendDialogue(dialogue);
-  store.log("stranger", { field, model: stranger.name, added });
+  store.log("stranger", {
+    field,
+    model: stranger.name,
+    added,
+    ...(spotDuplicate ? { spotDuplicate } : {}),
+  });
   return { dialogue, usage };
 }

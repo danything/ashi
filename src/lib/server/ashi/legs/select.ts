@@ -1,17 +1,28 @@
 import type { Config } from "../config.ts";
-import type { Question, Track } from "../state.ts";
+import type { Question, Track, VerifyResult } from "../state.ts";
 
 /**
  * 行き先(次に歩く問い)を選ぶ。頭の見立てを点数にするのも、寄り道のさいころを振るのも足。
  * 頭には選ばせない(選ばせると、いちばん面白そうな所をぐるぐる回り続ける)。
  */
 
+/**
+ * 点数に数える、歩いた回数。確かめきれなかった歩み(misses: 見つからなかった・束ねて読めなかった・
+ * 新しく確かめられず束ね直しただけ)は引く。本文を読めないまま道具の上限に来た歩みで −0.12 が付き、
+ * 次の一歩に書いた問いが系統の最下位に落ちた(Ashi の改善案、2026-11-07)。misses は missesToPark で
+ * 棚に移るので、引いても同じ問いを歩き続けることはない
+ */
+export function walkedCount(q: Pick<Question, "visits" | "misses">): number {
+  return Math.max(0, q.visits - (q.misses ?? 0));
+}
+
 /** 見立てと、何度歩いたかから出す点数 */
 export function score(q: Question): number {
   const base = 0.4 * q.interest + 0.35 * q.importance + 0.25 * q.feasibility;
   // まだ歩いていない問いは少し前へ、何度も歩いた問いは後ろへ
-  const novelty = q.visits === 0 ? 0.15 : 0;
-  const fatigue = 0.12 * q.visits;
+  const walked = walkedCount(q);
+  const novelty = walked === 0 ? 0.15 : 0;
+  const fatigue = 0.12 * walked;
   return base + novelty - fatigue;
 }
 
@@ -40,23 +51,39 @@ export function verifySiblings(
     .slice(0, Math.max(0, batch - 1));
 }
 
+/** 頭の checked の result が、足の知っている値か */
+export function isVerifyResult(v: unknown): v is VerifyResult {
+  return (
+    v === "holds" || v === "overstated" || v === "wrong" || v === "unreadable"
+  );
+}
+
 /** 頭の checked のうち、束ねて渡した問いの結果だけ */
 export function batchResults(
   raw: unknown,
   siblings: Question[],
-): Map<string, "holds" | "wrong" | "unreadable"> {
+): Map<string, VerifyResult> {
   const ids = new Set(siblings.map((x) => x.id));
-  const out = new Map<string, "holds" | "wrong" | "unreadable">();
+  const out = new Map<string, VerifyResult>();
   if (!Array.isArray(raw)) return out;
   for (const c of raw as { id?: unknown; result?: unknown }[]) {
-    if (
-      typeof c?.id === "string" &&
-      ids.has(c.id) &&
-      (c.result === "holds" ||
-        c.result === "wrong" ||
-        c.result === "unreadable")
-    )
+    if (typeof c?.id === "string" && ids.has(c.id) && isVerifyResult(c.result))
       out.set(c.id, c.result);
+  }
+  return out;
+}
+
+/** checked の note(外れた語句など)は、この字数で足が切る */
+export const VERIFY_NOTE_MAX = 200;
+
+/** 頭の checked に添えられた一行(note)を、問いの ID ごとに。空は入れない */
+export function checkedNotes(raw: unknown): Map<string, string> {
+  const out = new Map<string, string>();
+  if (!Array.isArray(raw)) return out;
+  for (const c of raw as { id?: unknown; note?: unknown }[]) {
+    if (typeof c?.id !== "string" || typeof c.note !== "string") continue;
+    const note = c.note.replace(/\s+/g, " ").trim().slice(0, VERIFY_NOTE_MAX);
+    if (note) out.set(c.id, note);
   }
   return out;
 }

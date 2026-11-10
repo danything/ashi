@@ -664,7 +664,7 @@ export const REFLECT_SCHEMA: JsonSchema = {
       type: "array",
       items: { type: "string" },
       description:
-        "持ち主に言ったことのうち、あとで外れていた・弱かったと分かったもの(何を言って、何が違ったか。1 件 1 文〜2 文)。足が溜めて、次に持ち主と話すときに見せる。無ければ空",
+        "持ち主に渡すこと。持ち主に言ったことのうち、あとで外れていた・弱かったと分かったもの(何を言って、何が違ったか)と、次に持ち主と話すときに渡したいだけのこと(歩かなくてよいもの。問いやノートの ID を書いても、先に歩く約束には数えない)。1 件 1 文〜2 文。足が台帳に置き、次に持ち主と話すときに見せ、渡ったら印を付けて次の内省で見せる。同じことが「まだ渡していないもの」の一覧にあれば、書き直さなくてよい。無ければ空",
     },
     patterns: {
       type: "array",
@@ -701,7 +701,7 @@ export const REFLECT_SCHEMA: JsonSchema = {
       type: "array",
       items: { type: "string" },
       description:
-        "次の数歩でやりたいこと(0〜3 件)。日記に書くだけだと次の問い選びに届かないので、ここに書く。足が次の内省まで、問いを探す・歩くたびに見せる。抱えている問いを指すときは ID(8 桁)を書く(次の内省で、足が歩いたかを照合する)",
+        "次の数歩でやりたいこと(0〜3 件)。日記に書くだけだと次の問い選びに届かないので、ここに書く。足が次の内省まで、問いを探す・歩くたびに見せる。抱えている問いを指すときは ID(8 桁)を書く(次の内省で、足が歩いたかを照合する。ID を書いた問いは歩く約束に数え、2 回続けて書くと足が先に歩く)。持ち主に渡したいだけのことは、ここではなく owner_corrections に書く(ここに書いても持ち主との対話には届かず、渡ったかを照合できない)",
     },
     ...BRIDGE_IDEAS_FIELD,
     merges: {
@@ -855,6 +855,24 @@ export const REFLECT_SCHEMA: JsonSchema = {
 export interface ReflectTalk {
   dialogues: Dialogue[];
   chats: { at: string; question: string; reply: string }[];
+  /**
+   * 持ち主に渡すものの台帳(walk.json の ownerCorrections)。まだ渡していないもの・前回の内省の後に
+   * 渡したもの・前回の内省の後の持ち主との対話の数と最後の時刻。mode は訂正の出し方の設定
+   */
+  handoffs?: {
+    pending: { id: string; text: string; at: string; kind?: "answer" }[];
+    delivered: { id: string; text: string; at: string; deliveredAt?: string }[];
+    chats: { count: number; lastAt?: string };
+    mode?: "first" | "relevant";
+  };
+  /**
+   * よそ者との会話で自分について言った文(aboutSelf)ごとの、題と要約の文字が一番近いノート。
+   * 近いノートが無い文は入っていない(legs/guard.ts の claimNotes)
+   */
+  claimNotes?: Record<
+    string,
+    { id: string; title: string; sourced: boolean; near: number }
+  >;
   /** 持ち主に言ったことのうち、拠ったノートと同じテーマで後からノートが書かれたもの(返事は全文) */
   followups?: {
     at: string;
@@ -971,7 +989,7 @@ function trailText(t: ReflectTalk["trail"]): string {
   return `
 前回の内省から歩いた問い(★ は前回の次の一歩に ID を書いた問い):
 ${steps}
-前回の次の一歩に書いた問い ID のうち歩いたもの: ${t.kept.length} / ${t.promised.length}${t.unmatched ? `(ID が書かれていない次の一歩が ${t.unmatched} 件あり、照合できない)` : ""}
+前回の次の一歩に書いた問い ID のうち歩いたもの: ${t.kept.length} / ${t.promised.length}${t.unmatched ? `(ID が書かれていない次の一歩が ${t.unmatched} 件あり、足どりとは照合できない。持ち主に渡す約束なら、渡ったかは「持ち主に渡すものの台帳」で見る)` : ""}
 ${
   t.missing?.length
     ? `歩かれなかった問いと、その理由:\n${t.missing.map((m) => `- [${m.id}] ${m.why}`).join("\n")}\n次の一歩に 2 回続けて書いた問いは、足が次の数歩のうちに先に回します。`
@@ -1130,6 +1148,93 @@ ${list(b.sighted) || "(無い)"}
 `;
 }
 
+/**
+ * よそ者との会話で自分について言った文。足が引いた一番近いノートを横に添える(near が渡されたとき)。
+ * 文だけでは、読んだことを経験のように言っていても気づけなかった(Ashi の改善案、2026-11-09)
+ */
+function aboutSelfText(
+  claims: string[],
+  near: ReflectTalk["claimNotes"],
+): string {
+  if (!near)
+    return `\n自分について言ったこと(足の記録・自己記述と合っているか見ること): ${claims.join(" / ")}`;
+  return `\n自分について言ったこと(足の記録・自己記述と合っているか見ること。→ の先は、足が題と要約の文字の近さだけで引いた一番近いノートで、手がかりにすぎない。歩いて確かめたことか、読んだことを経験のように言ったのかは、足は判定しない。あなたが読み分ける):\n${claims
+    .map((c) => {
+      const n = near[c];
+      return `- ${c} → ${n ? `[${n.id}] ${cut(n.title, 60)}(${n.sourced ? "外の出典を読んで書いたノート" : "出典の記載が無いノート"}、近さ ${n.near.toFixed(2)})` : "近いノートなし"}`;
+    })
+    .join("\n")}`;
+}
+
+/** 返事ごとに出た自分の型の言葉。一つの返事・一つの会話に 2 回以上出たら、そう書く */
+function patternsByReplyText(rows: Dialogue["patternsByReply"]): string {
+  if (!rows?.length) return "";
+  const count = (r: NonNullable<typeof rows>[number]) =>
+    r.hits.reduce((s, h) => s + h.count, 0);
+  const total = rows.reduce((s, r) => s + count(r), 0);
+  return `\n返事ごとに出た自分の型の言葉(文字の一致だけで、言い換えた型は拾えない): ${rows
+    .map(
+      (r) =>
+        `${r.reply} 番目の返事に ${r.hits.map((h) => `${h.word}×${h.count}`).join("・")}${count(r) >= 2 ? `(一つの返事に ${count(r)} 回)` : ""}`,
+    )
+    .join(
+      " / ",
+    )} ── 会話全体で ${total} 回${total >= 2 ? "(一つの会話に 2 回以上)" : ""}`;
+}
+
+/** 内省に並べる、持ち主に渡すものの数(まだ渡していないもの・渡したもの、それぞれ) */
+const HANDOFFS_SHOWN = 10;
+
+/**
+ * 持ち主に渡すものの台帳。内省には台帳が見えず、溜まったままなのか・もう渡したのか・話す機会が
+ * 無かったのかを区別できなかった(Ashi の改善案、2026-10-27・11-02・11-03)
+ */
+function handoffsText(h: ReflectTalk["handoffs"]): string {
+  if (!h) return "";
+  const day = (at: string) => localStamp(at).slice(5, 10);
+  const pending = h.pending.slice(-HANDOFFS_SHOWN);
+  const older = h.pending.length - pending.length;
+  const delivered = h.delivered.slice(-HANDOFFS_SHOWN);
+  return `
+持ち主に渡すものの台帳(owner_corrections に書いたことと、持ち主に言ったことを足が確かめた結果。次に持ち主と話すときに足が見せ、渡ったら印が付く):
+${
+  h.chats.count
+    ? `前回の内省の後、持ち主との対話は ${h.chats.count} 回あった${h.chats.lastAt ? `(最後は ${localStamp(h.chats.lastAt).slice(5, 16)})` : ""}。`
+    : "前回の内省の後、持ち主との対話は無かった(渡す機会が無かった)。"
+}
+まだ渡していないもの(${h.pending.length} 本。日付は台帳に置いた日):
+${
+  pending.length
+    ? pending
+        .map(
+          (c) =>
+            `- ${day(c.at)} [${c.id}] ${c.kind === "answer" ? "(確かめた答え)" : ""}${cut(c.text, 200)}`,
+        )
+        .join("\n")
+    : "(無い)"
+}${older > 0 ? `\n(ほかに古いものが ${older} 本。いちばん古いのは ${day(h.pending[0]?.at ?? "")})` : ""}
+前回の内省の後に渡したもの(${h.delivered.length} 本。日付は渡した日。ここに出るのは今回だけ):
+${
+  delivered.length
+    ? delivered
+        .map(
+          (c) =>
+            `- ${day(c.deliveredAt ?? c.at)} [${c.id}] ${cut(c.text, 200)}`,
+        )
+        .join("\n")
+    : "(無い)"
+}${h.delivered.length > delivered.length ? `\n(ほか ${h.delivered.length - delivered.length} 本)` : ""}
+${
+  h.mode === "first"
+    ? "いまの設定では、訂正は話題に関係なく返事の最初に伝える。"
+    : h.mode === "relevant"
+      ? "いまの設定では、訂正は持ち主の話がそれに関係するときにだけ伝える(持ち主が決めた)。確かめた答えは話題に関係なく伝える。対話があっても、話題が合わなければ渡っていないことがある。"
+      : ""
+}
+同じことが「まだ渡していないもの」にあれば、owner_corrections に書き直さなくてよい。持ち主に渡したいだけのことは、next_steps ではなく owner_corrections に書く(next_steps に問いの ID を書くと、歩く約束に数える)。
+`;
+}
+
 function talkBlock(t: ReflectTalk): string {
   const dialogues = t.dialogues.length
     ? t.dialogues
@@ -1155,7 +1260,7 @@ function talkBlock(t: ReflectTalk): string {
                 : ""
             }${
               d.aboutSelf?.length
-                ? `\n自分について言ったこと(足の記録・自己記述と合っているか見ること): ${d.aboutSelf.join(" / ")}`
+                ? aboutSelfText(d.aboutSelf, t.claimNotes)
                 : ""
             }${
               d.accepted?.length
@@ -1165,7 +1270,7 @@ function talkBlock(t: ReflectTalk): string {
               d.patterns?.length
                 ? `\n最初の返事に出た自分の型の言葉: ${d.patterns.map((p) => `${p.word}${p.strangerFirst ? "(相手が先に言った)" : "(自分から持ち込んだ)"}`).join("・")}`
                 : ""
-            }`,
+            }${patternsByReplyText(d.patternsByReply)}`,
         )
         .join("\n\n")
     : "(まだ無い)";
@@ -1190,7 +1295,7 @@ ${dialogues}
 ${lastSelfText(t.lastSelf)}${shallowText(t.shallowNotes)}${debtsText(t.debts)}${citationsText(t.citations)}${trailText(t.trail)}${blindText(t.blind)}${evolutionText(t.evolution)}${baselineText(t.baseline, t.baselineTotals)}
 
 持ち主との最近の対話:
-${chats}
+${chats}${handoffsText(t.handoffs)}
 ${
   t.followups?.length
     ? `
@@ -1484,7 +1589,7 @@ export const CHAT_SCHEMA: JsonSchema = {
       type: "array",
       items: { type: "string" },
       description:
-        "この返事で持ち主に伝えた訂正の ID(下の「持ち主に伝えていない訂正」の [ ] の中)。足が台帳から消す。無ければ空",
+        "この返事で持ち主に伝えた訂正・答えの ID(下の「持ち主に伝えていない訂正」「まだ渡していない答え」の [ ] の中)。足が渡した印を付け、次の内省で見せる。実際に返事に書いたものだけ。無ければ空",
     },
     notes_used: {
       type: "array",
@@ -1542,16 +1647,23 @@ ${reply}
 </reply>`;
 }
 
-/** 持ち主に伝えていない訂正を、話すときに見せる形 */
+/** 持ち主に伝えていない訂正を、話すときに見せる形。渡した印(deliveredAt)の付いたものは出さない */
 export function correctionsBlock(
-  items: { id: string; text: string; at: string; kind?: "answer" }[],
+  all: {
+    id: string;
+    text: string;
+    at: string;
+    kind?: "answer";
+    deliveredAt?: string;
+  }[],
   mode: "first" | "relevant",
 ): string {
+  const items = all.filter((c) => !c.deliveredAt);
   const fixes = items.filter((c) => c.kind !== "answer");
   const answers = items.filter((c) => c.kind === "answer");
   const blocks: string[] = [];
   if (fixes.length)
-    blocks.push(`持ち主に伝えていない訂正(前に持ち主に言ったことのうち、あとで外れていた・弱かったと分かったもの):
+    blocks.push(`持ち主に伝えていない訂正(前に持ち主に言ったことのうち、あとで外れていた・弱かったと分かったものと、内省で持ち主に渡すと決めたこと):
 ${fixes.map((c) => `- [${c.id}] ${c.text}`).join("\n")}
 ${
   mode === "first"
@@ -1564,7 +1676,7 @@ ${
 ${answers.map((c) => `- [${c.id}] ${c.text}`).join("\n")}
 持ち主の話題に関係なく、返事の中で短く伝えてください。`);
   if (!blocks.length) return "";
-  return `${blocks.join("\n\n")}\n伝えたら delivered_corrections に ID を入れてください(足が台帳から消します)。`;
+  return `${blocks.join("\n\n")}\n伝えたら delivered_corrections に ID を入れてください(足が渡した印を付け、次の内省で見せます)。`;
 }
 
 export function chatPrompt(

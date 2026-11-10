@@ -138,7 +138,7 @@ describe("話す: 画面を移っても消えない", () => {
 });
 
 describe("持ち主への訂正の台帳", () => {
-  test("内省で気づいた訂正を溜め、話すときに先に出させ、伝えたら消す", async () => {
+  test("内省で気づいた訂正を溜め、話すときに先に出させ、伝えたら渡した印を付ける", async () => {
     const store = freshStore(["a"]);
     store.saveWalk({ ...store.walk(), steps: 4 });
     const walker = new FakeHead({
@@ -186,7 +186,10 @@ describe("持ち主への訂正の台帳", () => {
       "この訂正に関係するときに伝えてください",
     );
     expect(head.calls[0]?.prompt).toContain(c?.id ?? "?");
-    expect(store.walk().ownerCorrections).toEqual([]);
+    // 消さずに、渡した時刻の印を付ける(次の内省で一度見せてから落とす)
+    const after = store.walk().ownerCorrections ?? [];
+    expect(after.map((x) => x.id)).toEqual([c?.id ?? "?"]);
+    expect(after[0]?.deliveredAt).toBe(now.toISOString());
   });
 
   test("印だけの文は直前の主張と合わせて 1 本にし、断った文は拾わない", () => {

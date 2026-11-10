@@ -16,6 +16,7 @@ import {
   markedClaims,
   mergeClaims,
   patternHits,
+  patternsByReply,
   type RawQuestion,
   retractionPairs,
   sameClaim,
@@ -356,6 +357,8 @@ export async function talkWithStranger(opts: {
         })),
     ],
   );
+  // 型の言葉は、全部の返事についても数える(最初の返事だけだと、後の返事に並べた型が見えなかった)
+  const byReply = patternsByReply(turns, store.walk().selfPatterns ?? []);
   const dialogue: Dialogue = {
     at: now.toISOString(),
     model: stranger.name,
@@ -379,6 +382,7 @@ export async function talkWithStranger(opts: {
         }
       : {}),
     patterns: patternHits(turns, store.walk().selfPatterns ?? []),
+    ...(byReply.length ? { patternsByReply: byReply } : {}),
   };
   store.appendDialogue(dialogue);
   store.log("stranger", {

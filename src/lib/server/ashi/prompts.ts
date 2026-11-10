@@ -2,6 +2,7 @@ import type { JsonSchema } from "./head/head.ts";
 import { type BaselineTotals, wilson } from "./legs/baseline.ts";
 import type { CitationConflict } from "./legs/citations.ts";
 import {
+  type ChatEntry,
   type Dialogue,
   localStamp,
   type Note,
@@ -428,6 +429,10 @@ const feedsBlock = (
 ) => `持ち主の足跡(読みに行くかどうか・いつ読むかはあなたが決め、crawl に id を入れる):
 ${feeds}`;
 
+/** 持ち主に言ったことの確かめの問いを歩くときに渡す返事の数と、1 通の長さ(溜まりに比例させない) */
+export const OWNER_REPLIES_MAX = 3;
+const OWNER_REPLY_CHARS = 4000;
+
 export function explorePrompt(
   q: Question,
   reason: "score" | "detour" | "echo" | "verify" | "promised",
@@ -436,7 +441,24 @@ export function explorePrompt(
   siblings: Question[] = [],
   /** 確かめの問いと文字の近い、開いている問い。同じ資料で答えが出るなら一緒に */
   related: Question[] = [],
+  /** 持ち主に言ったことの確かめの問いを歩くときの、そのときの返事とそれより後の持ち主への返事(古い順) */
+  ownerReplies: ChatEntry[] = [],
 ): string {
+  // 持ち主に何を言ったか・訂正がもう届いているかを、自己記述の行からではなく送った返事の全文で決めさせる
+  // (返事には訂正が書いてあったのに、ノートが「まだ届いていない」と結論した。Ashi の改善案、2026-10-25)
+  const born = new Map(
+    [q, ...siblings]
+      .filter((x) => x.source === "chat")
+      .map((x) => [x.createdAt, x.id]),
+  );
+  const said = ownerReplies.length
+    ? `\n\n持ち主に言ったことの確かめの問い(${[...born.values()].join("・")})なので、持ち主への返事を全文で渡します(問いが生まれた返事と、それより後の返事。${OWNER_REPLIES_MAX} 通まで)。持ち主に何を言ったか、訂正や続きがもう持ち主に届いているかは、この返事の全文だけで決めてください。自己記述の「まだ渡していない」「伝えた」のような行では決めないこと。ここに無い返事については「渡された返事の範囲では」と書き分けてください:\n${ownerReplies
+        .map(
+          (c) =>
+            `### ${localStamp(c.at)}${born.has(c.at) ? `(問い ${born.get(c.at)} が生まれた返事)` : ""}\n持ち主: ${cut(c.question, 600)}\nあなた: ${cut(c.reply, OWNER_REPLY_CHARS)}`,
+        )
+        .join("\n\n")}`
+    : "";
   const near = related.length
     ? `\n\n一緒に歩く問い(確かめの問いと近いもの・内省で組にしたもの)があります。同じ資料で答えが出るなら、このノートで一緒に答え、答えが出た問いの ID を also_answered に入れてください(足がこのノートを答えとして閉じます):\n${related.map((x) => `- ${x.id}: ${x.text}`).join("\n")}`
     : "";
@@ -457,7 +479,7 @@ export function explorePrompt(
 問い(${q.id}): ${q.text}
 テーマ: ${q.theme}
 系統: ${q.track}
-これまでに歩いた回数: ${q.visits}${q.misses ? `(うち見つからなかった回数 ${q.misses})` : ""}${searched}${notes}${batch}${near}
+これまでに歩いた回数: ${q.visits}${q.misses ? `(うち見つからなかった回数 ${q.misses})` : ""}${searched}${notes}${batch}${near}${said}
 
 ${TRACK_HINT[q.track]}
 ${
@@ -1075,7 +1097,7 @@ function talkBlock(t: ReflectTalk): string {
                 : ""
             }${
               d.retracted?.length
-                ? `\n相手の言葉で引っ込めたこと(両方を確かめの問いにした): ${d.retracted.map((r) => `「${r.mine}」← 「${r.because}」${r.backing ? `(相手が添えていたもの: ${r.backing})` : ""}`).join(" / ")}`
+                ? `\n相手の言葉で引っ込めたこと(両方を確かめの問いにした。「見方」と付いたものは、確かめる事実が無いと申告したので問いにしていない): ${d.retracted.map((r) => `「${r.mine}」← 「${r.because}」${r.backing ? `(相手が添えていたもの: ${r.backing})` : ""}${r.checkable === false ? "(見方。記録だけ)" : ""}`).join(" / ")}`
                 : ""
             }${
               d.pushedBack?.length
@@ -1748,7 +1770,7 @@ export const DIALOGUE_FINAL_SCHEMA: JsonSchema = {
       type: "array",
       items: { type: "string" },
       description:
-        "この会話であなたが、ノートで確かめていない世の中の事実を、自分の主張として記憶だけで言ったもの(「たしか〜」「記憶で言うと〜」と断ったものも含む)を、事実の中身だけ 1 文ずつ。足が web で確かめる問いにする。断り書きは確かめずに済ませる許可ではない。相手が言ったことを前提にしただけ・頷いただけのものは accepted に、あなた自身や自分の仕組みについての発言は about_self に。「確かめていないので〜」のような断りの文そのものは入れない。無ければ空",
+        "この会話であなたが、ノートで確かめていない世の中の事実を、自分の主張として記憶だけで言ったもの(「たしか〜」「記憶で言うと〜」と断ったものも含む)を、事実の中身だけ 1 文ずつ。足が web で確かめる問いにする。断り書きは確かめずに済ませる許可ではない。相手が言ったことを前提にしただけ・頷いただけのものは accepted に、あなた自身や自分の仕組みについての発言は about_self に。「確かめていないので〜」のような断りの文そのものは入れない。自分の前の発言を取り消す・言い直す文(「さっき〜と並べたのは雑でした」)もそのままは入れず、取り消した元の主張を書く(相手の言葉を受けて引っ込めたのなら、ここではなく retracted の mine に)。無ければ空",
     },
     accepted: {
       type: "array",
@@ -1771,7 +1793,7 @@ export const DIALOGUE_FINAL_SCHEMA: JsonSchema = {
     retracted: {
       type: "array",
       description:
-        "この会話で、相手の言葉を受けて引っ込めたあなたの主張と、引っ込めるきっかけになった相手の主張(1 件ずつ、事実の中身だけ)。足が両方を確かめの問いにして組で確かめる。あなたの立場を動かした言葉を、確かめないまま残さないため。無ければ空",
+        "この会話で、相手の言葉を受けて引っ込めたあなたの主張と、引っ込めるきっかけになった相手の主張(1 件ずつ、事実の中身だけ)。足が両方を確かめの問いにして組で確かめる。あなたの立場を動かした言葉を、確かめないまま残さないため。mine と同じ主張を unverified に重ねて書かない(足が一本にまとめる)。無ければ空",
       items: {
         type: "object",
         properties: {
@@ -1786,15 +1808,20 @@ export const DIALOGUE_FINAL_SCHEMA: JsonSchema = {
             description:
               "相手がその主張に何を添えていたか。出典(論文・本・調べた先)/ 確度(「たぶん」「確かめていない」など)/ なし(言い切っただけ)。会話に書かれていることだけで決める",
           },
+          checkable: {
+            type: "boolean",
+            description:
+              "mine が、出典を探せば本当か嘘か決まる事実(研究・数字・出来事)を含むなら true。比喩や解釈の言い方(「〜は〜のための圧縮である」のような見方)で、出典を探しても真偽が決まらないなら false。false のものは確かめの問いにせず、引っ込めた見方として会話の記録に残して内省で見せる",
+          },
         },
-        required: ["mine", "because", "backing"],
+        required: ["mine", "because", "backing", "checkable"],
         additionalProperties: false,
       },
     },
     spot_check: {
       type: "string",
       description:
-        "足がさいころで選んだあなたの発言があれば、その中の確かめられる世の中の事実を 1 文で。意見・問いかけ・自分についての文で、確かめる事実が無ければ空",
+        "足がさいころで選んだあなたの発言があれば、その中の確かめられる世の中の事実を 1 文で。意見・問いかけ・自分についての文で、確かめる事実が無ければ空。同じ事実を unverified・pushed_back・retracted に書いたなら、ここは空にする(同じ主張の確かめの問いが 2 本にならないように)",
     },
   },
   required: [
@@ -1834,7 +1861,7 @@ ${
   final
     ? `これが最後の発言です。会話を締めくくり、この会話から生まれた、あなた自身が歩きたい問いがあれば new_questions に出してください(track は self)。${candidates}${
         spot
-          ? `\n\n足がさいころで選んだ、あなたの発言(「確かめていない」と断らずに言い切った誤りも拾うため):\n- ${spot}\nこの中に確かめられる世の中の事実があれば、spot_check にその中身を 1 文で書いてください。無ければ空。`
+          ? `\n\n足がさいころで選んだ、あなたの発言(「確かめていない」と断らずに言い切った誤りも拾うため):\n- ${spot}\nこの中に確かめられる世の中の事実があれば、spot_check にその中身を 1 文で書いてください。無ければ空。同じ事実を unverified・pushed_back・retracted に書いたなら、spot_check は空にしてください(足が同じ主張を 1 本にまとめます)。`
           : ""
       }${
         sweeping.length

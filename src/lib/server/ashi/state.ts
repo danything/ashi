@@ -92,6 +92,12 @@ export interface Question {
    */
   verifyKind?: "pushback" | "spot" | "sweeping" | "retract";
   /**
+   * 同じ会話から出た、裏表の確かめの問いの相手の ID(引っ込めた主張ときっかけの相手の主張、取り消しの文と
+   * 元の主張)。片方の答えでもう片方も決まるので、足が一緒に歩かせる(guard.ts の groupMates)。内省の
+   * walkGroups は内省のたびに書き直されるので、会話の直後に足が結ぶ組は問いの側に持つ(Ashi の改善案、2026-11-06)
+   */
+  pairOf?: string;
+  /**
    * 内省の次の一歩に、続けて書かれた回数。2 回以上なら足が先に歩き、開いた問いの上限で手放さない。
    * 3 回続けて書いても選ばれず、上限で黙って手放されてもいた(Ashi の改善案、2026-09-26)。歩いたら消す
    */
@@ -833,6 +839,24 @@ export class Store {
     return tailJsonl<ChatEntry>(this.path("chat.jsonl"), n);
   }
 
+  /**
+   * 持ち主に言ったことの確かめの問いを歩くときに渡す、持ち主への返事。問いが生まれた返事(at が問いの
+   * createdAt と同じ)を先に取り、残りの枠をそれより後の返事の新しいほうから埋める。全部で n 通まで、古い順
+   */
+  chatsAround(ats: string[], n: number): ChatEntry[] {
+    if (ats.length === 0 || n <= 0) return [];
+    const all = tailJsonl<ChatEntry>(
+      this.path("chat.jsonl"),
+      Number.MAX_SAFE_INTEGER,
+    );
+    const first = ats.reduce((a, b) => (a < b ? a : b));
+    const born = all.filter((c) => ats.includes(c.at)).slice(-n);
+    const later = all
+      .filter((c) => c.at > first && !ats.includes(c.at))
+      .slice(0, Math.max(0, n - born.length));
+    return [...born, ...later].sort((a, b) => a.at.localeCompare(b.at));
+  }
+
   appendDialogue(d: Dialogue): void {
     appendFileSync(this.path("dialogues.jsonl"), `${JSON.stringify(d)}\n`);
   }
@@ -935,17 +959,20 @@ export interface Dialogue {
   pushedBack?: string[];
   /** 相手の言葉を受けて引っ込めた Ashi の主張と、きっかけの相手の主張(両方を確かめの問いにする) */
   /** backing: きっかけの相手の主張に添えられていたもの(出典・確度・なし) */
+  /** checkable: false なら、比喩や解釈の言い方で確かめる事実が無く、確かめの問いにしなかった(記録だけ) */
   retracted?: {
     mine: string;
     because: string;
     backing?: "出典" | "確度" | "なし";
+    checkable?: false;
   }[];
   /** Ashi の返事に、自己記述や直前のよそ者との会話と同じ言い回しが出たもの(legs/style.ts の carriedPhrases) */
   carried?: { reply: number; phrase: string; from: string }[];
   /** 足が拾った、総称・全称・確度の語を含む Ashi の発言(legs/style.ts の SWEEPING) */
   sweeping?: string[];
   /** 足がさいころで選んだ Ashi の言い切った文と、頭が取り出した確かめる事実(無ければ空) */
-  spot?: { sentence: string; claim: string };
+  /** duplicate: 同じ会話の別の確かめの問いと同じ主張だったので、さいころの問いは積まなかった(残した側の主張) */
+  spot?: { sentence: string; claim: string; duplicate?: string };
 }
 
 export interface ChatEntry {

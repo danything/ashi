@@ -13,6 +13,7 @@ import {
   type ExploreAnswer,
   explorePrompt,
   type Material,
+  OWNER_REPLIES_MAX,
   PROFILE_SCHEMA,
   type ProfileAnswer,
   profilePrompt,
@@ -464,10 +465,25 @@ export async function step(legs: Legs): Promise<StepOutcome> {
         ...relatedOpen(q, store.questions()),
         ...mates.filter((x) => !x.verify),
       ].filter((x, i, xs) => xs.findIndex((y) => y.id === x.id) === i);
+      // 持ち主に言ったことの確かめの問いには、そのときの返事とそれより後の返事を全文で渡す。持ち主に
+      // 届いたかを、自己記述の行ではなく送った返事で決めさせる(束ねた問いに持ち主への借りがあるときも)
+      const ownerReplies = store.chatsAround(
+        [q, ...siblings]
+          .filter((x) => x.verify && x.source === "chat" && !x.origin)
+          .map((x) => x.createdAt),
+        OWNER_REPLIES_MAX,
+      );
       const { output, usage } = await head.think<ExploreAnswer>({
         task: "explore",
         system: blind ? system(core, BLIND_SELF, store.owner()) : sys(),
-        prompt: explorePrompt(q, choice.reason, ctx(), siblings, related),
+        prompt: explorePrompt(
+          q,
+          choice.reason,
+          ctx(),
+          siblings,
+          related,
+          ownerReplies,
+        ),
         schema: EXPLORE_SCHEMA,
         tools,
         allowWeb: cfg.allowWeb,

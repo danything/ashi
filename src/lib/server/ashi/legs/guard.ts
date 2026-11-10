@@ -635,13 +635,18 @@ export function acceptGroups(raw: unknown, qs: Question[]): string[][] {
   return out;
 }
 
-/** この問いと組になっている、開いている問い */
+/**
+ * この問いと組になっている、開いている問い。内省の組(walkGroups)に加えて、足が会話の直後に結んだ
+ * 裏表の組(pairOf)も読む。どちらの側から歩いても相手が出るよう、両方の向きを見る
+ */
 export function groupMates(
   q: Question,
   groups: string[][] | undefined,
   qs: Question[],
 ): Question[] {
   const ids = new Set((groups ?? []).filter((g) => g.includes(q.id)).flat());
+  if (q.pairOf) ids.add(q.pairOf);
+  for (const x of qs) if (x.pairOf === q.id) ids.add(x.id);
   ids.delete(q.id);
   return qs.filter((x) => ids.has(x.id) && x.status === "open");
 }
@@ -1042,6 +1047,71 @@ export function mergeClaims(declared: string[], marked: string[]): string[] {
     if (!out.some((d) => jaccard(g, bigrams(d)) >= SIMILAR)) out.push(m);
   }
   return out.slice(0, CLAIMS_MAX);
+}
+
+/**
+ * 二つの主張の重なり係数(共通の bigram ÷ 短いほうの bigram の数)。片方がもう片方にほぼ含まれるかを見る。
+ * Jaccard は長さが違うと下がり、同じ主張の短い言い直しを拾えない。短すぎる文(bigram 4 つ未満)は比べない
+ */
+export function containment(a: string, b: string): number {
+  const x = bigrams(a);
+  const y = bigrams(b);
+  const small = Math.min(x.size, y.size);
+  if (small < 4) return 0;
+  let n = 0;
+  for (const g of x) if (y.has(g)) n++;
+  return n / small;
+}
+
+/** これ以上重なっていれば、同じ会話から出た同じ主張とみなす */
+export const CONTAINED = 0.6;
+
+/**
+ * 同じ会話から出た二つの主張が、ほぼ同じか・片方がもう片方に含まれるか。問いにする前に、種類
+ * (言ったこと・さいころ・引っ込めたこと)をまたいで比べる。札の付いた問いの全文どうしの近さ(NEAR_DUPLICATE)
+ * では、札が違うぶん言い換えが通り、同じ主張が 2 本積まれて内省で手で統合していた(Ashi の改善案、2026-10-28)
+ */
+export const sameClaim = (a: string, b: string): boolean =>
+  containment(a, b) >= CONTAINED;
+
+/** 自分の前の発言を指す言い方 */
+const BACKREF = /さっき|先ほど|さきほど|先に言った|前に言った|上で言った/;
+
+/** ひらがなだけの bigram(助詞・語尾)を除いた、中身の語の bigram */
+const contentBigrams = (text: string): Set<string> =>
+  new Set(
+    [...bigrams(text)].filter((g) => !/^[\p{Script=Hiragana}ー]+$/u.test(g)),
+  );
+
+/** 取り消しの文と元の主張で、これだけ中身の語の bigram が重なれば組にする */
+export const PAIR_MIN = 3;
+
+/**
+ * 同じ会話から出た主張のうち、自分の前の発言を取り消す・言い直す文(「さっき〜と並べたのは雑でした」)と、
+ * その元の主張の組([取り消しの文, 元の主張])。片方の答えが出ればもう片方も決まるのに、別々の借りとして
+ * 別々に歩いていた(Ashi の改善案、2026-11-06)。足は組にして一緒に歩かせるだけで、向きは決めない
+ * (取り消しが本当に逆の主張かは中身の判断。歩く頭が checked に両方の結果を書く)
+ */
+export function retractionPairs(claims: string[]): [string, string][] {
+  const out: [string, string][] = [];
+  for (const c of claims) {
+    if (!BACKREF.test(c)) continue;
+    const g = contentBigrams(c);
+    let best: string | undefined;
+    let most = 0;
+    for (const o of claims) {
+      if (o === c || BACKREF.test(o)) continue;
+      const h = contentBigrams(o);
+      let n = 0;
+      for (const x of g) if (h.has(x)) n++;
+      if (n > most) {
+        best = o;
+        most = n;
+      }
+    }
+    if (best && most >= PAIR_MIN) out.push([c, best]);
+  }
+  return out;
 }
 
 /** 確かめずに言ったことを、確かめる問いの形にする。where は「X で @誰々 さんに」など */

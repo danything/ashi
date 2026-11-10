@@ -92,6 +92,8 @@ import {
 } from "./guard.ts";
 import {
   batchResults,
+  checkedNotes,
+  isVerifyResult,
   restingThemes,
   SEEDING,
   selectQuestion,
@@ -149,16 +151,21 @@ function markReplied(store: Store, id: string, now: Date): void {
 
 /**
  * 歩いた確かめの問いの結果。checked に書いてあればそれ、訂正を書いたなら外れ、答えが出たなら合う、
- * 見つからなかったなら読めなかった。どれでもなければ決めない
+ * 見つからなかったなら読めなかった。どれでもなければ決めない。
+ * 新しく確かめられず束ね直しただけの歩み(incomplete)は、何を書いていても読めなかった扱い
  */
 export function mainVerifyResult(
   q: Question,
-  output: Pick<ExploreAnswer, "checked" | "correction" | "answered" | "found">,
+  output: Pick<
+    ExploreAnswer,
+    "checked" | "correction" | "answered" | "found" | "incomplete"
+  >,
 ): Question["verifyResult"] {
+  if (output.incomplete === true) return "unreadable";
   const own = (Array.isArray(output.checked) ? output.checked : []).find(
     (c) => c?.id === q.id,
   )?.result;
-  if (own === "holds" || own === "wrong" || own === "unreadable") return own;
+  if (isVerifyResult(own)) return own;
   if (typeof output.correction === "string" && output.correction.trim())
     return "wrong";
   if (output.answered === true) return "holds";
@@ -523,6 +530,11 @@ export async function step(legs: Legs): Promise<StepOutcome> {
           `書き損じの答え(${blank})。問い ${q.id} はノートにせず開いたまま`,
         );
       }
+      // 道具の上限などで新しく確かめられず、前のノートを束ね直しただけ、と頭が申告した歩み。答えが
+      // 出たとも書いてきても、申告を勝たせて問いを閉じない。答えのノートにもしない
+      // (束ね直しのノートで持ち主への借りが閉じた。Ashi の改善案、2026-11-04)
+      const incomplete = output.incomplete === true;
+      const answered = output.answered === true && !incomplete;
       const noteId = newId();
       // 出典をどこまで読めたか。足がノートの末尾に残す
       const depth = readDepthSection(output.sources_read, findings);
@@ -538,19 +550,32 @@ export async function step(legs: Legs): Promise<StepOutcome> {
           createdAt: now.toISOString(),
           ...(blind ? { blind: true } : {}),
           ...(depth.shallow ? { shallow: depth.shallow } : {}),
+          ...(incomplete ? { incomplete: true as const } : {}),
         },
         `# ${title}\n\n問い: ${q.text}\n\n${findings}\n${depth.text}`,
       );
       let added: string[] = [];
       let bridged: string[] = [];
       const searched = acceptSearched(output.searched);
-      const missed = output.found === "none" && output.answered !== true;
+      // 確かめきれなかった歩み。見つからなかった回数に足し、点数の歩いた回数からは引く(select.ts)
+      const missed = incomplete || (output.found === "none" && !answered);
       let parked = false;
       const batch = batchResults(output.checked, siblings);
+      // 新しく確かめられなかった歩みでは、束ねた問いの結果も読めなかった扱い(閉じない)
+      if (incomplete)
+        for (const id of batch.keys()) batch.set(id, "unreadable");
+      // 結果に添えた一行(overstated の外れた語句など)
+      const verdictNotes = checkedNotes(output.checked);
+      const verdictNote = (id: string, r: Question["verifyResult"]) =>
+        (r === "overstated" || r === "wrong") && verdictNotes.has(id)
+          ? { verifyNote: verdictNotes.get(id) }
+          : {};
       let alsoAnswered: string[] = [];
+      let alsoRefused: string[] = [];
       store.updateQuestions((qs) => {
         const updated = qs.map((x) => {
-          // 束ねて確かめた問い。合う・外れは閉じ、読めなかったものは見つからなかった回数に足す
+          // 束ねて確かめた問い。合う・言い足しが外れ・外れは閉じ、読めなかったものは見つからなかった
+          // 回数に足す
           const r = batch.get(x.id);
           if (r && x.status === "open") {
             const misses = (x.misses ?? 0) + (r === "unreadable" ? 1 : 0);
@@ -560,6 +585,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
               lastVisitedAt: now.toISOString(),
               misses,
               verifyResult: r,
+              ...verdictNote(x.id, r),
               status:
                 r === "unreadable"
                   ? misses >= cfg.missesToPark
@@ -575,7 +601,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
             : undefined;
           // 見つからなかった回数を数え、上限に達したら未測定の棚へ(同じ所をぐるぐる探さない)
           const misses = (x.misses ?? 0) + (missed ? 1 : 0);
-          parked = output.answered !== true && misses >= cfg.missesToPark;
+          parked = !answered && misses >= cfg.missesToPark;
           // 歩いたら、次の一歩の約束の印は消す(約束は果たした)
           const { promised: _promised, ...rest } = x;
           return {
@@ -587,12 +613,12 @@ export async function step(legs: Legs): Promise<StepOutcome> {
               ...new Set([...(x.searchedWhere ?? []), ...searched]),
             ].slice(-20),
             ...(verifyResult ? { verifyResult } : {}),
-            status:
-              output.answered === true
-                ? ("answered" as const)
-                : parked
-                  ? ("parked" as const)
-                  : x.status,
+            ...verdictNote(x.id, verifyResult),
+            status: answered
+              ? ("answered" as const)
+              : parked
+                ? ("parked" as const)
+                : x.status,
           };
         });
         const got = acceptNewQuestions(
@@ -607,17 +633,19 @@ export async function step(legs: Legs): Promise<StepOutcome> {
         // 個性の問いから生まれた先回りの問い = 個性で得た見方を持ち主の側へ持ち帰ったもの
         if (q.track === "self")
           bridged = got.filter((a) => a.track === "owner").map((a) => a.text);
-        // 添えた近い問いのうち、このノートで答えが出たものを閉じる
+        // 添えた近い問いのうち、このノートで答えが出たものを閉じる。束ね直しただけのノートでは
+        // 閉じない(closeByNote が断る)
         const near = new Set(related.map((x) => x.id));
         const c = closeByNote(
           updated,
           (Array.isArray(output.also_answered) ? output.also_answered : [])
             .filter((id) => typeof id === "string" && near.has(id))
             .map((id) => ({ question_id: id, note_id: noteId })),
-          [{ id: noteId }],
+          [{ id: noteId, incomplete }],
           now,
         );
         alsoAnswered = c.closed.map((x) => x.id);
+        alsoRefused = c.refused.map((x) => x.id);
         return trimOpenQuestions([...c.questions, ...got], cfg);
       });
       addBridgeIdeas(
@@ -674,8 +702,9 @@ export async function step(legs: Legs): Promise<StepOutcome> {
         !q.origin && q.verify && q.source === "chat"
           ? mainVerifyResult(q, output)
           : undefined;
+      // 束ね直しただけの歩みでは「答えが出た」を台帳に積まない(持ち主に、確かめていない答えを渡さない)
       const ownerNote =
-        !correction && (ownerResult === "holds" || output.answered === true)
+        !correction && (ownerResult === "holds" || answered)
           ? `前に話したときに記憶で言った「${q.text.slice(0, 120)}」を確かめた。${ownerResult === "holds" ? "合っていた" : "答えが出た"}(ノート ${noteId}「${title.slice(0, 80)}」)`
           : "";
       if (
@@ -710,8 +739,10 @@ export async function step(legs: Legs): Promise<StepOutcome> {
         resting,
         ...(batch.size ? { batch: Object.fromEntries(batch) } : {}),
         ...(alsoAnswered.length ? { alsoAnswered } : {}),
+        ...(alsoRefused.length ? { alsoRefused } : {}),
         noteId,
-        answered: output.answered === true,
+        answered,
+        ...(incomplete ? { incomplete: true } : {}),
         added,
         bridged,
         found: output.found,
@@ -951,6 +982,8 @@ export async function step(legs: Legs): Promise<StepOutcome> {
       let renamed = 0;
       let renames = new Map<string, string>();
       let closedByNote: { id: string; note: string }[] = [];
+      // 束ね直しただけのノート(incomplete)で閉じようとして、足が断ったもの
+      let closeRefused: { id: string; note: string }[] = [];
       let reestimated: {
         id: string;
         from: number[];
@@ -969,6 +1002,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
           now,
         );
         closedByNote = c.closed;
+        closeRefused = c.refused;
         // 見立ての付け直し(作ったときの値のまま、ずれて残っていた)
         const e = applyReestimates(c.questions, output.reestimate);
         reestimated = e.changed;
@@ -1078,6 +1112,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
         proposed,
         merged,
         ...(closedByNote.length ? { closedByNote } : {}),
+        ...(closeRefused.length ? { closeRefused } : {}),
         ...(reestimated.length ? { reestimated } : {}),
         renamed,
         posted,

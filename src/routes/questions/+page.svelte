@@ -53,7 +53,9 @@
             {#if data.landing.total}
               <span
                 class="tag"
-                title="よそ者との対話から生まれた問いの着地。持ち主由来のテーマ / 前からの自分のテーマ / 新しいテーマ。持ち主や自分のテーマが多ければ、頭が相手の話を引き戻している"
+                title="よそ者との対話から生まれた問いの着地。持ち主由来のテーマ / 前からの自分のテーマ / 新しいテーマ。持ち主や自分のテーマが多ければ、頭が相手の話を引き戻している。確かめの借り {data
+                  .landing
+                  .verify} 本は、足がテーマ「確かめること」に入れるので数えていない"
                 >よそ者 → 持ち主 {data.landing.home}・自分 {data.landing
                   .own}・新 {data.landing.total -
                   data.landing.home -

@@ -7,7 +7,7 @@ import {
   type Question,
   type Store,
 } from "../state.ts";
-import { byRank, score, VERIFY_THEME } from "./select.ts";
+import { byRank, score, VERIFY_THEME, walkedCount } from "./select.ts";
 
 /**
  * ガードレール。頭が何を言っても、ここを通したものだけが状態に残る。
@@ -317,11 +317,16 @@ export function ownerPull(
  *   Ashi の改善案、2026-09-26)
  * - 残り(total - home - own)が、よそ者が本当に新しく持ち込んだテーマ
  * テーマは受け取るときに近い問いのテーマへ揃えるので(acceptNewQuestions)、引き戻されたものは既存のテーマに入る
+ *
+ * 確かめの借り(verify)は着地に数えず、本数だけ別に返す(verify)。借りは足がテーマ「確かめること」に
+ * 入れるので、頭がどこへ着地させたかの物差しにならない。持ち主への借りが同じテーマにあるあいだは
+ * 全部 home に入り、新しいテーマには決してならなかった(278 本のうち 114 本が借り。Ashi の改善案、
+ * 2026-11-10)
  */
 export function strangerLanding(
   qs: Question[],
   ownerHandles: string[],
-): { home: number; own: number; total: number } {
+): { home: number; own: number; total: number; verify: number } {
   const byId = new Map(qs.map((q) => [q.id, q]));
   const handles = new Set(ownerHandles.map((h) => h.toLowerCase()));
   const rooted = new Set(
@@ -341,7 +346,8 @@ export function strangerLanding(
     const had = selfSince.get(q.theme);
     if (!had || q.createdAt < had) selfSince.set(q.theme, q.createdAt);
   }
-  const s = qs.filter((q) => q.source === "stranger" && !q.mergedInto);
+  const all = qs.filter((q) => q.source === "stranger" && !q.mergedInto);
+  const s = all.filter((q) => !q.verify);
   let home = 0;
   let own = 0;
   for (const q of s) {
@@ -351,7 +357,7 @@ export function strangerLanding(
       if (since && since < q.createdAt) own++;
     }
   }
-  return { home, own, total: s.length };
+  return { home, own, total: s.length, verify: all.length - s.length };
 }
 
 /** 自己記述を渡さずに歩いた個性のノートと、渡して歩いた個性のノートを数件ずつ(新しい順) */
@@ -514,19 +520,31 @@ export function normalizeIntentions(
  * 内省の close_by_note を当てる。開いた問いを、答えの出たノートで閉じる(answeredBy にノートの ID)。
  * merges は開いた問いどうしにしか使えず、閉じた問いと同じことを聞く問いが開いたまま残っていた
  * (Ashi の改善案、2026-10-10)。ノートが無い・問いが開いていないものは当てない。1 回 10 件まで
+ *
+ * 新しく確かめられず束ね直しただけのノート(Note.incomplete)は答えにしない。断ったものは refused に
+ * 返す(黙って捨てない)
  */
 export function closeByNote(
   qs: Question[],
   raw: unknown,
-  notes: { id: string }[],
+  notes: { id: string; incomplete?: boolean }[],
   now: Date,
-): { questions: Question[]; closed: { id: string; note: string }[] } {
-  const known = new Set(notes.map((n) => n.id));
+): {
+  questions: Question[];
+  closed: { id: string; note: string }[];
+  refused: { id: string; note: string }[];
+} {
+  const known = new Set(notes.filter((n) => !n.incomplete).map((n) => n.id));
+  const unfinished = new Set(
+    notes.filter((n) => n.incomplete).map((n) => n.id),
+  );
   const want = new Map<string, string>();
+  const refused: { id: string; note: string }[] = [];
   for (const x of (Array.isArray(raw) ? raw : []).slice(0, 10)) {
     const q = typeof x?.question_id === "string" ? x.question_id.trim() : "";
     const n = typeof x?.note_id === "string" ? x.note_id.trim() : "";
     if (q && known.has(n)) want.set(q, n);
+    else if (q && unfinished.has(n)) refused.push({ id: q, note: n });
   }
   const closed: { id: string; note: string }[] = [];
   const questions = qs.map((q) => {
@@ -541,7 +559,7 @@ export function closeByNote(
       lastVisitedAt: now.toISOString(),
     };
   });
-  return { questions, closed };
+  return { questions, closed, refused };
 }
 
 /**
@@ -584,15 +602,20 @@ export function debtLedger(
   };
 }
 
-/** 問いごとの、いちばん新しいノート */
+/**
+ * 問いごとの、いちばん新しいノート。答えのノートとして頭に見せるものなので、新しく確かめられず
+ * 束ね直しただけのノート(incomplete)は外す
+ */
 export function latestNoteByQuestion(
   notes: Note[],
 ): Record<string, { id: string; title: string }> {
   const out: Record<string, { id: string; title: string }> = {};
   for (const n of [...notes].sort((a, b) =>
     a.createdAt.localeCompare(b.createdAt),
-  ))
+  )) {
+    if (n.incomplete) continue;
     out[n.questionId] = { id: n.id, title: n.title };
+  }
   return out;
 }
 
@@ -733,11 +756,18 @@ export function markPromised(qs: Question[], intentions: string[]): Question[] {
 /** 点数の内訳を 1 行で(select.ts の score と同じ式) */
 export function scoreBreakdown(q: Question): string {
   const base = 0.4 * q.interest + 0.35 * q.importance + 0.25 * q.feasibility;
+  // 確かめきれなかった歩み(misses)は、歩いた回数の減点に数えない
+  const walked = walkedCount(q);
+  const missed = q.visits - walked;
   const parts = [
     `見立て ${base.toFixed(2)}(面白さ ${q.interest}・大事さ ${q.importance}・歩けそうか ${q.feasibility}。問いを作ったときの値で、あとからは変わらない)`,
     q.visits === 0
       ? "まだ歩いていない +0.15"
-      : `歩いた ${q.visits} 回 −${(0.12 * q.visits).toFixed(2)}`,
+      : walked === 0
+        ? `歩いた ${q.visits} 回はどれも確かめきれなかったので、歩いていない扱い +0.15`
+        : missed > 0
+          ? `歩いた ${q.visits} 回のうち確かめきれなかった ${missed} 回を除いて ${walked} 回 −${(0.12 * walked).toFixed(2)}`
+          : `歩いた ${q.visits} 回 −${(0.12 * q.visits).toFixed(2)}`,
   ];
   return `${score(q).toFixed(2)} = ${parts.join("、")}`;
 }

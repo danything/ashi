@@ -59,6 +59,9 @@ export type QuestionStatus = "open" | "answered" | "dropped" | "parked";
  */
 export type Track = "owner" | "self";
 
+/** 確かめの問いの結果。holds: 合う / overstated: 核は合い、言い足しが外れ / wrong: 外れ / unreadable: 読めなかった */
+export type VerifyResult = "holds" | "overstated" | "wrong" | "unreadable";
+
 export interface Question {
   id: string;
   text: string;
@@ -102,9 +105,18 @@ export interface Question {
   answeredBy?: string;
   /** 内省で見立てを付け直した回数(reestimate)。甘く付け直していないかを見るため */
   reestimated?: number;
-  /** 確かめの問いの結果(合う / 外れ / 読めなかった)。自己記述の出どころを見直すため */
-  verifyResult?: "holds" | "wrong" | "unreadable";
-  /** 探して何も見つからなかった回数 */
+  /**
+   * 確かめの問いの結果(合う / 核は合い言い足しが外れ / 外れ / 読めなかった)。自己記述の出どころを
+   * 見直すため。overstated は、主張の核は合っていて、言い方・言い足しだけが外れていたもの。二択だと
+   * 核ごと外れた主張と混ざった(Ashi の改善案、2026-10-25)
+   */
+  verifyResult?: VerifyResult;
+  /** 確かめの結果に頭が添えた一行(overstated なら外れた語句)。足が VERIFY_NOTE_MAX 字で切る */
+  verifyNote?: string;
+  /**
+   * 探して何も見つからなかった回数。確かめきれなかった歩み(束ねて読めなかった・新しく確かめられず
+   * 束ね直しただけ)もここに足す。点数の歩いた回数からは引く(select.ts の score)
+   */
   misses?: number;
   /** 書き損じ(本文が空・埋め草)の答えが返ってきた回数。ノートにはしていない */
   blankNotes?: number;
@@ -140,6 +152,11 @@ export interface Note {
   blind?: boolean;
   /** 要旨だけ・読めなかった出典の数(sources_read)。内省で読み直す候補として並べる */
   shallow?: number;
+  /**
+   * 道具の上限などで今回新しく確かめられず、前のノートを束ね直しただけのノート(頭の申告)。問いを
+   * 閉じる根拠にしない(Ashi の改善案、2026-11-04)
+   */
+  incomplete?: true;
 }
 
 export interface Proposal {

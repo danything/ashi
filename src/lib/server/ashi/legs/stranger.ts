@@ -85,8 +85,54 @@ export const STRANGER_FIELDS = [
   "映画",
 ] as const;
 
-/** 直前のこの回数の会話の分野は、次のさいころで選ばない */
-export const FIELD_REST = 2;
+/**
+ * 直前のこの回数の会話の分野は、次のさいころで選ばない。分野は 20 あるので、同じ分野が戻るのは
+ * 早くても 11 回後。2 回のときは、6 回以内に同じ分野へ戻る会話が 4 回に 1 回ほどあり、二度目の
+ * 会話の題が前の持ち帰りと同じ形になった(11-06 と 11-10 の地質学。Ashi の改善案、2026-11-10)
+ */
+export const FIELD_REST = 10;
+
+/**
+ * 分野ごとの、その分野の会話から持ち帰ってまだ開いている問いの数。確かめの借りは数えない
+ * (借りは足が作るもので、持ち帰りではない。着地の数え方と同じ)
+ */
+export function openByField(questions: Question[]): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const q of questions) {
+    if (q.status !== "open" || q.source !== "stranger" || q.verify || !q.via)
+      continue;
+    const field = q.via.slice(q.via.lastIndexOf(":") + 1);
+    out.set(field, (out.get(field) ?? 0) + 1);
+  }
+  return out;
+}
+
+/**
+ * よそ者の分野を選ぶ。直前 FIELD_REST 回の分野を外し、残りを 1 / (1 + その分野の開いた持ち帰りの数)
+ * の重みで振る。持ち帰りを歩き終えていない分野へまた行くと、新しい問いも同じテーマに着地した
+ * (Ashi の改善案、2026-11-10。重みの形は持ち主が任せた判断、2026-11-11)。
+ * 題そのもの(自己記述の型の語に近いか)は見ない。相手に Ashi の言葉を見せないことが、よそ者の役目
+ */
+export function pickField(
+  recentFields: string[],
+  questions: Question[],
+  rng: () => number,
+): { field: string; open: number } {
+  const pool = STRANGER_FIELDS.filter((f) => !recentFields.includes(f));
+  const fields = pool.length ? pool : STRANGER_FIELDS;
+  const open = openByField(questions);
+  const weights = fields.map((f) => 1 / (1 + (open.get(f) ?? 0)));
+  let r = rng() * weights.reduce((a, b) => a + b, 0);
+  let field: string = fields[fields.length - 1] ?? STRANGER_FIELDS[0];
+  for (const [i, f] of fields.entries()) {
+    r -= weights[i] ?? 0;
+    if (r < 0) {
+      field = f;
+      break;
+    }
+  }
+  return { field, open: open.get(field) ?? 0 };
+}
 
 const MAX_TURN_CHARS = 1200;
 
@@ -105,12 +151,12 @@ export async function talkWithStranger(opts: {
 }): Promise<StrangerTalk> {
   const { store, head, stranger, now } = opts;
   const rng = opts.rng ?? Math.random;
-  // 直前の FIELD_REST 回の分野は、さいころから外す。同じ分野が続くと借りが一つの話題に偏り、前の会話の
-  // 言い回しも持ち込みやすかった(10-18 に囲碁や将棋が 2 回続いた。Ashi の改善案、2026-10-17)
-  const recent = store.recentDialogues(FIELD_REST).map((d) => d.field);
-  const pool = STRANGER_FIELDS.filter((f) => !recent.includes(f));
-  const fields = pool.length ? pool : STRANGER_FIELDS;
-  const field = fields[Math.floor(rng() * fields.length)] ?? STRANGER_FIELDS[0];
+  // 分野は足がさいころで選ぶ(直前 FIELD_REST 回の分野を外し、開いた持ち帰りの多い分野を選びにくくする)
+  const { field, open: fieldOpen } = pickField(
+    store.recentDialogues(FIELD_REST).map((d) => d.field),
+    store.questions(),
+    rng,
+  );
   const turns: Dialogue["turns"] = [];
   let usage: Usage = noUsage();
   const add = (u: Usage) => {
@@ -387,6 +433,7 @@ export async function talkWithStranger(opts: {
   store.appendDialogue(dialogue);
   store.log("stranger", {
     field,
+    fieldOpen,
     model: stranger.name,
     added,
     ...(spotDuplicate ? { spotDuplicate } : {}),

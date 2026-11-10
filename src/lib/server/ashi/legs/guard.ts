@@ -957,6 +957,8 @@ export type OwnerCorrection = {
   kind?: "answer";
   /** 持ち主に渡した時刻。無ければ、まだ渡していない(この欄の無い古い項目もそう読む) */
   deliveredAt?: string;
+  /** read: 話して渡したのではなく、持ち主が画面(/context)で読んで印を付けた */
+  deliveredBy?: "read";
 };
 
 const CORRECTIONS_MAX = 20;
@@ -980,6 +982,21 @@ export const pendingCorrections = (
 ): OwnerCorrection[] => (list ?? []).filter((c) => !c.deliveredAt);
 
 /**
+ * まだ持ち主に伝えていない訂正の数と、いちばん古いものを台帳に置いた時刻(確かめた答えは数えない。
+ * 答えは話題に関係なく次の返事で渡す)。話す画面に足が出す。訂正は話題が合うときにだけ頭が伝える
+ * 決まりのままで、持ち主が 10-24 から話しかけていないあいだに 20 本たまり、あることが持ち主に
+ * 見えていなかった(持ち主が任せた判断、2026-11-11)
+ */
+export function unsaidFixes(list: OwnerCorrection[] | undefined): {
+  count: number;
+  oldest?: string;
+} {
+  const fixes = pendingCorrections(list).filter((c) => c.kind !== "answer");
+  const oldest = fixes.map((c) => c.at).sort()[0];
+  return { count: fixes.length, ...(oldest ? { oldest } : {}) };
+}
+
+/**
  * 持ち主に渡したもの(頭の申告 delivered_corrections の ID)に、渡した時刻の印を付ける。
  * 消すだけだと、内省が「溜まったまま」と「もう渡した」を区別できなかった(Ashi の改善案、2026-11-02)
  */
@@ -987,6 +1004,8 @@ export function markDelivered(
   prev: OwnerCorrection[] | undefined,
   ids: unknown,
   now: Date,
+  /** read: 持ち主が画面で読んで印を付けた(頭の申告ではない) */
+  by?: "read",
 ): { ledger: OwnerCorrection[]; delivered: string[] } {
   const told = new Set(
     (Array.isArray(ids) ? ids : []).filter(
@@ -997,9 +1016,47 @@ export function markDelivered(
   const ledger = (prev ?? []).map((c) => {
     if (c.deliveredAt || !told.has(c.id)) return c;
     delivered.push(c.id);
-    return { ...c, deliveredAt: now.toISOString() };
+    return {
+      ...c,
+      deliveredAt: now.toISOString(),
+      ...(by ? { deliveredBy: by } : {}),
+    };
   });
   return { ledger: capCorrections(ledger, now), delivered };
+}
+
+/**
+ * 内省が取り下げた、まだ渡していないもの(頭の申告 withdrawn_corrections の ID)を台帳から外す。
+ * 外せるのは内省が自分で書いたものだけ。足が確かめた結果(questionId の付いた訂正・答え)は外さない
+ * (頭が、持ち主に言った誤りを自分で消せることになる)。同じ訂正を言い換えて積み直し、20 本のうち
+ * 7 本が同じ助言の訂正になっていた。台帳は新しい 20 本までなので、古い別の訂正が押し出される
+ * ところだった(本番の台帳、2026-11-11)
+ */
+export function withdrawCorrections(
+  prev: OwnerCorrection[] | undefined,
+  ids: unknown,
+): {
+  ledger: OwnerCorrection[];
+  withdrawn: OwnerCorrection[];
+  refused: string[];
+} {
+  const asked = new Set(
+    (Array.isArray(ids) ? ids : []).filter(
+      (x): x is string => typeof x === "string",
+    ),
+  );
+  const withdrawn: OwnerCorrection[] = [];
+  const refused: string[] = [];
+  const ledger = (prev ?? []).filter((c) => {
+    if (!asked.has(c.id) || c.deliveredAt) return true;
+    if (c.questionId || c.kind === "answer") {
+      refused.push(c.id);
+      return true;
+    }
+    withdrawn.push(c);
+    return false;
+  });
+  return { ledger, withdrawn, refused };
 }
 
 /** 内省で一度見せた「渡したもの」を台帳から落とす(shown は内省に見せたときの ID) */

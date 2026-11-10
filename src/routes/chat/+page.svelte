@@ -38,6 +38,8 @@
     }, 4000);
     return () => clearInterval(timer);
   });
+  // まだ伝えていない訂正の数。話題が合わないと Ashi は言わないので、あることだけ出す
+  let unsaid = $state(untrack(() => data.unsaid));
   let input = $state("");
   let busy = $state(false);
   let problem = $state("");
@@ -99,6 +101,7 @@
         reply: string;
         html: string;
         added: string[];
+        unsaid?: typeof data.unsaid;
       };
       msgs.push({
         role: "assistant",
@@ -106,6 +109,7 @@
         html: r.html,
         added: r.added,
       });
+      if (r.unsaid) unsaid = r.unsaid;
     } catch (err) {
       problem = err instanceof Error ? err.message : String(err);
       // 送れなかった発言は入力欄に戻す
@@ -174,6 +178,16 @@
 
   <form class="composer panel" onsubmit={send}>
     {#if problem}<p class="note err small">{problem}</p>{/if}
+    {#if unsaid.count}
+      <p class="unsaid tiny muted">
+        前に言ったことの訂正が {unsaid.count} 件、まだ伝えられていない{#if unsaid.oldest}(いちばん古いのは
+          {when(unsaid.oldest).slice(
+            5,
+            10,
+          )}){/if}。「訂正を聞かせて」と送るか、<a href="/context">一覧</a
+        >で読める。
+      </p>
+    {/if}
     <!-- 1 行にして、発言を読む幅を広く取る。長く書くと 6 行まで伸びる -->
     <div class="line">
       <textarea
@@ -253,6 +267,10 @@
     flex-direction: column;
     gap: 0.4rem;
     padding: 0.5rem;
+  }
+  .unsaid {
+    margin: 0;
+    padding: 0 0.25rem;
   }
   .line {
     display: flex;

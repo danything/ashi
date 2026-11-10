@@ -288,6 +288,8 @@ export interface Walk {
     kind?: "answer";
     /** 持ち主に渡した時刻。無ければ、まだ渡していない */
     deliveredAt?: string;
+    /** read: 話して渡したのではなく、持ち主が画面(/context)で読んで印を付けた */
+    deliveredBy?: "read";
   }[];
   /** 型の当たり率の基準線を最後に測った日(1 日 1 回。legs/baseline.ts) */
   lastBaselineDay?: string;

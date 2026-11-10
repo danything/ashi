@@ -92,6 +92,7 @@ import {
   trimOpenQuestions,
   unit,
   walkTrail,
+  withdrawCorrections,
 } from "./guard.ts";
 import {
   batchResults,
@@ -946,20 +947,32 @@ export async function step(legs: Legs): Promise<StepOutcome> {
         store.log("self-rejected", { length: rawSelf.length, max: SELF_MAX });
       // 内省で気づいた、持ち主に言ったことの訂正・持ち主に渡すことも台帳へ。渡した印の付いたものは、
       // いまの内省で一度見せたので落とす(足してから落とす。渡したばかりのことを積み直さないため)
+      // 取り下げ(重なり・言い過ぎ)は足す前に外す(まとめ直した文が、元の文と近すぎて弾かれないように)。
+      // 外したものと断ったものはログに残す
+      const w3 = store.walk();
+      const taken = withdrawCorrections(
+        w3.ownerCorrections,
+        output.withdrawn_corrections,
+      );
+      if (taken.withdrawn.length || taken.refused.length)
+        store.log("corrections-withdrawn", {
+          withdrawn: taken.withdrawn.map((c) => ({
+            id: c.id,
+            at: c.at,
+            text: c.text,
+          })),
+          ...(taken.refused.length ? { refused: taken.refused } : {}),
+        });
       if (
         (Array.isArray(output.owner_corrections) &&
           output.owner_corrections.length) ||
-        handoffs.delivered.length
+        handoffs.delivered.length ||
+        taken.withdrawn.length
       ) {
-        const w3 = store.walk();
         store.saveWalk({
           ...w3,
           ownerCorrections: dropShownDelivered(
-            addOwnerCorrections(
-              w3.ownerCorrections,
-              output.owner_corrections,
-              now,
-            ),
+            addOwnerCorrections(taken.ledger, output.owner_corrections, now),
             handoffs.delivered.map((c) => c.id),
           ),
         });

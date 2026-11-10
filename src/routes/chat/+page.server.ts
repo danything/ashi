@@ -1,4 +1,5 @@
 import { chatInFlight } from "#lib/server/ashi/legs/chat.ts";
+import { unsaidFixes } from "#lib/server/ashi/legs/guard.ts";
 import { md } from "#lib/server/markdown.ts";
 import { store } from "#lib/server/runtime.ts";
 
@@ -21,4 +22,6 @@ export const load: PageServerLoad = ({ locals }) => ({
     })),
   /** いま頭が考えている発言(返事を待つ間に画面を移って戻ったとき) */
   pending: chatInFlight(locals.user?.name ?? "?") ?? null,
+  /** まだ伝えていない訂正の数(話題が合わないと頭は言わないので、あることだけ足が出す) */
+  unsaid: unsaidFixes(store.walk().ownerCorrections),
 });

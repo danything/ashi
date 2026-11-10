@@ -598,6 +598,7 @@ export interface ReflectAnswer {
   diary: string;
   self: string;
   owner_corrections?: string[];
+  withdrawn_corrections?: string[];
   patterns?: string[];
   self_changes?: {
     what?: unknown;
@@ -665,6 +666,12 @@ export const REFLECT_SCHEMA: JsonSchema = {
       items: { type: "string" },
       description:
         "持ち主に渡すこと。持ち主に言ったことのうち、あとで外れていた・弱かったと分かったもの(何を言って、何が違ったか)と、次に持ち主と話すときに渡したいだけのこと(歩かなくてよいもの。問いやノートの ID を書いても、先に歩く約束には数えない)。1 件 1 文〜2 文。足が台帳に置き、次に持ち主と話すときに見せ、渡ったら印を付けて次の内省で見せる。同じことが「まだ渡していないもの」の一覧にあれば、書き直さなくてよい。無ければ空",
+    },
+    withdrawn_corrections: {
+      type: "array",
+      items: { type: "string" },
+      description:
+        "「まだ渡していないもの」のうち、取り下げるものの ID(8 桁)。ほかと同じ中身のもの・あとで言い過ぎと分かったもの。足が台帳から外し、ログに残す。いくつかを 1 つにまとめ直すときは、まとめた文を owner_corrections に書き、元の ID をここに書く。足が確かめた訂正・確かめた答えは外せない。無ければ空",
     },
     patterns: {
       type: "array",
@@ -835,6 +842,7 @@ export const REFLECT_SCHEMA: JsonSchema = {
     "diary",
     "self",
     "owner_corrections",
+    "withdrawn_corrections",
     "patterns",
     "self_changes",
     "next_steps",
@@ -860,8 +868,20 @@ export interface ReflectTalk {
    * 渡したもの・前回の内省の後の持ち主との対話の数と最後の時刻。mode は訂正の出し方の設定
    */
   handoffs?: {
-    pending: { id: string; text: string; at: string; kind?: "answer" }[];
-    delivered: { id: string; text: string; at: string; deliveredAt?: string }[];
+    pending: {
+      id: string;
+      text: string;
+      at: string;
+      kind?: "answer";
+      questionId?: string;
+    }[];
+    delivered: {
+      id: string;
+      text: string;
+      at: string;
+      deliveredAt?: string;
+      deliveredBy?: "read";
+    }[];
     chats: { count: number; lastAt?: string };
     mode?: "first" | "relevant";
   };
@@ -1182,8 +1202,12 @@ function patternsByReplyText(rows: Dialogue["patternsByReply"]): string {
     )} ── 会話全体で ${total} 回${total >= 2 ? "(一つの会話に 2 回以上)" : ""}`;
 }
 
-/** 内省に並べる、持ち主に渡すものの数(まだ渡していないもの・渡したもの、それぞれ) */
-const HANDOFFS_SHOWN = 10;
+/**
+ * 内省に並べる、持ち主に渡すものの数。まだ渡していないものは台帳の上限(guard.ts の 20 本)まで全部
+ * 見せる。新しい 10 本だけだと、古い側の重なりを取り下げられなかった(見えない ID は書けない)
+ */
+const PENDING_SHOWN = 20;
+const DELIVERED_SHOWN = 10;
 
 /**
  * 持ち主に渡すものの台帳。内省には台帳が見えず、溜まったままなのか・もう渡したのか・話す機会が
@@ -1192,9 +1216,9 @@ const HANDOFFS_SHOWN = 10;
 function handoffsText(h: ReflectTalk["handoffs"]): string {
   if (!h) return "";
   const day = (at: string) => localStamp(at).slice(5, 10);
-  const pending = h.pending.slice(-HANDOFFS_SHOWN);
+  const pending = h.pending.slice(-PENDING_SHOWN);
   const older = h.pending.length - pending.length;
-  const delivered = h.delivered.slice(-HANDOFFS_SHOWN);
+  const delivered = h.delivered.slice(-DELIVERED_SHOWN);
   return `
 持ち主に渡すものの台帳(owner_corrections に書いたことと、持ち主に言ったことを足が確かめた結果。次に持ち主と話すときに足が見せ、渡ったら印が付く):
 ${
@@ -1208,7 +1232,7 @@ ${
     ? pending
         .map(
           (c) =>
-            `- ${day(c.at)} [${c.id}] ${c.kind === "answer" ? "(確かめた答え)" : ""}${cut(c.text, 200)}`,
+            `- ${day(c.at)} [${c.id}] ${c.kind === "answer" ? "(確かめた答え)" : c.questionId ? "(足が確かめた訂正)" : ""}${cut(c.text, 200)}`,
         )
         .join("\n")
     : "(無い)"
@@ -1219,7 +1243,7 @@ ${
     ? delivered
         .map(
           (c) =>
-            `- ${day(c.deliveredAt ?? c.at)} [${c.id}] ${cut(c.text, 200)}`,
+            `- ${day(c.deliveredAt ?? c.at)} [${c.id}] ${c.deliveredBy === "read" ? "(持ち主が画面で読んだ)" : ""}${cut(c.text, 200)}`,
         )
         .join("\n")
     : "(無い)"
@@ -1228,10 +1252,10 @@ ${
   h.mode === "first"
     ? "いまの設定では、訂正は話題に関係なく返事の最初に伝える。"
     : h.mode === "relevant"
-      ? "いまの設定では、訂正は持ち主の話がそれに関係するときにだけ伝える(持ち主が決めた)。確かめた答えは話題に関係なく伝える。対話があっても、話題が合わなければ渡っていないことがある。"
+      ? "いまの設定では、訂正は持ち主の話がそれに関係するとき・持ち主が訂正を聞きたいと言ったときに伝える(持ち主が決めた)。確かめた答えは話題に関係なく伝える。対話があっても、話題が合わなければ渡っていないことがある。話す画面には、足が「まだ伝えていない訂正」の数を出していて、持ち主は画面で読んで印を付けることもできる。"
       : ""
 }
-同じことが「まだ渡していないもの」にあれば、owner_corrections に書き直さなくてよい。持ち主に渡したいだけのことは、next_steps ではなく owner_corrections に書く(next_steps に問いの ID を書くと、歩く約束に数える)。
+同じことが「まだ渡していないもの」にあれば、owner_corrections に書き直さなくてよい。同じ中身が重なっているもの・あとで言い過ぎと分かったものは、withdrawn_corrections に ID を書けば足が台帳から外す(まとめ直すなら、まとめた文を owner_corrections に書く。「足が確かめた訂正」「確かめた答え」は外せない)。台帳に置けるのは新しい 20 本までで、重なりが増えると古い別の訂正が押し出される。持ち主に渡したいだけのことは、next_steps ではなく owner_corrections に書く(next_steps に問いの ID を書くと、歩く約束に数える)。
 `;
 }
 
@@ -1668,7 +1692,7 @@ ${fixes.map((c) => `- [${c.id}] ${c.text}`).join("\n")}
 ${
   mode === "first"
     ? "持ち主の話題に関係なく、返事の最初に短く伝えてください(持ち主がそう決めています)。"
-    : "持ち主の話がこの訂正に関係するときに伝えてください。"
+    : "持ち主の話がこの訂正に関係するとき、または持ち主が訂正を聞きたいと言ったときに伝えてください(話す画面には、足が「まだ伝えていない訂正」の数を出しています)。"
 }`);
   // 持ち主に聞かれて確かめた答えは、話題に関係なく渡す(閉じた借りが持ち主に届いていなかった)
   if (answers.length)

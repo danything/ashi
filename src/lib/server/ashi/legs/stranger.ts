@@ -16,6 +16,7 @@ import {
   markedClaims,
   mergeClaims,
   patternHits,
+  patternsByReply,
   type RawQuestion,
   trimOpenQuestions,
 } from "./guard.ts";
@@ -318,6 +319,8 @@ export async function talkWithStranger(opts: {
         })),
     ],
   );
+  // 型の言葉は、全部の返事についても数える(最初の返事だけだと、後の返事に並べた型が見えなかった)
+  const byReply = patternsByReply(turns, store.walk().selfPatterns ?? []);
   const dialogue: Dialogue = {
     at: now.toISOString(),
     model: stranger.name,
@@ -333,6 +336,7 @@ export async function talkWithStranger(opts: {
     ...(sweeping.length ? { sweeping } : {}),
     ...(spot ? { spot: { sentence: spot, claim: spotClaim } } : {}),
     patterns: patternHits(turns, store.walk().selfPatterns ?? []),
+    ...(byReply.length ? { patternsByReply: byReply } : {}),
   };
   store.appendDialogue(dialogue);
   store.log("stranger", { field, model: stranger.name, added });

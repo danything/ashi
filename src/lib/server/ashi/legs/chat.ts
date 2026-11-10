@@ -29,8 +29,10 @@ import {
   acceptProposals,
   addStances,
   claimQuestions,
+  markDelivered,
   markedClaims,
   mergeClaims,
+  pendingCorrections,
   trimOpenQuestions,
 } from "./guard.ts";
 import { newsBlock } from "./news.ts";
@@ -116,7 +118,7 @@ export async function chat(
       blockersText(store),
       newsBlock(store.news().items),
       correctionsBlock(
-        store.walk().ownerCorrections ?? [],
+        pendingCorrections(store.walk().ownerCorrections),
         cfg.ownerCorrections,
       ),
       phrases,
@@ -183,19 +185,18 @@ export async function chat(
     // 読みに行くのは次の歩みで(対話の返事は待たせない)。取った立場は内省で見せる
     const crawl = crawlIds(output.crawl);
     const w = store.walk();
+    // 伝えたものは台帳から消さず、渡した印を付ける(次の内省で「渡した」と見せてから落とす)。
+    // 返事が空なら、何も渡っていない
+    const told = markDelivered(
+      w.ownerCorrections,
+      empty ? [] : output.delivered_corrections,
+      now,
+    );
     store.saveWalk({
       ...w,
       crawlRequests: [...new Set([...w.crawlRequests, ...crawl])],
       stances: addStances(w.stances, output.stances, now),
-      // 伝えた訂正は台帳から消す
-      ownerCorrections: (w.ownerCorrections ?? []).filter(
-        (c) =>
-          !(
-            Array.isArray(output.delivered_corrections)
-              ? output.delivered_corrections
-              : []
-          ).includes(c.id),
-      ),
+      ownerCorrections: told.ledger,
     });
     let reply =
       String(output.reply ?? "").trim() ||
@@ -280,6 +281,7 @@ export async function chat(
       ...(lint.length ? { lint, rewritten } : {}),
       ...(flagged.length ? { flagged } : {}),
       ...(proposed.length ? { proposed } : {}),
+      ...(told.delivered.length ? { delivered: told.delivered } : {}),
     });
     return { reply, added, crawl, usd: usage.costUsd };
   } catch (e) {

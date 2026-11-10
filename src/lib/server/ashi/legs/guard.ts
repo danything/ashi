@@ -476,6 +476,27 @@ export function patternHits(
     .filter((p) => p.firstReply);
 }
 
+/**
+ * よそ者との会話の Ashi の返事ごとに、自分の型の言葉が何回出たか。出なかった返事は入れない。
+ * 最初の返事しか見ておらず、3 つ目の返事に型を 2 つ並べても見えなかった(Ashi の改善案、2026-10-26)。
+ * 文字の一致だけなので、言い換えた型は拾えない
+ */
+export function patternsByReply(
+  turns: { by: "stranger" | "ashi"; text: string }[],
+  patterns: string[],
+): { reply: number; hits: { word: string; count: number }[] }[] {
+  const words = [...new Set(patterns.filter((w) => w.trim() !== ""))];
+  return turns
+    .filter((t) => t.by === "ashi")
+    .map((t, i) => ({
+      reply: i + 1,
+      hits: words
+        .map((word) => ({ word, count: t.text.split(word).length - 1 }))
+        .filter((h) => h.count > 0),
+    }))
+    .filter((r) => r.hits.length > 0);
+}
+
 /** 文の中の問い ID(8 桁の 16 進) */
 export const questionIds = (s: string): string[] =>
   s.match(/\b[0-9a-f]{8}\b/g) ?? [];
@@ -863,7 +884,10 @@ export function adviceFollowups(
   return out;
 }
 
-/** 持ち主への訂正を台帳に足す(ほぼ同じものは重ねない、20 件まで) */
+/**
+ * 持ち主に渡すものを台帳に足す(ほぼ同じものは重ねない、まだ渡していないものは 20 件まで)。
+ * 渡した印の付いたものとも比べる(渡したばかりのことを積み直さない)
+ */
 export function addOwnerCorrections(
   prev: OwnerCorrection[] | undefined,
   texts: unknown,
@@ -887,16 +911,150 @@ export function addOwnerCorrections(
       ...(kind ? { kind } : {}),
     });
   }
-  return out.slice(-20);
+  return capCorrections(out, now);
 }
 
-type OwnerCorrection = {
+export type OwnerCorrection = {
   id: string;
   text: string;
   at: string;
   questionId?: string;
   kind?: "answer";
+  /** 持ち主に渡した時刻。無ければ、まだ渡していない(この欄の無い古い項目もそう読む) */
+  deliveredAt?: string;
 };
+
+const CORRECTIONS_MAX = 20;
+/** 渡した印の付いたものを残す日数。ふつうは次の内省で一度見せて落とす。内省が来ないときの上限 */
+const DELIVERED_KEEP_DAYS = 7;
+
+/** まだ渡していないものは新しい 20 件、渡したものは 7 日以内の新しい 20 件に保つ(並びは変えない) */
+function capCorrections(list: OwnerCorrection[], now: Date): OwnerCorrection[] {
+  const pending = list.filter((c) => !c.deliveredAt).slice(-CORRECTIONS_MAX);
+  const fresh = now.getTime() - DELIVERED_KEEP_DAYS * 86400e3;
+  const delivered = list
+    .filter((c) => c.deliveredAt && Date.parse(c.deliveredAt) >= fresh)
+    .slice(-CORRECTIONS_MAX);
+  const keep = new Set([...pending, ...delivered]);
+  return list.filter((c) => keep.has(c));
+}
+
+/** 台帳のうち、まだ持ち主に渡していないもの */
+export const pendingCorrections = (
+  list: OwnerCorrection[] | undefined,
+): OwnerCorrection[] => (list ?? []).filter((c) => !c.deliveredAt);
+
+/**
+ * 持ち主に渡したもの(頭の申告 delivered_corrections の ID)に、渡した時刻の印を付ける。
+ * 消すだけだと、内省が「溜まったまま」と「もう渡した」を区別できなかった(Ashi の改善案、2026-11-02)
+ */
+export function markDelivered(
+  prev: OwnerCorrection[] | undefined,
+  ids: unknown,
+  now: Date,
+): { ledger: OwnerCorrection[]; delivered: string[] } {
+  const told = new Set(
+    (Array.isArray(ids) ? ids : []).filter(
+      (x): x is string => typeof x === "string",
+    ),
+  );
+  const delivered: string[] = [];
+  const ledger = (prev ?? []).map((c) => {
+    if (c.deliveredAt || !told.has(c.id)) return c;
+    delivered.push(c.id);
+    return { ...c, deliveredAt: now.toISOString() };
+  });
+  return { ledger: capCorrections(ledger, now), delivered };
+}
+
+/** 内省で一度見せた「渡したもの」を台帳から落とす(shown は内省に見せたときの ID) */
+export function dropShownDelivered(
+  prev: OwnerCorrection[] | undefined,
+  shown: string[],
+): OwnerCorrection[] {
+  const ids = new Set(shown);
+  return (prev ?? []).filter((c) => !(c.deliveredAt && ids.has(c.id)));
+}
+
+/**
+ * 内省に見せる、持ち主に渡すものの台帳。まだ渡していないもの・前回の内省の後に渡したもの・
+ * 前回の内省(since)の後に持ち主との対話があったか。対話が無かったのか、話したのに渡さなかったのかを
+ * 内省が区別できなかった(Ashi の改善案、2026-10-27・11-02)
+ */
+export function ownerHandoffs(
+  ledger: OwnerCorrection[] | undefined,
+  chats: { at: string }[],
+  since?: string,
+): {
+  pending: OwnerCorrection[];
+  delivered: OwnerCorrection[];
+  chats: { count: number; lastAt?: string };
+} {
+  const after = chats
+    .map((c) => c.at)
+    .filter((at) => !since || at > since)
+    .sort();
+  return {
+    pending: pendingCorrections(ledger),
+    delivered: (ledger ?? []).filter((c) => c.deliveredAt),
+    chats: { count: after.length, lastAt: after.at(-1) },
+  };
+}
+
+/** 文字 2 つ組のうち、ひらがなだけのもの(助詞や活用語尾)を除く。短い文どうしの近さを測るため */
+const contentGrams = (text: string): Set<string> =>
+  new Set([...bigrams(text)].filter((g) => !/^[ぁ-ゟ]+$/.test(g)));
+
+/** 自分について言った文の、中身の文字の組のうちこれ以上がノートの題・要約に出ていたら「近いノート」とする */
+export const CLAIM_NOTE_MIN = 0.3;
+const CLAIM_GRAMS_MIN = 4;
+
+/**
+ * よそ者との会話で自分について言った文ごとに、題と要約の文字が一番近いノートを添える。頭は呼ばない。
+ * sourced は、そのノートが外の出典を読んで書かれたか(本文に URL か「読めた深さ」の節がある)。
+ * 読んだことを経験のように言っていても、文だけでは内省で気づけなかった(Ashi の改善案、2026-11-09)。
+ * 文字の近さだけの手がかりで、歩いて確かめたことか読んだことかの判定はしない(読み分けるのは頭)
+ */
+export function claimNotes(
+  claims: string[],
+  notes: Note[],
+  body: (id: string) => string | undefined,
+): Record<
+  string,
+  { id: string; title: string; sourced: boolean; near: number }
+> {
+  const out: Record<
+    string,
+    { id: string; title: string; sourced: boolean; near: number }
+  > = {};
+  if (!claims.length || !notes.length) return out;
+  const grams = notes.map((n) => ({
+    n,
+    g: contentGrams(`${n.title} ${n.summary}`),
+  }));
+  for (const claim of new Set(claims)) {
+    const c = contentGrams(claim);
+    // 短すぎる文は、たまたまの一致で当たるので測らない
+    if (c.size < CLAIM_GRAMS_MIN) continue;
+    let best: { n: Note; near: number } | undefined;
+    // 同じ近さなら新しいノートを取る(notes は古い順)
+    for (const { n, g } of grams) {
+      let hit = 0;
+      for (const x of c) if (g.has(x)) hit++;
+      const near = hit / c.size;
+      if (near >= CLAIM_NOTE_MIN && (!best || near >= best.near))
+        best = { n, near };
+    }
+    if (!best) continue;
+    out[claim] = {
+      id: best.n.id,
+      title: best.n.title,
+      sourced: /https?:\/\/|## 読めた深さ/.test(body(best.n.id) ?? ""),
+      near: Math.round(best.near * 100) / 100,
+    };
+  }
+  return out;
+}
 
 /** 本文がこの字数(空白を除く)に満たないノートは、書き損じとして扱う */
 export const NOTE_MIN_CHARS = 40;

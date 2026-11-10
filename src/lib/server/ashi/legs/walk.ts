@@ -66,9 +66,11 @@ import {
   applyReestimates,
   blankNote,
   blindComparison,
+  claimNotes,
   clampSleep,
   closeByNote,
   debtLedger,
+  dropShownDelivered,
   groupMates,
   latestNoteByQuestion,
   markPromised,
@@ -76,6 +78,7 @@ import {
   nextMidnight,
   normalizeIntentions,
   ownerHandles,
+  ownerHandoffs,
   ownerPull,
   questionIds,
   readDepthSection,
@@ -762,6 +765,14 @@ export async function step(legs: Legs): Promise<StepOutcome> {
         store.walk().settledConflicts,
       );
       trackConflicts(store, conflicts, now);
+      // 持ち主に渡すものの台帳(まだ渡していないもの・渡したもの・前回の内省の後に対話があったか)と、
+      // よそ者との会話で自分について言った文に近いノート。どちらも足が並べるだけで、読むのは頭
+      const dialogues = store.recentDialogues(3);
+      const handoffs = ownerHandoffs(
+        store.walk().ownerCorrections,
+        store.recentChats(30),
+        w.lastSelf?.at,
+      );
       const { output, usage } = await head.think<ReflectAnswer>({
         task: "reflect",
         system: sys(),
@@ -801,7 +812,13 @@ export async function step(legs: Legs): Promise<StepOutcome> {
             notes: latestNoteByQuestion(store.notes()),
           },
           {
-            dialogues: store.recentDialogues(3),
+            dialogues,
+            claimNotes: claimNotes(
+              dialogues.flatMap((d) => d.aboutSelf ?? []),
+              store.notes(),
+              (id) => store.noteBody(id),
+            ),
+            handoffs: { ...handoffs, mode: cfg.ownerCorrections },
             chats: store.recentChats(5),
             followups: adviceFollowups(store.recentChats(30), store.notes()),
             stances: (store.walk().stances ?? []).slice(0, 10),
@@ -877,18 +894,23 @@ export async function step(legs: Legs): Promise<StepOutcome> {
       // 捨てたときは黙らない。記録し、次の内省で頭に伝える
       if (rawSelf && !self)
         store.log("self-rejected", { length: rawSelf.length, max: SELF_MAX });
-      // 内省で気づいた、持ち主に言ったことの訂正も台帳へ
+      // 内省で気づいた、持ち主に言ったことの訂正・持ち主に渡すことも台帳へ。渡した印の付いたものは、
+      // いまの内省で一度見せたので落とす(足してから落とす。渡したばかりのことを積み直さないため)
       if (
-        Array.isArray(output.owner_corrections) &&
-        output.owner_corrections.length
+        (Array.isArray(output.owner_corrections) &&
+          output.owner_corrections.length) ||
+        handoffs.delivered.length
       ) {
         const w3 = store.walk();
         store.saveWalk({
           ...w3,
-          ownerCorrections: addOwnerCorrections(
-            w3.ownerCorrections,
-            output.owner_corrections,
-            now,
+          ownerCorrections: dropShownDelivered(
+            addOwnerCorrections(
+              w3.ownerCorrections,
+              output.owner_corrections,
+              now,
+            ),
+            handoffs.delivered.map((c) => c.id),
           ),
         });
       }

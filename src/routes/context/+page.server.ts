@@ -1,5 +1,6 @@
 import { fail } from "@sveltejs/kit";
 
+import { markDelivered } from "#lib/server/ashi/legs/guard.ts";
 import { system } from "#lib/server/ashi/prompts.ts";
 import { hashText } from "#lib/server/ashi/state.ts";
 import { md } from "#lib/server/markdown.ts";
@@ -48,5 +49,19 @@ export const actions: Actions = {
     const r = resetLearning();
     if (!r.ok) return fail(409, { resetMessage: r.message });
     return { archive: r.archive };
+  },
+  /**
+   * 並んでいる訂正を、持ち主が読んだ。渡した印を付ける(話して渡したのと区別する)。印を付けるのは
+   * 画面に出ていた ID だけ(読み込んだ後に積まれたものは残す)
+   */
+  read: async ({ request }) => {
+    const ids = (await request.formData()).getAll("id").map(String);
+    const w = store.walk();
+    const told = markDelivered(w.ownerCorrections, ids, new Date(), "read");
+    if (told.delivered.length) {
+      store.saveWalk({ ...w, ownerCorrections: told.ledger });
+      store.log("corrections-read", { delivered: told.delivered });
+    }
+    return { read: told.delivered.length };
   },
 };

@@ -320,7 +320,9 @@ describe("持ち主に渡すものの台帳に、渡した印を付ける(P7・P
       "- 11-09 [d1] ブドウ糖の研究は追試で再現しなかった",
     );
     // 出し方の設定(既定は relevant)も伝える。対話があっても渡っていないことがある
-    expect(prompt).toContain("関係するときにだけ伝える");
+    expect(prompt).toContain(
+      "関係するとき・持ち主が訂正を聞きたいと言ったときに伝える",
+    );
 
     const ledger = store.walk().ownerCorrections ?? [];
     expect(ledger.some((c) => c.id === "d1")).toBe(false);
@@ -340,7 +342,7 @@ describe("持ち主に渡すものの台帳に、渡した印を付ける(P7・P
     expect(next).not.toContain("[d1]");
   });
 
-  test("まだ渡していないものが 10 本を超えたら、新しい 10 本と、残りの本数といちばん古い日付", async () => {
+  test("まだ渡していないものは、10 本を超えても全部見せる(見えないものは取り下げられない)", async () => {
     const store = freshStore(["a"]);
     store.saveWalk({
       ...store.walk(),
@@ -352,10 +354,9 @@ describe("持ち主に渡すものの台帳に、渡した印を付ける(P7・P
     });
     const prompt = await reflectOnce(store);
     expect(prompt).toContain("まだ渡していないもの(12 本。");
-    expect(prompt).not.toContain("[p01]");
-    expect(prompt).toContain("[p02]");
+    expect(prompt).toContain("[p00]");
     expect(prompt).toContain("[p11]");
-    expect(prompt).toContain("(ほかに古いものが 2 本。いちばん古いのは 10-27)");
+    expect(prompt).not.toContain("ほかに古いものが");
   });
 
   test("渡すだけのことを owner_corrections に書いても歩く約束に数えない。次の一歩に書けば数える", async () => {

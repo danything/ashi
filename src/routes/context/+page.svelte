@@ -40,15 +40,31 @@
       <section class="panel">
         <div class="panel-head">
           <h2>あなたに伝えていない訂正({data.corrections.length})</h2>
-          <span class="tag warn">次に話すときに伝える</span>
+          <span class="tag warn">話題が合えば話す</span>
         </div>
         <ul class="rows">
           {#each data.corrections as c (c.id)}<li class="small">
+              <span class="muted">{when(c.at).slice(5, 10)}</span>
               {c.text}
             </li>{/each}
         </ul>
+        <!-- ここで読めば足りるときは、話さずに渡した印を付けられる(Ashi には次の内省で「画面で読んだ」と見せる) -->
+        <form method="POST" action="?/read" use:enhance class="cluster">
+          {#each data.corrections as c (c.id)}<input
+              type="hidden"
+              name="id"
+              value={c.id}
+            />{/each}
+          <button type="submit" class="small outline">読んだ</button>
+          <span class="tiny muted"
+            >押すと、ここに並んでいる分に伝えた印が付く。話して聞くなら「訂正を聞かせて」と送る</span
+          >
+        </form>
       </section>
     {/if}
+    {#if form?.read}<p class="note ok small">
+        {form.read} 件に、読んだ印を付けた。
+      </p>{/if}
 
     <section class="panel">
       <div class="panel-head">

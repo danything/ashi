@@ -2,6 +2,7 @@ import { error, json } from "@sveltejs/kit";
 
 import type { Turn } from "#lib/server/ashi/head/head.ts";
 import { chat, ChatRefused } from "#lib/server/ashi/legs/chat.ts";
+import { unsaidFixes } from "#lib/server/ashi/legs/guard.ts";
 import { md } from "#lib/server/markdown.ts";
 import { getHead, getTools, store } from "#lib/server/runtime.ts";
 
@@ -25,6 +26,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       html: md(r.reply),
       added: r.added,
       usd: r.usd,
+      // この返事で伝えた分を引いた、まだ伝えていない訂正の数
+      unsaid: unsaidFixes(store.walk().ownerCorrections),
     });
   } catch (e) {
     if (e instanceof ChatRefused) error(429, e.message);

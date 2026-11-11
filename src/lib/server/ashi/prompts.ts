@@ -2,6 +2,11 @@ import type { JsonSchema } from "./head/head.ts";
 import { type BaselineTotals, wilson } from "./legs/baseline.ts";
 import type { CitationConflict } from "./legs/citations.ts";
 import {
+  type CloseHint,
+  type CorrectionGroup,
+  CORRECTIONS_PER_REPLY,
+} from "./legs/guard.ts";
+import {
   type ChatEntry,
   type Dialogue,
   localStamp,
@@ -597,7 +602,8 @@ export interface ProposalDraft {
 export interface ReflectAnswer {
   diary: string;
   self: string;
-  owner_corrections?: string[];
+  /** 文だけ(前の形)でも受け取る */
+  owner_corrections?: (string | { text?: unknown; reply_at?: unknown })[];
   withdrawn_corrections?: string[];
   patterns?: string[];
   self_changes?: {
@@ -663,15 +669,27 @@ export const REFLECT_SCHEMA: JsonSchema = {
     },
     owner_corrections: {
       type: "array",
-      items: { type: "string" },
+      items: {
+        type: "object",
+        properties: {
+          text: { type: "string", description: "渡すこと。1 文〜2 文" },
+          reply_at: {
+            type: "string",
+            description:
+              "どの持ち主への返事についてのことか。その返事の日時を、下の「持ち主との最近の対話」や台帳の見出しに出ている形のまま書く(例: 2026-10-24 21:15)。足がその返事への訂正として束ねて並べる。特定の返事を指さない・分からないなら空",
+          },
+        },
+        required: ["text", "reply_at"],
+        additionalProperties: false,
+      },
       description:
-        "持ち主に渡すこと。持ち主に言ったことのうち、あとで外れていた・弱かったと分かったもの(何を言って、何が違ったか)と、次に持ち主と話すときに渡したいだけのこと(歩かなくてよいもの。問いやノートの ID を書いても、先に歩く約束には数えない)。1 件 1 文〜2 文。足が台帳に置き、次に持ち主と話すときに見せ、渡ったら印を付けて次の内省で見せる。同じことが「まだ渡していないもの」の一覧にあれば、書き直さなくてよい。無ければ空",
+        "持ち主に渡すこと。持ち主に言ったことのうち、あとで外れていた・弱かったと分かったもの(何を言って、何が違ったか)と、次に持ち主と話すときに渡したいだけのこと(歩かなくてよいもの。問いやノートの ID を書いても、先に歩く約束には数えない)。足が台帳に置き、次に持ち主と話すときに見せ、渡ったら印を付けて次の内省で見せる。同じことが「まだ渡していないもの」の一覧にあれば、書き直さなくてよい(同じ返事への訂正を、言い換えて積み増さない)。無ければ空",
     },
     withdrawn_corrections: {
       type: "array",
       items: { type: "string" },
       description:
-        "「まだ渡していないもの」のうち、取り下げるものの ID(8 桁)。ほかと同じ中身のもの・あとで言い過ぎと分かったもの。足が台帳から外し、ログに残す。いくつかを 1 つにまとめ直すときは、まとめた文を owner_corrections に書き、元の ID をここに書く。足が確かめた訂正・確かめた答えは外せない。無ければ空",
+        "「まだ渡していないもの」のうち、取り下げるものの ID(8 桁)。ほかと同じ中身のもの・あとで言い過ぎと分かったもの。足が台帳から外し、ログに残す。いくつかを 1 つにまとめ直すときは、まとめた文を owner_corrections に書き(reply_at に同じ返事の日時)、元の ID をここに書く。足が確かめた訂正・確かめた答えは外せない。無ければ空",
     },
     patterns: {
       type: "array",
@@ -875,6 +893,8 @@ export interface ReflectTalk {
       kind?: "answer";
       questionId?: string;
     }[];
+    /** まだ渡していないものを、指している持ち主への返事ごとに束ねたもの(legs/guard.ts の groupCorrections) */
+    groups?: CorrectionGroup[];
     delivered: {
       id: string;
       text: string;
@@ -921,6 +941,11 @@ export interface ReflectTalk {
     /** 次の一歩に書いたのに歩かれなかった問いと、その理由 */
     missing?: { id: string; why: string }[];
   };
+  /**
+   * 前回の内省の後に書いたノートが、元の問いとは別の開いた問いに答えていそうなもの(legs/guard.ts の
+   * closeHints。ID の出現と文字の近さだけで、足は判定しない)
+   */
+  closeHints?: CloseHint[];
   /** 自己記述を渡さずに歩いたノートと、渡して歩いた個性のノート(新しい順、数件ずつ) */
   blind?: { blind: Note[]; sighted: Note[] };
   /** 型の当たり率の基準線(直近に測ったもの)。外の文章と自分の個性のノートで、型が当てはまった割合 */
@@ -1016,6 +1041,24 @@ ${
     : ""
 }
 選ばれなかったのか、選ばれて見つからなかったのかは上の一覧で分かります。推測で振り返らないこと。
+`;
+}
+
+/**
+ * 前回の内省の後に書いたノートが、元の問いとは別の開いた問いに答えていそうなもの。別の問いを歩いた
+ * ノートで答えが出ていても、一覧では「開いたまま選ばれなかった」としか出なかった(Ashi の改善案、
+ * 2026-11-11)。足は並べるだけで、閉じるかは頭が決める
+ */
+function closeHintsText(hints: ReflectTalk["closeHints"]): string {
+  if (!hints?.length) return "";
+  return `
+閉じる候補(前回の内省の後に書いたノートが、元の問いとは別の開いた問いに触れているもの。足が、問いの ID がノートに出ているか・問いの文字がノートの題と要約にどれだけ出ているかだけで拾った。精度は分からず、同じ話題というだけのものも混ざる。答えが出ているかは足は判定しない。ノートがその問いに答えていれば close_by_note で閉じ、答えていなければ何もしなくてよい):
+${hints
+  .map(
+    (h) =>
+      `- ノート [${h.note.id}] ${cut(h.note.title, 60)} → 問い [${h.question.id}] ${cut(h.question.text, 80)}(${h.by === "id" ? `ノートにこの問いの ID が出ている${h.excerpt ? `: 「${cut(h.excerpt, 160)}」` : ""}` : `文字の近さ ${(h.near ?? 0).toFixed(2)}`})`,
+  )
+  .join("\n")}
 `;
 }
 
@@ -1219,6 +1262,39 @@ function handoffsText(h: ReflectTalk["handoffs"]): string {
   const pending = h.pending.slice(-PENDING_SHOWN);
   const older = h.pending.length - pending.length;
   const delivered = h.delivered.slice(-DELIVERED_SHOWN);
+  const line = (c: CorrectionGroup["items"][number]) =>
+    `- ${day(c.at)} [${c.id}] ${c.kind === "answer" ? "(確かめた答え)" : c.questionId ? "(足が確かめた訂正)" : ""}${c.guessed ? "(指す返事の記録が無く、足が文字の近さだけでここに寄せた)" : ""}${cut(c.text, 200)}`;
+  // 指している返事ごとに束ねて並べる。同じ返事への訂正が言い換えで積み重なっても、並びからは
+  // 見えにくかった(Ashi の改善案、2026-11-11)。束が無ければ(古い呼び方)置いた順に並べる
+  const shown = new Set(pending.map((c) => c.id));
+  const groups = (h.groups ?? [])
+    .map((g) => ({ ...g, items: g.items.filter((c) => shown.has(c.id)) }))
+    .filter((g) => g.items.length);
+  const crowd = (g: CorrectionGroup) =>
+    g.crowded
+      ? `\n→ ここに ${g.items.length} 本ある(${CORRECTIONS_PER_REPLY} 本を超えた)。同じことの言い換えが重なっているなら、withdrawn_corrections に元の ID を、owner_corrections にまとめ直した文を書いて(${g.chatAt ? `reply_at は ${localStamp(g.chatAt)}` : "reply_at には指している返事の日時"})、本数を減らしてください。別のことを言っているものは、そのままでよい。足はまとめ直さない。「足が確かめた訂正」「確かめた答え」は外せない。`
+      : "";
+  const tied = groups.filter((g) => g.chatAt);
+  const near = groups.filter((g) => !g.chatAt && g.items.length > 1);
+  const alone = groups.filter((g) => !g.chatAt && g.items.length === 1);
+  // 束が 1 つも無い(どれも指す返事が分からず、近いものも無い)なら、これまでどおり置いた順に並べる
+  const grouped = !(tied.length || near.length)
+    ? ""
+    : [
+        ...tied.map(
+          (g) =>
+            `▼ ${localStamp(g.chatAt ?? "")} の持ち主への返事について ${g.items.length} 本${g.question ? `(持ち主: ${cut(g.question, 60)})` : ""}\n${g.items.map(line).join("\n")}${crowd(g)}`,
+        ),
+        ...near.map(
+          (g) =>
+            `▼ 指す返事の記録が無いが、文字の近いもの ${g.items.length} 本(足が文字の近さだけで寄せた。同じ返事についてのこととは限らない)\n${g.items.map(line).join("\n")}${crowd(g)}`,
+        ),
+        ...(alone.length
+          ? [
+              `▼ 指す返事の記録が無いもの ${alone.length} 本\n${alone.flatMap((g) => g.items.map(line)).join("\n")}`,
+            ]
+          : []),
+      ].join("\n");
   return `
 持ち主に渡すものの台帳(owner_corrections に書いたことと、持ち主に言ったことを足が確かめた結果。次に持ち主と話すときに足が見せ、渡ったら印が付く):
 ${
@@ -1226,17 +1302,8 @@ ${
     ? `前回の内省の後、持ち主との対話は ${h.chats.count} 回あった${h.chats.lastAt ? `(最後は ${localStamp(h.chats.lastAt).slice(5, 16)})` : ""}。`
     : "前回の内省の後、持ち主との対話は無かった(渡す機会が無かった)。"
 }
-まだ渡していないもの(${h.pending.length} 本。日付は台帳に置いた日):
-${
-  pending.length
-    ? pending
-        .map(
-          (c) =>
-            `- ${day(c.at)} [${c.id}] ${c.kind === "answer" ? "(確かめた答え)" : c.questionId ? "(足が確かめた訂正)" : ""}${cut(c.text, 200)}`,
-        )
-        .join("\n")
-    : "(無い)"
-}${older > 0 ? `\n(ほかに古いものが ${older} 本。いちばん古いのは ${day(h.pending[0]?.at ?? "")})` : ""}
+まだ渡していないもの(${h.pending.length} 本。日付は台帳に置いた日${grouped ? "。▼ は足が、指している持ち主への返事ごとに束ねたもの" : ""}):
+${grouped || (pending.length ? pending.map(line).join("\n") : "(無い)")}${older > 0 ? `\n(ほかに古いものが ${older} 本。いちばん古いのは ${day(h.pending[0]?.at ?? "")})` : ""}
 前回の内省の後に渡したもの(${h.delivered.length} 本。日付は渡した日。ここに出るのは今回だけ):
 ${
   delivered.length
@@ -1255,7 +1322,7 @@ ${
       ? "いまの設定では、訂正は持ち主の話がそれに関係するとき・持ち主が訂正を聞きたいと言ったときに伝える(持ち主が決めた)。確かめた答えは話題に関係なく伝える。対話があっても、話題が合わなければ渡っていないことがある。話す画面には、足が「まだ伝えていない訂正」の数を出していて、持ち主は画面で読んで印を付けることもできる。"
       : ""
 }
-同じことが「まだ渡していないもの」にあれば、owner_corrections に書き直さなくてよい。同じ中身が重なっているもの・あとで言い過ぎと分かったものは、withdrawn_corrections に ID を書けば足が台帳から外す(まとめ直すなら、まとめた文を owner_corrections に書く。「足が確かめた訂正」「確かめた答え」は外せない)。台帳に置けるのは新しい 20 本までで、重なりが増えると古い別の訂正が押し出される。持ち主に渡したいだけのことは、next_steps ではなく owner_corrections に書く(next_steps に問いの ID を書くと、歩く約束に数える)。
+同じことが「まだ渡していないもの」にあれば、owner_corrections に書き直さなくてよい。同じ中身が重なっているもの・あとで言い過ぎと分かったものは、withdrawn_corrections に ID を書けば足が台帳から外す(まとめ直すなら、まとめた文を owner_corrections に書く。「足が確かめた訂正」「確かめた答え」は外せない)。owner_corrections に書くときは、どの返事についてのことかを reply_at に書く(足が返事ごとに束ねて並べる)。台帳に置けるのは新しい 20 本までで、重なりが増えると古い別の訂正が押し出される。持ち主に渡したいだけのことは、next_steps ではなく owner_corrections に書く(next_steps に問いの ID を書くと、歩く約束に数える)。
 `;
 }
 
@@ -1316,7 +1383,7 @@ ${dialogues}
 
 よそ者から来た個性の問い ${t.landing.total} 本のうち、持ち主由来のテーマに着地したもの: ${t.landing.home} 本、前からあった自分のテーマに着地したもの: ${t.landing.own} 本、新しいテーマ: ${t.landing.total - t.landing.home - t.landing.own} 本${t.landing.verify ? `(確かめの借り ${t.landing.verify} 本は着地の数に入れていない。借りは足がテーマ「確かめること」に入れるので、着地の物差しにならない)` : ""}
 持ち主由来が高ければ、相手の話を持ち主の関心へ引き戻しています。自分のテーマが高ければ、自分の型に引き戻しています。どちらも、よそ者は効いていません。
-${lastSelfText(t.lastSelf)}${shallowText(t.shallowNotes)}${debtsText(t.debts)}${citationsText(t.citations)}${trailText(t.trail)}${blindText(t.blind)}${evolutionText(t.evolution)}${baselineText(t.baseline, t.baselineTotals)}
+${lastSelfText(t.lastSelf)}${shallowText(t.shallowNotes)}${debtsText(t.debts)}${citationsText(t.citations)}${trailText(t.trail)}${closeHintsText(t.closeHints)}${blindText(t.blind)}${evolutionText(t.evolution)}${baselineText(t.baseline, t.baselineTotals)}
 
 持ち主との最近の対話:
 ${chats}${handoffsText(t.handoffs)}

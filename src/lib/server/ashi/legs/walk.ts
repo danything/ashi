@@ -70,8 +70,10 @@ import {
   claimNotes,
   clampSleep,
   closeByNote,
+  closeHints,
   debtLedger,
   dropShownDelivered,
+  groupCorrections,
   groupMates,
   latestNoteByQuestion,
   markPromised,
@@ -87,6 +89,7 @@ import {
   reopenable,
   SELF_MAX,
   selfEvolution,
+  shownCloseHints,
   similarPairs,
   strangerLanding,
   trimOpenQuestions,
@@ -235,6 +238,8 @@ export type StepOutcome =
 
 /** 疲れがこれ以上なら、内省の順番を待たずに立ち止まる */
 const TIRED = 0.8;
+/** 訂正がどの返事を指すかを引くときに見る、持ち主への返事の数(新しいほうから) */
+const CHATS_FOR_CORRECTIONS = 300;
 /** 地図を書くときに読む材料の上限(文字) */
 const MATERIAL_CHARS = 60_000;
 
@@ -729,6 +734,8 @@ export async function step(legs: Legs): Promise<StepOutcome> {
             now,
             q.id,
             correction ? undefined : "answer",
+            // 問いが生まれた返事(chat.jsonl の at は問いの createdAt と同じ)
+            { chatAt: q.createdAt },
           ),
         });
       }
@@ -824,6 +831,15 @@ export async function step(legs: Legs): Promise<StepOutcome> {
         store.recentChats(30),
         w.lastSelf?.at,
       );
+      // 訂正がどの返事を指すかを引くための、持ち主への返事(時刻と持ち主の言葉だけ使う)
+      const ownerChats = store.recentChats(CHATS_FOR_CORRECTIONS);
+      // 前回の内省の後のノートが、元の問いとは別の開いた問いに答えていそうなもの。足は並べるだけ
+      const hints = closeHints(
+        store.notes(),
+        store.questions(),
+        (id) => store.noteBody(id),
+        w.lastSelf?.at,
+      );
       const { output, usage } = await head.think<ReflectAnswer>({
         task: "reflect",
         system: sys(),
@@ -869,7 +885,16 @@ export async function step(legs: Legs): Promise<StepOutcome> {
               store.notes(),
               (id) => store.noteBody(id),
             ),
-            handoffs: { ...handoffs, mode: cfg.ownerCorrections },
+            handoffs: {
+              ...handoffs,
+              groups: groupCorrections(
+                handoffs.pending,
+                ownerChats,
+                store.questions(),
+              ),
+              mode: cfg.ownerCorrections,
+            },
+            closeHints: shownCloseHints(hints),
             chats: store.recentChats(5),
             followups: adviceFollowups(store.recentChats(30), store.notes()),
             stances: (store.walk().stances ?? []).slice(0, 10),
@@ -883,6 +908,7 @@ export async function step(legs: Legs): Promise<StepOutcome> {
                   store.questions(),
                   restingThemes(w.recentThemes, cfg),
                   t.steps,
+                  hints,
                 ),
               };
             })(),
@@ -972,7 +998,14 @@ export async function step(legs: Legs): Promise<StepOutcome> {
         store.saveWalk({
           ...w3,
           ownerCorrections: dropShownDelivered(
-            addOwnerCorrections(taken.ledger, output.owner_corrections, now),
+            addOwnerCorrections(
+              taken.ledger,
+              output.owner_corrections,
+              now,
+              undefined,
+              undefined,
+              { chats: ownerChats },
+            ),
             handoffs.delivered.map((c) => c.id),
           ),
         });

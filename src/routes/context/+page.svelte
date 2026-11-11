@@ -40,10 +40,10 @@
       <section class="panel">
         <div class="panel-head">
           <h2>あなたに伝えていない訂正({data.corrections.length})</h2>
-          <span class="tag warn">話題が合えば話す</span>
+          <span class="fact">話題が合えば話す</span>
         </div>
-        <ul class="rows">
-          {#each data.corrections as c (c.id)}<li class="small">
+        <ul class="item-list">
+          {#each data.corrections as c (c.id)}<li class="item small">
               <span class="muted">{when(c.at).slice(5, 10)}</span>
               {c.text}
             </li>{/each}
@@ -69,21 +69,23 @@
     <section class="panel">
       <div class="panel-head">
         <h2>次の一歩</h2>
-        <span class="tag accent">前回の内省で決めた</span>
+        <span class="fact">前回の内省で決めた</span>
       </div>
       {#if data.intentions.length}
-        <ul class="rows">
-          {#each data.intentions as i, k (k)}<li class="small">{i}</li>{/each}
+        <ul class="item-list">
+          {#each data.intentions as i, k (k)}<li class="item small">
+              {i}
+            </li>{/each}
         </ul>
       {:else}
         <p class="empty">まだ無い。</p>
       {/if}
     </section>
 
-    <section class="panel list">
+    <section class="panel">
       <div class="panel-head">
         <h2>よそ者との対話</h2>
-        <span class="tag"
+        <span class="fact"
           >{data.stranger.enabled
             ? `内省の前に ${data.stranger.model} と ${data.stranger.turns} 往復`
             : "止めている"}</span
@@ -93,15 +95,14 @@
         持ち主の地図を知らない別のモデルと話して、個性の種を外から持ち込む。相手の関心の分野は足がさいころで選ぶ。
       </p>
       {#if data.dialogues.length}
-        <div class="stack" style="--gap: 0.5rem">
+        <div class="item-list">
           {#each data.dialogues as d (d.at)}
-            <details class="fold dialogue">
+            <details class="fold dialogue item">
               <summary>
-                <span class="tag accent">{d.field}</span>
                 <span class="grow">{d.takeaway || "持ち帰りは無し"}</span>
-                <span class="tiny muted nums">{when(d.at)}</span>
+                <span class="tiny muted nums">{d.field}・{when(d.at)}</span>
               </summary>
-              <div class="stack" style="--gap: 0.5rem">
+              <div class="stack" style="--gap: var(--dp-space-3)">
                 {#each d.turns as t, k (k)}
                   <p class="small turn {t.by}">
                     <strong>{t.by === "ashi" ? "Ashi" : d.field}</strong
@@ -141,14 +142,15 @@
     <section class="panel">
       <div class="panel-head">
         <h2>橋の候補({data.bridges.length})</h2>
-        <span class="tag">個性で思いついた、まだ推測の持ち帰り</span>
+        <span class="fact">個性で思いついた、まだ推測の持ち帰り</span>
       </div>
       {#if data.bridges.length}
-        <ul class="rows">
+        <ul class="item-list">
           {#each data.bridges.slice(0, BRIDGES_SHOWN) as b (b.id)}
-            <li class="small bridge">
-              <span class="tag info">{b.toTheme}</span>
-              <span class="grow">{b.idea}</span>
+            <li class="item small bridge">
+              <span class="grow"
+                >{b.idea}<span class="sub">{b.toTheme}</span></span
+              >
               {#if b.fromNoteId}<a class="tiny" href="/notes/{b.fromNoteId}"
                   >元のノート</a
                 >{/if}
@@ -160,11 +162,12 @@
             <summary class="small"
               >残り {data.bridges.length - BRIDGES_SHOWN} 件</summary
             >
-            <ul class="rows">
+            <ul class="item-list">
               {#each data.bridges.slice(BRIDGES_SHOWN) as b (b.id)}
-                <li class="small bridge">
-                  <span class="tag info">{b.toTheme}</span>
-                  <span class="grow">{b.idea}</span>
+                <li class="item small bridge">
+                  <span class="grow"
+                    >{b.idea}<span class="sub">{b.toTheme}</span></span
+                  >
                   {#if b.fromNoteId}<a class="tiny" href="/notes/{b.fromNoteId}"
                       >元のノート</a
                     >{/if}
@@ -194,7 +197,7 @@
       <pre class="small">{data.config}</pre>
     </details>
 
-    <section class="panel danger">
+    <section class="panel">
       <div class="panel-head">
         <h2>学びをリセット</h2>
       </div>
@@ -223,10 +226,8 @@
           class="confirm"
           autocomplete="off"
         />
-        <button
-          type="submit"
-          class="outline small reset"
-          disabled={data.stepping}>学びをリセットする</button
+        <button type="submit" class="small danger" disabled={data.stepping}
+          >学びをリセットする</button
         >
       </form>
     </section>
@@ -242,16 +243,9 @@
 </div>
 
 <style>
-  .danger {
-    border-color: var(--ui-err-bg);
-  }
   .confirm {
     width: 16rem;
     margin: 0;
-  }
-  .reset {
-    border-color: var(--ui-err);
-    color: var(--ui-err);
   }
   pre {
     margin: 0;
@@ -261,23 +255,18 @@
     align-items: flex-start;
   }
   .more {
-    margin-top: 0.5rem;
+    margin-top: var(--dp-space-2);
   }
   .dialogue summary {
     display: flex;
-    align-items: center;
-    gap: 0.5rem;
+    align-items: baseline;
+    gap: var(--dp-space-2);
   }
+  /* 会話は地にそのまま並べる(吹き出しで囲まない)。話し手は頭の太字で分かる */
   .turn {
     margin: 0;
-    padding: 0.5rem 0.75rem;
-    border-radius: var(--pico-border-radius);
-    background: var(--ui-base-200);
-  }
-  .turn.ashi {
-    background: var(--ui-accent-bg);
   }
   .turn strong {
-    margin-right: 0.5rem;
+    margin-right: var(--dp-space-2);
   }
 </style>

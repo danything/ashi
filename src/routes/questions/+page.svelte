@@ -34,25 +34,23 @@
 
 <svelte:head><title>問い | Ashi</title></svelte:head>
 
-<div class="stack" style="--gap: 0.75rem">
+<div class="stack">
   <div class="panes">
     {#each columns as c (c.track)}
       <section class="pane">
         <div class="pane-head">
           <span class="pane-name">{TRACK_LABEL[c.track]}</span>
-          <span class="tag {c.track === 'owner' ? 'info' : 'accent'}"
-            >{c.qs.length} 本</span
-          >
+          <span class="count">{c.qs.length} 本</span>
           <span class="hint" title={c.hint}>{c.hint}</span>
           {#if c.track === "self"}
             <span
-              class="tag"
+              class="fact"
               title="個性の問いのうち、親をたどって先回りの問い・持ち主の地図・持ち主との対話・X での持ち主との会話に行き着くもの。問い探しから生まれたもの・記録の無いものは分母に入れない"
               >持ち主から {data.pull.fromOwner} / {data.pull.known}</span
             >
             {#if data.landing.total}
               <span
-                class="tag"
+                class="fact"
                 title="よそ者との対話から生まれた問いの着地。持ち主由来のテーマ / 前からの自分のテーマ / 新しいテーマ。持ち主や自分のテーマが多ければ、頭が相手の話を引き戻している。確かめの借り {data
                   .landing
                   .verify} 本は、足がテーマ「確かめること」に入れるので数えていない"
@@ -66,24 +64,23 @@
         </div>
         <div class="panel">
           {#if c.qs.length}
-            <ul class="rows">
+            <ul class="item-list">
               {#each c.qs as q (q.id)}
-                <li class="q">
+                <li class="item q">
                   <span class="grow">
                     {q.text}
                     {#if q.echoes}<span
                         class="tag warn"
                         title="ほぼ同じ問いがまた出た回数">×{q.echoes + 1}</span
                       >{/if}
-                    <span class="tiny muted meta">
+                    <span class="sub">
                       {q.theme}{q.source
                         ? ` ・ ${SOURCE[q.source] ?? q.source}${q.via ? `(${q.via})` : ""}`
                         : ""}{q.visits ? ` ・ ${q.visits} 歩` : ""}
                     </span>
                     {#if q.bridgedFrom}
-                      <span class="tiny muted meta"
-                        ><span class="tag accent">橋渡し</span>
-                        個性の問い「{q.bridgedFrom}」から</span
+                      <span class="sub"
+                        >橋渡し・個性の問い「{q.bridgedFrom}」から</span
                       >
                     {/if}
                   </span>
@@ -115,14 +112,12 @@
             <ul class="rows">
               {#each c.parked as q (q.id)}
                 <li>
-                  <span class="tag {q.track === 'owner' ? 'info' : 'accent'}"
-                    >{TRACK_LABEL[q.track]}</span
-                  >
                   <span class="grow small">
                     {q.text}
                     <span class="tiny muted meta"
-                      >探した場所: {(q.searchedWhere ?? []).join("、") ||
-                        "記録なし"}</span
+                      >{TRACK_LABEL[q.track]}・探した場所: {(
+                        q.searchedWhere ?? []
+                      ).join("、") || "記録なし"}</span
                     >
                   </span>
                   <form method="POST" action="?/reopen" use:enhance>
@@ -164,29 +159,30 @@
   }
   .meta {
     display: block;
-    margin-top: 0.15rem;
+    margin-top: 0.125rem;
   }
-  .rows form {
-    margin: 0;
+  .rows > li {
+    align-items: center;
   }
   .score {
     flex: none;
     width: 3.5rem;
-    color: var(--ui-muted);
-    font-size: 0.8rem;
+    color: var(--dp-muted);
+    font-size: var(--dp-text-xs);
     text-align: right;
   }
+  /* 点数の棒。淡い溝に主の色 */
   .bar {
     display: block;
     height: 0.25rem;
-    margin-top: 0.2rem;
-    border-radius: 999px;
-    background: var(--ui-base-200);
+    margin-top: var(--dp-space-1);
+    border-radius: var(--dp-radius-full);
+    background: var(--dp-subtle);
   }
   .bar > span {
     display: block;
     height: 100%;
     border-radius: inherit;
-    background: var(--pico-primary);
+    background: var(--pico-primary-background);
   }
 </style>

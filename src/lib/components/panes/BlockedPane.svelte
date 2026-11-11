@@ -33,28 +33,32 @@
   >
 </div>
 
-{#each data.open as b (b.key)}
-  <article class="panel item">
-    <div class="cluster">
-      <span class="icon"><Icon name="alert" /></span>
-      <strong class="grow">{b.title}</strong>
-      <span class="tag warn">{SOURCE[b.source] ?? b.source}</span>
-    </div>
-    <p class="tiny muted nums">
-      {b.count} 回・最初 {when(b.firstAt)}・最後 {when(b.lastAt)}
-    </p>
-    {#if b.detail}<pre class="detail tiny">{b.detail}</pre>{/if}
-    <div class="note info small prose">{@html b.remedyHtml}</div>
-    <form method="POST" action="/blocked?/resolve" use:enhance>
-      <input type="hidden" name="key" value={b.key} />
-      <button type="submit" class="outline mini"
-        ><Icon name="check" size={0.9} />対応した・気にしない</button
-      >
-    </form>
-  </article>
-{:else}
-  <div class="panel"><p class="empty">いま弾かれていることは無い。</p></div>
-{/each}
+<div class="item-list">
+  {#each data.open as b (b.key)}
+    <!-- 1 件ずつ件の面に乗せる。注意の印は頭のアイコンだけ(左の線は引かない) -->
+    <article class="item blocked">
+      <div class="cluster">
+        <span class="icon"><Icon name="alert" /></span>
+        <strong class="grow">{b.title}</strong>
+      </div>
+      <p class="tiny muted nums">
+        {SOURCE[b.source] ?? b.source}・{b.count} 回・最初 {when(
+          b.firstAt,
+        )}・最後 {when(b.lastAt)}
+      </p>
+      {#if b.detail}<pre class="detail tiny">{b.detail}</pre>{/if}
+      <div class="note info small prose">{@html b.remedyHtml}</div>
+      <form method="POST" action="/blocked?/resolve" use:enhance>
+        <input type="hidden" name="key" value={b.key} />
+        <button type="submit" class="outline mini"
+          ><Icon name="check" size={0.9} />対応した・気にしない</button
+        >
+      </form>
+    </article>
+  {:else}
+    <p class="empty">いま弾かれていることは無い。</p>
+  {/each}
+</div>
 
 {#if data.closed.length}
   <details class="fold">
@@ -72,25 +76,18 @@
 {/if}
 
 <style>
-  .item {
+  .blocked {
     display: flex;
     flex-direction: column;
-    gap: 0.6rem;
-    border-left: 4px solid var(--ui-warn);
+    gap: var(--dp-space-2);
   }
   .icon {
     display: inline-flex;
-    color: var(--ui-warn);
+    color: var(--dp-warn-text);
   }
   .detail {
     margin: 0;
-    border-radius: 0.5rem;
-    background: var(--ui-base-200);
-    padding: 0.5rem 0.7rem;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
-  }
-  form {
-    margin: 0;
   }
 </style>

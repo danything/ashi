@@ -6,60 +6,53 @@
 
 <svelte:head><title>ログイン | Ashi</title></svelte:head>
 
-<main class="login">
-  <div class="panel card stack">
-    <div class="brand"><Logo />Ashi</div>
-    <p class="lead">AIに、足を。</p>
-    <p class="small muted">
-      自分で歩き出し、行き先を選び、寄り道し、疲れたら休む AI です。
+<!-- 1 つのことだけを言う、見せる画面。枠で囲まず左に揃え、地に主の色の淡い光を敷く(`app.css` の `.solo`・`.glow`) -->
+<main class="solo glow">
+  <div class="brand"><Logo />Ashi</div>
+  <h1 class="lead">AIに、足を。</h1>
+  <p class="small">
+    自分で歩き出し、行き先を選び、寄り道し、疲れたら休む AI です。
+  </p>
+  {#if data.configured}
+    <a
+      class="button big"
+      href="/auth/login?to={encodeURIComponent(data.to)}"
+      data-sveltekit-reload
+    >
+      Microsoft でログイン
+    </a>
+    <p class="tiny">
+      持ち主のテナントで、アプリロールを割り当てられた人だけが入れます。
     </p>
-    {#if data.configured}
-      <a
-        class="button big"
-        href="/auth/login?to={encodeURIComponent(data.to)}"
-        data-sveltekit-reload
-      >
-        Microsoft でログイン
-      </a>
-      <p class="tiny muted">
-        持ち主のテナントで、アプリロールを割り当てられた人だけが入れます。
-      </p>
-    {:else}
-      <p class="note warn small">
-        Entra ID
-        のログインが設定されていません(ENTRA_TENANT_ID・ENTRA_CLIENT_ID・ENTRA_CLIENT_SECRET・SESSION_SECRET)。
-      </p>
-    {/if}
-  </div>
+  {:else}
+    <p class="note warn small">
+      Entra ID
+      のログインが設定されていません(ENTRA_TENANT_ID・ENTRA_CLIENT_ID・ENTRA_CLIENT_SECRET・SESSION_SECRET)。
+    </p>
+  {/if}
 </main>
 
 <style>
-  .login {
-    display: grid;
-    min-height: 100vh;
-    place-items: center;
-    padding: 1rem;
-  }
-  .card {
-    width: min(24rem, 100%);
-    padding: 2rem 1.75rem;
-    text-align: center;
-  }
   .brand {
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 0.6rem;
+    gap: var(--dp-space-3);
     color: var(--pico-primary);
-    font-size: 1.6rem;
-    font-weight: 700;
+    font-size: var(--dp-text-xl);
+    font-weight: var(--dp-weight-bold);
   }
   .brand :global(svg) {
     width: 2.4rem;
     height: 2.4rem;
   }
   .lead {
-    font-size: 1.1rem;
-    font-weight: 600;
+    font-size: var(--dp-text-lg);
+  }
+  .button {
+    margin-block: var(--dp-space-2);
+  }
+  /* 通知の字は本文の色のまま(`.solo p` の控えた字にしない) */
+  .note {
+    color: var(--dp-fg);
   }
 </style>

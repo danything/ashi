@@ -68,15 +68,15 @@
 
   function palette() {
     return {
-      bg: css("--ui-surface") || "#fff",
-      owner: css("--ui-info") || "#1d5fb8",
+      bg: css("--dp-bg") || "#fff",
+      owner: css("--pico-primary") || "#0172ad",
       self: css("--ui-accent") || "#5f8f3e",
-      closed: css("--ui-base-300") || "#dde2ea",
-      note: css("--ui-muted") || "#5d6778",
-      origin: css("--ui-warn") || "#9a5a06",
+      closed: css("--dp-line-strong") || "#cfd5e2",
+      note: css("--dp-muted") || "#555e70",
+      origin: css("--dp-warn") || "#c79400",
       idea: "#8b6fd6",
-      me: css("--ui-err") || "#b3261e",
-      line: css("--ui-muted") || "#5d6778",
+      me: css("--dp-rec") || "#d93526",
+      line: css("--dp-muted") || "#555e70",
     };
   }
   type Palette = ReturnType<typeof palette>;
@@ -347,7 +347,7 @@
   <div class="map-wrap">
     <div class="canvas" bind:this={el}></div>
 
-    <div class="overlay controls">
+    <div class="overlay float controls">
       <div class="row head-row">
         <button
           type="button"
@@ -395,7 +395,7 @@
       </div>
     </div>
 
-    <div class="overlay legend">
+    <div class="overlay float legend">
       {#each LEGEND_NODES as [k, label] (k)}
         <span><i class="dot k-{k}"></i>{label}</span>
       {/each}
@@ -406,19 +406,17 @@
     </div>
 
     {#if selected}
-      <aside class="overlay detail">
+      <aside class="overlay float detail">
         <div class="cluster">
-          {#if selected.kind === "question"}
-            <span class="tag {selected.track === 'owner' ? 'info' : 'accent'}"
-              >{TRACK_LABEL[selected.track ?? "owner"]}</span
-            >
-            <span class="muted tiny"
-              >{STATUS_LABEL[selected.status ?? ""] ?? selected.status}</span
-            >
-          {:else}
-            <span class="tag">{KIND_LABEL[selected.kind]}</span>
-          {/if}
-          <span class="muted tiny grow">{selected.theme ?? ""}</span>
+          <span class="muted tiny grow">
+            {#if selected.kind === "question"}
+              {TRACK_LABEL[selected.track ?? "owner"]}・{STATUS_LABEL[
+                selected.status ?? ""
+              ] ?? selected.status}
+            {:else}
+              {KIND_LABEL[selected.kind]}
+            {/if}{selected.theme ? `・${selected.theme}` : ""}
+          </span>
           <button
             type="button"
             class="ghost small close"
@@ -441,9 +439,12 @@
 {/if}
 
 <style>
-  /* ヘッダーの下を全部、図に使う(ページの余白も外す) */
+  /*
+   * ヘッダーの下を全部、図に使う(ページの余白も外す)。自分で画面を埋める画面なので、箱は浮いたヘッダーの
+   * 下から始める(窓が巻けないので、ヘッダーはいつも平ら)。スマホの形では図を画面の下の端まで伸ばし、下のタブを図の上に浮かせる
+   */
   :global(div.site:has(.map-wrap)) {
-    height: 100vh;
+    height: 100svh;
     overflow: hidden;
   }
   :global(main.site-main:has(.map-wrap)) {
@@ -457,28 +458,26 @@
     flex: 1 1 0;
     min-height: 20rem;
     overflow: hidden;
-    background: var(--ui-surface);
+    background: var(--dp-bg);
   }
   .canvas {
     position: absolute;
     inset: 0;
   }
-  /* 図の上に重ねる小さな枠。後ろの図が少し透ける */
+  /*
+   * 図の上に重ねる操作・凡例・中身。動く図の上に重なるので操作の層(`app.css` の `.float`:
+   * 面と影だけ。縁もぼかしも付けない)。中のボタンは浮かせず太字だけ
+   */
   .overlay {
     position: absolute;
     z-index: 2;
-    border: 1px solid var(--ui-base-300);
-    border-radius: 0.75rem;
-    background: color-mix(in srgb, var(--ui-surface) 86%, transparent);
-    box-shadow: var(--ui-shadow);
-    padding: 0.5rem 0.75rem;
-    backdrop-filter: blur(4px);
+    padding: var(--dp-space-2) var(--dp-space-3);
   }
   .controls {
-    top: 0.75rem;
-    left: 0.75rem;
+    top: var(--dp-space-3);
+    left: var(--dp-space-3);
     display: grid;
-    gap: 0.35rem;
+    gap: var(--dp-space-1);
     width: min(30rem, calc(100% - 1.5rem));
   }
   /* 再生中に数の桁が変わっても、折り返したり戻ったりして枠の高さが揺れないように */
@@ -499,41 +498,42 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.3rem 0.75rem;
+    gap: var(--dp-space-1) var(--dp-space-3);
   }
   .controls input[type="range"] {
     margin: 0;
   }
   .toggles label {
     margin: 0;
-    font-size: 0.8rem;
+    font-size: var(--dp-text-xs);
   }
   .legend {
-    bottom: 0.75rem;
-    left: 0.75rem;
+    /* スマホの形では、下のタブのすぐ上 */
+    bottom: calc(var(--dp-tabbar) + var(--dp-space-3));
+    left: var(--dp-space-3);
     display: flex;
     flex-wrap: wrap;
-    gap: 0.2rem 0.8rem;
+    gap: var(--dp-space-1) var(--dp-space-3);
     max-width: calc(100% - 1.5rem);
-    font-size: 0.75rem;
+    font-size: var(--dp-text-xs);
   }
   .legend span {
     display: inline-flex;
     align-items: center;
-    gap: 0.3rem;
+    gap: var(--dp-space-1);
   }
   .detail {
-    top: 0.75rem;
-    right: 0.75rem;
+    top: var(--dp-space-3);
+    right: var(--dp-space-3);
     width: min(22rem, calc(100% - 1.5rem));
     max-height: calc(100% - 5rem);
     overflow: auto;
   }
   .detail p {
-    margin: 0.5rem 0;
+    margin: var(--dp-space-2) 0;
   }
   .close {
-    padding: 0 0.5rem;
+    padding: 0 var(--dp-space-2);
     line-height: 1.4;
   }
   /* 凡例の印。k- を付けるのは、全体の .note(お知らせの枠)などと名前がぶつかって形が崩れたから */
@@ -549,10 +549,11 @@
     flex: none;
     width: 1.1rem;
     height: 2px;
-    background: var(--ui-muted);
+    background: var(--dp-muted);
   }
+  /* 点の色は図の中の種類の見本(図の中だけ)。先回りは主の色、個性は葦の緑 */
   .k-owner {
-    background: var(--ui-info);
+    background: var(--pico-primary);
   }
   .k-self,
   .bar.k-bridge {
@@ -563,32 +564,37 @@
   }
   .k-closed,
   .bar.k-merged {
-    background: var(--ui-base-300);
+    background: var(--dp-line-strong);
   }
   .k-note {
-    background: var(--ui-muted);
+    background: var(--dp-muted);
   }
   .k-origin {
-    background: var(--ui-warn);
+    background: var(--dp-warn);
   }
   .k-idea {
     background: #8b6fd6;
   }
   .k-me {
-    background: var(--ui-err);
+    background: var(--dp-rec);
   }
   .bar.k-near {
     height: 1px;
     opacity: 0.5;
   }
+  /* 点に乗せたときの一言。メニューと同じ面と影(縁は付けない) */
   :global(.map-tip) {
     max-width: 20rem;
-    padding: 0.35rem 0.5rem;
-    border-radius: 0.35rem;
-    background: rgb(20 26 40 / 0.88);
-    color: #fff;
-    font-size: 0.85rem;
+    border-radius: var(--dp-radius);
+    background: var(--dp-pop);
+    box-shadow: var(--dp-shadow-pop);
+    padding: var(--dp-space-2) var(--dp-space-3);
+    color: var(--dp-fg);
+    font-size: var(--dp-text-sm);
     line-height: 1.5;
     white-space: normal;
+  }
+  :global(.map-tip small) {
+    color: var(--dp-muted);
   }
 </style>

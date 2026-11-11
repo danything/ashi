@@ -46,9 +46,9 @@
 
 <svelte:head><title>いま | Ashi</title></svelte:head>
 
-<div class="stack" style="--gap: 0.75rem">
+<div class="stack" style="--gap: var(--dp-space-6)">
   <div class="stats">
-    <div class="panel stat">
+    <div class="stat">
       <span class="label"><Icon name="footprints" size={0.9} />今日の歩数</span>
       <span class="value"
         >{stepsToday}<span class="unit">
@@ -60,7 +60,7 @@
       </div>
       <span class="sub">通算 {data.walk.steps} 歩</span>
     </div>
-    <div class="panel stat">
+    <div class="stat">
       <span class="label">
         <Icon name="moon" size={0.9} />次に起きる
         {#if data.paused}
@@ -114,7 +114,7 @@
         </span>
       </span>
     </div>
-    <div class="panel stat">
+    <div class="stat">
       <span class="label"
         ><Icon name="wallet" size={0.9} />{subscription
           ? "頭"
@@ -145,7 +145,7 @@
         <span class="sub">{data.cfg.model}</span>
       {/if}
     </div>
-    <div class="panel stat">
+    <div class="stat">
       <span class="label"><Icon name="help" size={0.9} />開いている問い</span>
       <span class="value">{data.counts.open}</span>
       <span class="sub"
@@ -153,7 +153,7 @@
           .counts.answered}</span
       >
     </div>
-    <div class="panel stat">
+    <div class="stat">
       <span class="label"><Icon name="book" size={0.9} />ノート</span>
       <span class="value">{data.counts.notes}</span>
       <span class="sub"
@@ -172,14 +172,13 @@
       </div>
       <div class="panel">
         {#if data.next.length}
-          <ul class="rows">
+          <ul class="item-list">
             {#each data.next as q (q.id)}
-              <li>
-                <span class="tag {q.track === 'owner' ? 'info' : 'accent'}"
-                  >{TRACK_LABEL[q.track]}</span
-                >
+              <li class="item">
                 <span class="grow"
-                  >{q.text}<span class="muted tiny"> ・ {q.theme}</span></span
+                  >{q.text}<span class="sub"
+                    >{TRACK_LABEL[q.track]}・{q.theme}</span
+                  ></span
                 >
                 <span class="nums muted tiny">{q.score.toFixed(2)}</span>
               </li>
@@ -199,12 +198,12 @@
       </div>
       <div class="panel">
         {#if data.notes.length}
-          <ul class="rows">
+          <ul class="item-list">
             {#each data.notes as n (n.id)}
-              <li>
+              <li class="item">
                 <span class="grow">
                   <a href="/notes/{n.id}">{n.title}</a>
-                  <span class="muted tiny clamp2">{n.summary}</span>
+                  <span class="sub clamp2">{n.summary}</span>
                 </span>
                 <span class="muted tiny nums"
                   >{when(n.createdAt).slice(5, 10)}</span
@@ -240,15 +239,14 @@
                       {e.question}</span
                     >{/if}
                   {#if typeof e.title === "string"}<span> {e.title}</span>{/if}
-                  {#if typeof e.field === "string"}<span class="tag accent"
-                      >{e.field}</span
+                  {#if typeof e.field === "string"}<span class="muted">
+                      {e.field}</span
                     >{/if}
                   {#if Array.isArray(e.proposed) && e.proposed.length}<a
-                      class="tag"
                       href="/proposals">改善案</a
                     ><span class="muted"> {e.proposed.join(" / ")}</span>{/if}
                   {#if Array.isArray(e.bridged) && e.bridged.length}<span
-                      class="tag accent">橋渡し</span
+                      >橋渡し</span
                     ><span class="muted"> {e.bridged.join(" / ")}</span>{/if}
                   {#if typeof e.error === "string"}<span class="muted">
                       {e.error}</span
@@ -273,51 +271,39 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.5rem;
-  }
-  .wake form {
-    margin: 0;
-  }
-  .unit {
-    color: var(--ui-muted);
-    font-size: 0.85rem;
-    font-weight: 600;
+    gap: var(--dp-space-2);
   }
   .small-value {
-    font-size: 1.1rem;
+    font-size: var(--dp-text-lg);
   }
-  /* 1 件ずつのカード */
+  /* 足どりは 1 行の並び。地のまま、線も面も付けない。つまずきだけ、言葉の前に状態の色の点を添える */
   .timeline {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
     margin: 0;
     padding: 0;
     list-style: none;
   }
   .timeline li {
-    position: relative;
     display: flex;
-    gap: 0.75rem;
+    gap: var(--dp-space-3);
     align-items: baseline;
-    border: 1px solid var(--ui-line);
-    border-radius: 0.75rem;
-    padding: 0.6rem 0.9rem 0.6rem 1.75rem;
-    font-size: 0.9rem;
+    padding: 0.375rem 0;
+    font-size: var(--dp-text-sm);
     list-style: none;
   }
-  .timeline li::before {
-    content: "";
-    position: absolute;
-    top: 1.05rem;
-    left: 0.85rem;
-    width: 0.45rem;
-    height: 0.45rem;
-    border-radius: 999px;
-    background: var(--ui-accent);
+  .timeline li.bad strong {
+    color: var(--dp-rec-text);
   }
-  .timeline li.bad::before {
-    background: var(--ui-err);
+  .timeline li.bad strong::before {
+    content: "";
+    display: inline-block;
+    width: 0.375rem;
+    height: 0.375rem;
+    margin-inline-end: 0.375rem;
+    vertical-align: 0.125em;
+    border-radius: var(--dp-radius-full);
+    background: var(--dp-rec);
   }
   .timeline .when {
     flex: none;

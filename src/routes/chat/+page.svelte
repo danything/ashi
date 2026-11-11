@@ -139,7 +139,7 @@
         <span>前回({when(data.past.at(-1)?.at)})からの続き</span>
       </p>
     {:else if msgs.length === 0}
-      <div class="panel soft hello small">
+      <div class="hello small muted">
         <p>たとえば:</p>
         <ul>
           <li>最近何を覚えた?</li>
@@ -154,7 +154,7 @@
       {:else}
         <div class="ashi" data-msg>
           <span class="avatar"><Logo /></span>
-          <div class="panel bubble">
+          <div class="bubble">
             <div class="prose">{@html m.html ?? m.text}</div>
             {#if m.added?.length}
               <p class="note info tiny">問いに加えた: {m.added.join(" / ")}</p>
@@ -169,14 +169,14 @@
     {#if busy || waiting}
       <div class="ashi">
         <span class="avatar"><Logo /></span>
-        <div class="panel bubble cluster small muted">
+        <div class="bubble cluster small muted">
           <span class="spin"></span>考えている(ノートを引いていると数十秒かかる)
         </div>
       </div>
     {/if}
   </div>
 
-  <form class="composer panel" onsubmit={send}>
+  <form class="composer float" onsubmit={send}>
     {#if problem}<p class="note err small">{problem}</p>{/if}
     {#if unsaid.count}
       <p class="unsaid tiny muted">
@@ -211,71 +211,82 @@
   .chat {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: var(--dp-space-4);
   }
   .log {
     display: flex;
     flex-direction: column;
-    gap: 0.9rem;
+    gap: var(--dp-space-5);
   }
+  /* 前回からの続きの一言。線で区切らず、控えた字を真ん中に置くだけ */
   .divider {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-  }
-  .divider::before,
-  .divider::after {
-    content: "";
-    flex: 1;
-    border-top: 1px solid var(--ui-base-300);
+    text-align: center;
   }
   .hello ul {
-    margin: 0.25rem 0 0;
+    margin: var(--dp-space-1) 0 0;
     padding-left: 1.2rem;
   }
+  /*
+   * 発言は地にそのまま置き、吹き出しで囲まない。自分(持ち主)の発言は、塗らずに左の縦線で示す
+   * (左の縦線は「自分のもの」の印)。Ashi の返事は頭にロゴを置く
+   */
   .me {
-    align-self: flex-end;
-    max-width: 80%;
-    border-radius: 1rem 1rem 0.25rem 1rem;
-    background: var(--pico-primary-background);
-    padding: 0.6rem 0.9rem;
-    color: var(--pico-primary-inverse);
+    position: relative;
+    max-width: 92%;
+    margin-inline-start: calc(1.6rem + var(--dp-space-3));
+    padding-inline-start: var(--dp-space-3);
     white-space: pre-wrap;
+  }
+  .me::before {
+    content: "";
+    position: absolute;
+    inset-block: 0.25rem;
+    left: 0;
+    width: var(--dp-mark);
+    border-radius: var(--dp-mark);
+    background: var(--pico-primary);
   }
   .ashi {
     display: flex;
     align-items: flex-start;
-    gap: 0.6rem;
+    gap: var(--dp-space-3);
     max-width: 92%;
   }
   .avatar {
     display: inline-flex;
-    margin-top: 0.2rem;
     color: var(--pico-primary);
   }
   .bubble {
+    display: flex;
     min-width: 0;
-    border-top-left-radius: 0.25rem;
-    padding: 0.75rem 1rem;
+    flex-direction: column;
+    gap: var(--dp-space-2);
   }
-  /* 入力欄は画面の下に貼り付ける */
+  .bubble.cluster {
+    flex-direction: row;
+  }
+  /*
+   * 入力欄は画面の下に貼り付ける。発言がその裏を流れるので、操作の層の面(`.float`)に乗せる。
+   * 中の「送る」は浮かせず太字だけ(浮いたものの上に、さらに浮いたものを重ねない)
+   */
   .composer {
     position: sticky;
     /* ページ下の余白と同じ位置に貼り付ける(違うと、いちばん下まで来たときに入力欄がずれる) */
-    bottom: var(--main-pad-bottom);
+    bottom: calc(var(--dp-gutter) + var(--dp-tabbar));
+    z-index: var(--dp-z-dock);
     display: flex;
     flex-direction: column;
-    gap: 0.4rem;
-    padding: 0.5rem;
+    gap: var(--dp-space-2);
+    padding: var(--dp-bar-pad);
   }
   .unsaid {
     margin: 0;
-    padding: 0 0.25rem;
+    padding: 0 var(--dp-space-1);
   }
   .line {
     display: flex;
     align-items: flex-end;
-    gap: 0.5rem;
+    gap: var(--dp-space-2);
   }
   .line textarea {
     flex: 1;
@@ -283,12 +294,12 @@
     resize: none;
     /* 書いた分だけ伸びる(対応していないブラウザでは 1 行のまま中でスクロール) */
     field-sizing: content;
-    min-height: 2.6rem;
+    min-height: 2.625rem;
     max-height: 10rem;
   }
   .line button {
     flex: none;
     margin: 0;
-    min-height: 2.6rem;
+    min-height: 2.625rem;
   }
 </style>

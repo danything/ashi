@@ -37,7 +37,7 @@
 {#if form?.message}<p class="note err small">{form.message}</p>{/if}
 {#if form?.added}<p class="note ok small">渡した: {form.added}</p>{/if}
 
-<article class="panel doc prose">{@html data.html}</article>
+<article class="prose">{@html data.html}</article>
 
 <section class="panel">
   <div class="panel-head">
@@ -54,14 +54,13 @@
     >で。
   </p>
   {#if data.feeds.length}
-    <ul class="rows feeds">
+    <ul class="item-list">
       {#each data.feeds as f (f.id)}
-        <li>
-          <span class="tag">{f.kind}</span>
+        <li class="item">
           <span class="grow">
             {f.title ?? f.target}
-            <span class="muted tiny">
-              {f.state?.lastCrawledAt
+            <span class="sub">
+              {f.kind}・{f.state?.lastCrawledAt
                 ? `${when(f.state.lastCrawledAt)} に読んだ・新しいもの ${f.state.lastNew} 件`
                 : "まだ読んでいない"}
             </span>
@@ -124,13 +123,14 @@
     <ul class="rows">
       {#each data.sources as s (s.id)}
         <li>
-          <span class="tag">{KIND[s.kind] ?? s.kind}</span>
           <span class="grow small">
             {#if s.url}<a href={s.url} rel="noopener noreferrer" target="_blank"
                 >{s.title}</a
               >{:else}{s.title}{/if}
           </span>
-          <span class="muted tiny nums">{when(s.createdAt).slice(0, 10)}</span>
+          <span class="muted tiny nums"
+            >{KIND[s.kind] ?? s.kind}・{when(s.createdAt).slice(0, 10)}</span
+          >
           <form method="POST" action="/owner?/remove" use:enhance>
             <input type="hidden" name="id" value={s.id} />
             <button type="submit" class="ghost mini">外す</button>
@@ -144,19 +144,12 @@
 </section>
 
 <style>
-  .doc {
-    padding: 1.25rem 1.5rem;
-  }
-  .rows form {
-    margin: 0;
-  }
-  .feeds .grow {
-    display: flex;
-    flex-direction: column;
-  }
   .give {
     display: grid;
-    gap: 1rem;
+    gap: var(--dp-space-4);
     grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  }
+  .rows > li {
+    align-items: center;
   }
 </style>

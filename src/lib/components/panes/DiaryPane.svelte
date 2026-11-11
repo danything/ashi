@@ -24,35 +24,51 @@
 </div>
 
 {#if data.day}
-  <article class="panel doc prose">{@html data.html}</article>
+  <article class="prose">{@html data.html}</article>
 {:else}
   <div class="panel"><p class="empty">まだ日記が無い。</p></div>
 {/if}
 
 <style>
-  /* Pico は nav の中身を左右に振り分けるので、左から詰める(日付が端から端まで散らばっていた) */
+  /*
+   * 日付の並び。枠も地も付けず、選んでいる日は主の色の太字と、字の幅いっぱいの下線(塗らない)。
+   * Pico は nav の中身を左右に振り分けるので、左から詰める(日付が端から端まで散らばっていた)
+   */
   .days {
     display: flex;
     justify-content: flex-start;
-    gap: 0.25rem;
+    gap: 2px;
     overflow-x: auto;
     scrollbar-width: none;
   }
   .days a {
+    position: relative;
     flex: none;
-    border-radius: 999px;
-    padding: 0.2rem 0.7rem;
-    background: var(--ui-surface);
-    color: inherit;
-    font-size: 0.85rem;
+    border-radius: var(--dp-radius-full);
+    padding: 0.375rem var(--dp-space-3);
+    color: var(--dp-fg);
+    font-size: var(--dp-text-sm);
     text-decoration: none;
+    transition: background-color var(--dp-duration) var(--dp-ease);
+  }
+  .days a:hover {
+    background: var(--dp-hover-soft);
+  }
+  .days a:focus-visible {
+    outline-offset: -2px;
   }
   .days a[aria-current="page"] {
-    background: var(--pico-primary-background);
-    color: var(--pico-primary-inverse);
-    font-weight: 700;
+    color: var(--dp-primary-text);
+    font-weight: var(--dp-weight-bold);
   }
-  .doc {
-    padding: 1.25rem 1.5rem;
+  .days a[aria-current="page"]::after {
+    content: "";
+    position: absolute;
+    inset-inline: var(--dp-space-3);
+    bottom: 0.2rem;
+    height: var(--dp-mark);
+    border-radius: var(--dp-mark);
+    background: var(--pico-primary);
+    pointer-events: none;
   }
 </style>

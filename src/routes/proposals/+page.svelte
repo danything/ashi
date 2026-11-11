@@ -23,59 +23,61 @@
       >
     </div>
 
-    {#each data.open as p (p.id)}
-      <article class="panel item">
-        <div class="cluster">
-          <strong class="grow">{p.title}</strong>
-          {#if p.count > 1}<span class="tag warn">{p.count} 回出た</span>{/if}
-          <span class="muted tiny nums">{when(p.lastAt)}</span>
-        </div>
-        <div class="two">
-          <div>
-            <h3 class="lab">困ったこと</h3>
-            <div class="prose small">{@html p.whyHtml}</div>
+    <div class="item-list">
+      {#each data.open as p (p.id)}
+        <article class="item prop">
+          <div class="cluster">
+            <strong class="grow">{p.title}</strong>
+            {#if p.count > 1}<span class="tag warn">{p.count} 回出た</span>{/if}
+            <span class="muted tiny nums">{when(p.lastAt)}</span>
           </div>
-          <div>
-            <h3 class="lab">こうすればよさそう</h3>
-            <div class="prose small">{@html p.ideaHtml}</div>
+          <div class="two">
+            <div>
+              <h3 class="lab">困ったこと</h3>
+              <div class="prose small">{@html p.whyHtml}</div>
+            </div>
+            <div>
+              <h3 class="lab">こうすればよさそう</h3>
+              <div class="prose small">{@html p.ideaHtml}</div>
+            </div>
           </div>
-        </div>
-        <div class="cluster">
-          <a
-            class="button small"
-            href={p.newIssueUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Icon name="link" size={1} />issue にする
-          </a>
-          <form method="POST" action="?/filed" use:enhance class="cluster">
-            <input type="hidden" name="id" value={p.id} />
-            <input
-              name="issueUrl"
-              type="url"
-              placeholder="作った issue の URL(任意)"
-              aria-label="issue の URL"
-              class="url"
-            />
-            <button type="submit" class="outline small"
-              ><Icon name="check" size={1} />issue にした</button
+          <div class="cluster">
+            <a
+              class="button small"
+              href={p.newIssueUrl}
+              target="_blank"
+              rel="noopener noreferrer"
             >
-          </form>
-          <span class="grow"></span>
-          <form method="POST" action="?/done" use:enhance>
-            <input type="hidden" name="id" value={p.id} />
-            <button type="submit" class="ghost small">直した</button>
-          </form>
-          <form method="POST" action="?/dismiss" use:enhance>
-            <input type="hidden" name="id" value={p.id} />
-            <button type="submit" class="ghost small">見送る</button>
-          </form>
-        </div>
-      </article>
-    {:else}
-      <div class="panel"><p class="empty">いま開いている改善案は無い。</p></div>
-    {/each}
+              <Icon name="link" size={1} />issue にする
+            </a>
+            <form method="POST" action="?/filed" use:enhance class="cluster">
+              <input type="hidden" name="id" value={p.id} />
+              <input
+                name="issueUrl"
+                type="url"
+                placeholder="作った issue の URL(任意)"
+                aria-label="issue の URL"
+                class="url"
+              />
+              <button type="submit" class="outline small"
+                ><Icon name="check" size={1} />issue にした</button
+              >
+            </form>
+            <span class="grow"></span>
+            <form method="POST" action="?/done" use:enhance>
+              <input type="hidden" name="id" value={p.id} />
+              <button type="submit" class="ghost small">直した</button>
+            </form>
+            <form method="POST" action="?/dismiss" use:enhance>
+              <input type="hidden" name="id" value={p.id} />
+              <button type="submit" class="ghost small">見送る</button>
+            </form>
+          </div>
+        </article>
+      {:else}
+        <p class="empty">いま開いている改善案は無い。</p>
+      {/each}
+    </div>
 
     {#if data.done.length}
       <details class="fold">
@@ -116,23 +118,22 @@
 </div>
 
 <style>
-  .item {
+  .prop {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: var(--dp-space-3);
+  }
+  /* 題は、札と日時に押されて数文字ずつに折れないよう、幅が足りなければ行を分ける */
+  .prop strong {
+    flex-basis: 14rem;
   }
   .lab {
-    margin-bottom: 0.25rem;
-    color: var(--ui-muted);
-    font-size: 0.78rem;
-  }
-  form {
-    margin: 0;
+    margin-bottom: var(--dp-space-1);
   }
   .url {
     width: 16rem;
     margin: 0;
-    padding-block: 0.35rem;
-    font-size: 0.85rem;
+    padding-block: 0.375rem;
+    font-size: var(--dp-text-sm);
   }
 </style>

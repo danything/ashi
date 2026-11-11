@@ -19,7 +19,7 @@
 
 <svelte:head><title>設定 | Ashi</title></svelte:head>
 
-<div class="page-container stack">
+<div class="page-container stack sections">
   <div class="head">
     <h1>設定</h1>
   </div>
@@ -37,7 +37,7 @@
       保存した。次の 1 歩から効く。
     </p>{/if}
 
-  <form method="POST" action="?/save" use:enhance class="stack">
+  <form method="POST" action="?/save" use:enhance class="stack sections">
     <section class="panel">
       <div class="panel-head"><h2>頭</h2></div>
       <div class="grid">
@@ -278,7 +278,8 @@
       </div>
     </section>
 
-    <div class="cluster">
+    <!-- 主の操作は画面の下に置き、中身を送っても見えたままにする(操作の層に乗った主のボタン) -->
+    <div class="cluster save-bar">
       <button type="submit">保存する</button>
     </div>
   </form>
@@ -459,25 +460,38 @@
 </div>
 
 <style>
+  /* 節は地のまま、線でも面でも囲まず、見出しと余白で分ける */
+  .sections {
+    gap: var(--dp-space-6);
+  }
   .grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
-    gap: 0 1rem;
+    gap: var(--dp-space-3) var(--dp-space-4);
+  }
+  /* 「保存する」は、欄を送っても下に見えたままにする。下のタブ(スマホの形)のすぐ上 */
+  .save-bar {
+    position: sticky;
+    bottom: calc(var(--dp-gutter) + var(--dp-tabbar));
+    z-index: var(--dp-z-dock);
+    align-self: flex-start;
   }
   .feeds {
     display: grid;
     grid-template-columns: 1fr 7rem 2fr 1fr auto;
-    gap: 0.25rem 0.5rem;
+    gap: var(--dp-space-1) var(--dp-space-2);
     align-items: center;
     overflow-x: auto;
+    /* 焦点の線(外側の 2px)が、巻く箱の端で欠けないように */
+    padding: var(--dp-space-1);
   }
   .feeds :global(input),
   .feeds :global(select) {
     margin: 0;
   }
   .mono {
-    font-family: ui-monospace, monospace;
-    font-size: 0.8rem;
+    font-family: var(--dp-font-mono);
+    font-size: var(--dp-text-xs);
   }
   @media (max-width: 640px) {
     .feeds {

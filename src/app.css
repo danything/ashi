@@ -1,8 +1,13 @@
 /*
- * 見た目は Pico CSS(v2)の出来合いの CSS(+layout.svelte で読む)に、ここの共通クラスを足す。
- * 画面固有は各画面の <style> に閉じる。組み立て方はトドロク(app.scss)に合わせた。
- * 色は Pico の既定(azure)のまま。差し色だけ葦の緑を置く。フォントは束ねず OS のものを使う。
+ * 見た目の決まりは denpa の docs/design.md(「見た目の決まり」。https://github.com/danything/denpa/blob/main/docs/design.md)。
+ * 合言葉は「塗らない。囲みすぎない。浮かせすぎない。でも、ちゃんと伝わる。」。
+ * 値の名前(`--dp-*`)と部品の作りも denpa の `src/app.css` に合わせてある。Ashi だけの違いは CLAUDE.md の「画面」。
+ *
+ * 土台は Pico CSS(v2)。**Pico は `pico` の層(@layer)に入れて読む。** 層に入らないこちらの規則と
+ * 各画面の <style> は、詳細度に関係なく必ず Pico に勝つ(Pico の強い selector と張り合わない)。
+ * 画面固有の並べ方は各画面の <style> に閉じる。フォントは束ねず OS のものを使う。
  */
+@import "@picocss/pico/css/pico.min.css" layer(pico);
 
 :root {
   --pico-font-family-sans-serif:
@@ -13,94 +18,283 @@
   --pico-spacing: 1rem;
   --pico-typography-spacing-vertical: 0.75rem;
   --pico-form-element-spacing-vertical: 0.45rem;
-  --pico-form-element-spacing-horizontal: 0.7rem;
-  --pico-border-radius: 0.5rem;
-  /* ヘッダーの高さ。貼り付くものはこの下から */
-  --ui-header-h: 3.5rem;
+  --pico-form-element-spacing-horizontal: 0.75rem;
+  /* 本文の字の色。`--pico-color` はボタンの中ではボタンの字の色になるので、ボタンの中から本文の色を指すときはこちら */
+  --dp-fg: var(--pico-color);
+  --dp-font-mono:
+    ui-monospace, SFMono-Regular, "Cascadia Mono", Menlo, monospace;
+  --pico-font-family-monospace: var(--dp-font-mono);
+
+  /* ---- 形のトークン。角丸・余白・字の大きさ・動きは、この段から選ぶ(画面ごとに数字を書かない) ---- */
+  /* 角丸。小・中(入力欄・行・通知)・大(メニュー)。ボタンはカプセル */
+  --dp-radius-sm: 0.375rem;
+  --dp-radius: 0.5rem;
+  --dp-radius-lg: 0.75rem;
+  --dp-radius-full: 999px;
+  --pico-border-radius: var(--dp-radius);
+  /* 件の面の角。行の角より件の余白ぶん丸く */
+  --dp-item-radius: calc(var(--dp-radius) + 0.5rem);
+  /* 余白の 6 段(4・8・12・16・24・32px) */
+  --dp-space-1: 0.25rem;
+  --dp-space-2: 0.5rem;
+  --dp-space-3: 0.75rem;
+  --dp-space-4: 1rem;
+  --dp-space-5: 1.5rem;
+  --dp-space-6: 2rem;
+  /* 重なりの段。部品をまたいで比べる段にだけ名前を付ける */
+  --dp-z-dock: 30; /* 下に貼り付く操作の 1 行(話すの入力欄)・図の上の操作 */
+  --dp-z-header: 40; /* ヘッダー・下のタブ */
+  --dp-z-skip: 70; /* 本文へ移動のリンク */
+  /* 何行かある一覧の件と件の間 */
+  --dp-list-gap: 0.375rem;
+  /* 選んでいる・オンの線の太さ(下線・左の縦線)。線の角もこの値で丸める */
+  --dp-mark: 2px;
+  /* 浮いた角丸の面(広い形のヘッダー)。窓の端からの離れ・角・中身との隙間・中の余白 */
+  --dp-bar-inset: 0.75rem;
+  --dp-bar-radius: 0.875rem;
+  --dp-bar-gap: 0.25rem;
+  --dp-bar-pad: 0.375rem;
+  /* 下のタブ(スマホの形)の窓の端からの離れと、そのすぐ上に浮かせるものとの隙間 */
+  --dp-dock-inset: 0.75rem;
+  --dp-dock-gap: 0.375rem;
+  /* 字の大きさの 6 段。本文は 16px */
+  --dp-text-2xs: 0.6875rem;
+  --dp-text-xs: 0.75rem;
+  --dp-text-sm: 0.875rem;
+  --dp-text-base: 1rem;
+  --dp-text-lg: 1.125rem;
+  --dp-text-xl: 1.5rem;
+  /* 字の太さは 2 段だけ */
+  --dp-weight: 400;
+  --dp-weight-bold: 700;
+  /*
+   * 動き。時間は 4 つ、曲線は 3 つ。動きはすべて CSS で、透明度と transform だけ(JS では動かさない)。
+   * 動きを減らす設定の端末では全部止める(ファイルの最後)
+   */
+  --dp-duration: 120ms; /* 色・地・影の移り変わり、押して縮む */
+  --dp-duration-enter: 240ms; /* 開く・出てくる */
+  --dp-duration-move: 300ms; /* 場所が動く(選んでいる印が滑る・縮んだものが戻る) */
+  --dp-duration-exit: 150ms; /* 閉じる・消える */
+  --dp-ease: cubic-bezier(0.2, 0, 0, 1);
+  --dp-ease-spring: linear(
+    0,
+    0.06 4%,
+    0.24 9%,
+    0.5 15%,
+    0.74 22%,
+    0.9 30%,
+    1.02 40%,
+    1.04 48%,
+    1.02 60%,
+    1 75%,
+    1
+  );
+  --dp-ease-exit: cubic-bezier(0.3, 0, 1, 1);
+  --dp-pulse: 2s;
+  --pico-transition: var(--dp-duration) var(--dp-ease);
+  /*
+   * 色は主の色ひとつ(Pico の既定の azure)と、状態の色 4 つだけ。状態の色は状態にだけ使い、
+   * 選んでいる印には使わない。字やアイコンにするときは `-text` の側(下のテーマごとの色)
+   */
+  --dp-rec: #d93526; /* 問題・つまずき。red-500 */
+  --dp-ok: #00895a; /* 成功・動いている。jade-500 */
+  --dp-warn: #c79400; /* 注意。amber-350 */
+  --dp-info: #058686; /* 案内。azure と見分けが付くよう緑寄りの cyan-500 */
+  /* ボタンの高さ(3 段と大)。指で押す端末では小さいほうも 40px */
+  --dp-btn-radius: var(--dp-radius-full);
+  --dp-btn-h-sm: 2.125rem;
+  --dp-btn-h-xs: 1.625rem;
   /* 幅は画面いっぱいに使う(持ち主の希望、2026-09-25)。読む文章も絞らない */
   --site-width: 100%;
   --page-width: none;
-  /* ページ下の余白。話すの入力欄はこの高さに貼り付く */
-  --main-pad-bottom: 1.5rem;
+  /* 本文の左右と下の余白 */
+  --dp-gutter: 1rem;
+  /* 下のタブの高さ(スマホの形だけ。広い形は 0)と、浮いたヘッダーのぶん空ける頭(広い形だけ) */
+  --dp-tabbar: calc(4rem + 0.5rem + env(safe-area-inset-bottom, 0px));
+  --dp-header-bottom: 0rem;
+  --dp-header-space: 0rem;
+}
+@media (min-width: 768px) {
+  :root {
+    --dp-gutter: 1.5rem;
+  }
+}
+/*
+ * 広い形(1000px から)。上にヘッダー、下のタブは無い。Ashi は幅だけで形を決める
+ * (denpa は折り畳み端末なども見て <html data-phone> を付ける)
+ */
+@media (min-width: 1000px) {
+  :root {
+    --dp-tabbar: 0rem;
+    --dp-header-bottom: 3.75rem;
+    --dp-header-space: calc(var(--dp-header-bottom) + var(--dp-bar-gap));
+  }
+}
+@media (pointer: coarse) {
+  :root {
+    --dp-btn-h-sm: 2.5rem;
+    --dp-btn-h-xs: 2.5rem;
+  }
 }
 
 /*
- * ---- 色。地は 1 色にそろえる(ページ・ヘッダー・カードを同じ地にして、カードは細い線で分ける。
- * 灰色の地に白いカードと半透明のヘッダーで、色が 3 つあった。持ち主の指摘、2026-10-19) ----
+ * ---- テーマごとの色。層は地・件の面・操作の層の 3 段(中身に線は引かない) ----
+ * - `--dp-bg` … 地(ページ。1 行の並び・読み物)
+ * - `--dp-subtle` … 淡い面(通知・バッジの既定の地・棒の溝・コード)
+ * - `--dp-item` … 件の面(1 件が 2〜3 行の一覧)・`--dp-item-hover` … 指を乗せた件・`--dp-item-shadow` … 件の影(明るいほうだけ)
+ * - `--dp-field` … 入力欄の面。下を透かす薄い色で、どの面の上でも一段濃い(暗いほうは明るい)面になる
+ * - `--dp-line`・`--dp-line-strong` … 細い線ほどの濃さの面(スクロールバーのつまみ・閉じた問いの点)。中身の区切りには使わない
+ * - `--dp-pop` … メニューの面・`--dp-pop-hover` … メニューで指している項目
+ * - `--dp-muted` … 控えた字・`--dp-primary-text` … 主の色を字にするとき(選んでいるもの)
+ * - `--dp-shadow-pop` … 浮かぶもの(操作の層・メニュー)
+ * - `--ui-accent` … 葦の緑。Ashi のロゴと、つながりの図の「個性」の点だけ(選んでいる印・状態には使わない)
+ * 値は色そのまま(つながりの図が JS で読むので、`light-dark()` や `color-mix()` にしない)
  */
-:root:not([data-theme="dark"]) {
-  --ui-surface: #fcfcfb;
-  --ui-bg: #fcfcfb;
-  --ui-line: #e7e8ea;
-  --ui-base-200: #f0f1f2;
-  --ui-base-300: #d9dce1;
-  --ui-muted: #5d6778;
+:root:not([data-theme="dark"]),
+[data-theme="light"] {
+  color-scheme: light;
+  --pico-background-color: #fff;
+  --dp-bg: #fff;
+  --dp-surface: #fff;
+  --dp-subtle: #eff1f4;
+  --dp-line: #dfe3eb;
+  --dp-line-strong: #cfd5e2;
+  --dp-pop: #fff;
+  --dp-pop-hover: #eff1f4;
+  --dp-muted: #555e70;
+  --dp-primary-text: #02659a;
+  --dp-glow: color-mix(in srgb, var(--pico-primary) 12%, transparent);
+  --dp-field: rgb(0 37 92 / 0.11);
+  --dp-item: #fff;
+  --dp-item-hover: #f5f6f9;
+  --dp-item-shadow:
+    0 1px 2px rgb(24 28 37 / 0.08), 0 2px 8px rgb(24 28 37 / 0.06);
+  --dp-shadow-pop:
+    0 4px 12px rgb(24 28 37 / 0.08), 0 16px 32px -8px rgb(24 28 37 / 0.16);
+  --dp-shadow-tight: 0 1px 3px rgb(24 28 37 / 0.12);
+  --pico-form-element-border-color: var(--dp-line-strong);
+  --pico-table-border-color: transparent;
+  --pico-muted-border-color: var(--dp-line);
+  /* 押せるが主ではないもの。Pico の既定の灰色は地に沈むので、本文並みの濃さに */
+  --pico-secondary: #3d475c;
+  --pico-secondary-hover: #2a3140;
+  --dp-rec-text: #9b2318;
+  --dp-ok-text: #005f3d;
+  --dp-warn-text: #694d00;
+  --dp-info-text: #025d5d;
   --ui-accent: #5f8f3e;
-  --ui-accent-bg: #edf4e6;
-  --ui-ok: #1f7a4d;
-  --ui-ok-bg: #e5f4ea;
-  --ui-warn: #9a5a06;
-  --ui-warn-bg: #fdf1df;
-  --ui-err: #b3261e;
-  --ui-err-bg: #fbeae9;
-  --ui-info: #1d5fb8;
-  --ui-info-bg: #e7effb;
-  --ui-shadow: 0 1px 2px rgb(20 26 40 / 0.04), 0 4px 16px rgb(20 26 40 / 0.05);
-  --ui-header-bg: rgb(252 252 251 / 0.85);
-  --pico-background-color: var(--ui-bg);
 }
-/* 暗いほう。地を沈めて、札は明暗で持ち替える(固定の色だと暗いほうで沈む) */
+/* 暗いほう。ほぼ黒で色みを抑えた段。影は見えないので、面を一段ずつ明るくして分ける */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --ui-surface: #15181d;
-    --ui-bg: #15181d;
-    --ui-line: #262b33;
-    --ui-base-200: #20252d;
-    --ui-base-300: #313949;
-    --ui-muted: #a2abbd;
+    color-scheme: dark;
+    --pico-background-color: #0b0c0f;
+    --dp-bg: #0b0c0f;
+    --dp-surface: #121318;
+    --dp-subtle: #1a1b20;
+    --dp-line: #26282e;
+    --dp-line-strong: #3a3d46;
+    --dp-pop: #1f2026;
+    --dp-pop-hover: #2c2e35;
+    --dp-muted: #9aa3b5;
+    --dp-primary-text: var(--pico-primary);
+    --dp-glow: color-mix(in srgb, var(--pico-primary) 16%, transparent);
+    --dp-field: rgb(211 220 255 / 0.13);
+    --dp-item: #16171c;
+    --dp-item-hover: #1d1e24;
+    --dp-item-shadow: none;
+    --dp-shadow-pop:
+      0 4px 12px rgb(0 0 0 / 0.3), 0 16px 40px -8px rgb(0 0 0 / 0.5);
+    --dp-shadow-tight: 0 1px 3px rgb(0 0 0 / 0.45);
+    --pico-form-element-border-color: var(--dp-line-strong);
+    --pico-table-border-color: transparent;
+    --pico-muted-border-color: var(--dp-line);
+    --pico-card-background-color: var(--dp-surface);
+    --pico-switch-background-color: var(--dp-line-strong);
+    --pico-range-border-color: var(--dp-subtle);
+    --pico-range-active-border-color: var(--dp-line);
+    --pico-progress-background-color: var(--dp-subtle);
+    --pico-secondary: #bfc7d9;
+    --pico-secondary-hover: #dfe3eb;
+    --dp-rec-text: #f38f79;
+    --dp-ok-text: #00cc88;
+    --dp-warn-text: #fecc63;
+    --dp-info-text: #0ccece;
     --ui-accent: #9ccc76;
-    --ui-accent-bg: #223020;
-    --ui-ok: #6ee7a8;
-    --ui-ok-bg: #16301f;
-    --ui-warn: #fbbf24;
-    --ui-warn-bg: #33270f;
-    --ui-err: #fca5a5;
-    --ui-err-bg: #341a19;
-    --ui-info: #93c5fd;
-    --ui-info-bg: #16233f;
-    --ui-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 16px rgb(0 0 0 / 0.25);
-    --ui-header-bg: rgb(21 24 29 / 0.85);
-    --pico-background-color: var(--ui-bg);
   }
 }
 [data-theme="dark"] {
-  --ui-surface: #15181d;
-  --ui-bg: #15181d;
-  --ui-line: #262b33;
-  --ui-base-200: #20252d;
-  --ui-base-300: #313949;
-  --ui-muted: #a2abbd;
+  color-scheme: dark;
+  --pico-background-color: #0b0c0f;
+  --dp-bg: #0b0c0f;
+  --dp-surface: #121318;
+  --dp-subtle: #1a1b20;
+  --dp-line: #26282e;
+  --dp-line-strong: #3a3d46;
+  --dp-pop: #1f2026;
+  --dp-pop-hover: #2c2e35;
+  --dp-muted: #9aa3b5;
+  --dp-primary-text: var(--pico-primary);
+  --dp-glow: color-mix(in srgb, var(--pico-primary) 16%, transparent);
+  --dp-field: rgb(211 220 255 / 0.13);
+  --dp-item: #16171c;
+  --dp-item-hover: #1d1e24;
+  --dp-item-shadow: none;
+  --dp-shadow-pop:
+    0 4px 12px rgb(0 0 0 / 0.3), 0 16px 40px -8px rgb(0 0 0 / 0.5);
+  --dp-shadow-tight: 0 1px 3px rgb(0 0 0 / 0.45);
+  --pico-form-element-border-color: var(--dp-line-strong);
+  --pico-table-border-color: transparent;
+  --pico-muted-border-color: var(--dp-line);
+  --pico-card-background-color: var(--dp-surface);
+  --pico-switch-background-color: var(--dp-line-strong);
+  --pico-range-border-color: var(--dp-subtle);
+  --pico-range-active-border-color: var(--dp-line);
+  --pico-progress-background-color: var(--dp-subtle);
+  --pico-secondary: #bfc7d9;
+  --pico-secondary-hover: #dfe3eb;
+  --dp-rec-text: #f38f79;
+  --dp-ok-text: #00cc88;
+  --dp-warn-text: #fecc63;
+  --dp-info-text: #0ccece;
   --ui-accent: #9ccc76;
-  --ui-accent-bg: #223020;
-  --ui-ok: #6ee7a8;
-  --ui-ok-bg: #16301f;
-  --ui-warn: #fbbf24;
-  --ui-warn-bg: #33270f;
-  --ui-err: #fca5a5;
-  --ui-err-bg: #341a19;
-  --ui-info: #93c5fd;
-  --ui-info-bg: #16233f;
-  --ui-shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 16px rgb(0 0 0 / 0.25);
-  --ui-header-bg: rgb(21 24 29 / 0.85);
-  --pico-background-color: var(--ui-bg);
+}
+/* テーマの色から作る色 */
+:root,
+[data-theme] {
+  /*
+   * 操作の層の面(ヘッダー・下のタブ・主のボタン・話すの入力欄・図の上の操作)。メニューの面を 92% 残して、
+   * 下を流れる中身をうっすら見せる。ぼかさない。透かしを減らす設定では透かさない(下)
+   */
+  --dp-float: color-mix(in srgb, var(--dp-pop) 92%, transparent);
+  /* 指を乗せた地。`--dp-hover` はメニューの項目、`--dp-hover-soft` は地の上の並び・控えのボタン。選んでいる印には使わない */
+  --dp-hover: var(--dp-subtle);
+  --dp-hover-soft: color-mix(in srgb, var(--dp-subtle) 55%, transparent);
+  /* 主のボタンの面・影・字。面と影は操作の層と同じ。浮いたものの中では消す(下の「浮いたものの中」) */
+  --dp-btn-solid: var(--dp-float);
+  --dp-btn-solid-hover: var(--dp-pop);
+  --dp-btn-lift: var(--dp-shadow-pop);
+  --dp-btn-solid-text: var(--dp-fg);
+  /* 控えのボタンは地を持たない。乗せたときだけ薄い地 */
+  --dp-btn-tonal: transparent;
+  --dp-btn-tonal-hover: var(--dp-hover-soft);
+  --dp-btn-text: var(--pico-secondary-hover);
+}
+@media (prefers-reduced-transparency: reduce) {
+  :root,
+  [data-theme] {
+    --dp-float: var(--dp-pop);
+  }
 }
 
 html {
   font-size: var(--pico-font-size);
+  /* 飛んだ先(#節)が、浮いたヘッダーの下に隠れないように */
+  scroll-padding-top: var(--dp-header-space);
 }
 body {
   margin: 0;
-  background: var(--ui-bg);
+  background: var(--dp-bg);
   /* 日本語を文節で折り返す */
   word-break: auto-phrase;
   line-break: strict;
@@ -109,6 +303,40 @@ p,
 li,
 dd {
   text-wrap: pretty;
+}
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+/* 狭い升は文節で折らず、字ごとに折る(文節の長さで列が広がる) */
+td,
+th {
+  word-break: normal;
+  text-wrap-style: auto;
+}
+/* スクロールバーは細く、地に馴染む色に */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--dp-line-strong) transparent;
+}
+*:hover {
+  scrollbar-color: var(--dp-muted) transparent;
+}
+/*
+ * キーボードで触っているところは、外側の 2px の主の色の線。マウスで押したときは出さない。
+ * `:where()` で詳細度を 0 にしてあるので、内側に引きたいところは各画面で `outline-offset` を書けば勝つ
+ */
+:where(
+  a,
+  button,
+  summary,
+  select,
+  [tabindex],
+  input:is([type="checkbox"], [type="radio"], [type="range"])
+):focus-visible {
+  outline: 2px solid var(--pico-primary);
+  outline-offset: 2px;
 }
 
 /* 並べ方は各画面の gap で決めるので、Pico の下マージンは外す */
@@ -127,6 +355,9 @@ details,
 hgroup,
 fieldset,
 article,
+label,
+form,
+[role="group"],
 input:not([type="checkbox"], [type="radio"]),
 select,
 textarea,
@@ -135,89 +366,265 @@ button,
 [role="button"] {
   margin-bottom: 0;
 }
+/* 見出しは画面の見出し(h1)と小見出し(h2・h3)の 2 段 */
 h1,
 h2,
 h3 {
-  --pico-font-weight: 700;
+  --pico-font-weight: var(--dp-weight-bold);
   line-height: 1.35;
 }
 h1 {
-  font-size: 1.45rem;
+  font-size: var(--dp-text-xl);
 }
-h2 {
-  font-size: 1.05rem;
-}
+h2,
 h3 {
-  font-size: 0.95rem;
+  font-size: var(--dp-text-lg);
+}
+/* コードは淡い面。字の色は周りに合わせる */
+pre,
+code {
+  background: var(--dp-subtle);
+  color: inherit;
+}
+pre {
+  border-radius: var(--dp-radius);
+  padding: var(--dp-space-2) var(--dp-space-3);
+}
+/* 押せないものは押せないと分かるように */
+:is(button, [role="button"], input, select, textarea):disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed;
 }
 
-/* ---- ボタン。押すものは 40px 以上 ---- */
-button,
-[type="submit"],
-[role="button"],
-a.button {
+/* ---- ボタン ---- */
+/*
+ * 強弱は層と字の太さで付け、色では塗らない(denpa の「ボタン」)。
+ * - 主のボタン(クラス無し・大きさだけ・`.danger`・`a.button`)は、操作の層の面と影のカプセルで、字は本文の色の太字
+ * - 控え(`.outline`・`.secondary`)と字だけ(`.ghost`)は平ら。地も枠も影も無く、乗せたら薄い地
+ * - 確定の危ない操作(`.danger`)は主と同じ層で赤い字(赤では塗らない)
+ * - 自前の見た目を持つもの(下のタブ・メニューの項目)は `.plain` を持たせ、浮かせない
+ * 大きさは ふつう・`.small`・`.mini` の 3 段と、見せる画面の `.big`。
+ * 規則は `:where()` で詳細度を落とし、各画面の <style> がクラス 1 つで勝てるようにしてある
+ */
+:where(
+  button,
+  [type="button"],
+  [type="submit"],
+  [type="reset"],
+  [role="button"],
+  a.button
+) {
+  --pico-background-color: var(--dp-btn-solid);
+  --pico-border-color: transparent;
+  --pico-color: var(--dp-btn-solid-text);
+  --pico-box-shadow: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
-  min-height: 2.5rem;
-  font-size: 0.925rem;
-  font-weight: 600;
-  white-space: nowrap;
-}
-button[type="submit"] {
+  gap: 0.375rem;
   width: auto;
+  border-radius: var(--dp-btn-radius);
+  white-space: nowrap;
+  transition:
+    background-color var(--dp-duration) var(--dp-ease),
+    color var(--dp-duration) var(--dp-ease),
+    box-shadow var(--dp-duration) var(--dp-ease),
+    scale var(--dp-duration-move) var(--dp-ease-spring);
 }
+/* リンクのままボタンの見た目にする。<a class="button"> */
 a.button {
-  border: var(--pico-border-width) solid var(--pico-primary-border);
-  border-radius: var(--pico-border-radius);
   padding: var(--pico-form-element-spacing-vertical)
     var(--pico-form-element-spacing-horizontal);
-  background: var(--pico-primary-background);
-  color: var(--pico-primary-inverse);
+  border: var(--pico-border-width) solid var(--pico-border-color);
+  background-color: var(--pico-background-color);
+  box-shadow: var(--pico-box-shadow);
+  color: var(--pico-color);
   text-decoration: none;
+  cursor: pointer;
 }
-a.button:hover {
-  background: var(--pico-primary-hover-background);
-  color: var(--pico-primary-inverse);
+/* 操作の層に乗せるのは主のボタンだけ */
+:where(button, a.button):where(
+  :not(.secondary, .outline, .ghost, .plain, [aria-pressed])
+) {
+  --pico-box-shadow: var(--dp-btn-lift);
+  font-weight: var(--dp-weight-bold);
 }
-a.button.outline,
-button.outline {
-  background: transparent;
-  color: var(--pico-primary);
+:where(button, a.button):where(
+    :not(.secondary, .outline, .ghost, .plain, [aria-pressed])
+  ):where(:hover) {
+  --pico-background-color: var(--dp-btn-solid-hover);
 }
-/* 地も枠も無し。ヘッダーの並びと、小さな操作 */
-a.button.ghost,
-button.ghost,
-summary[role="button"].ghost {
-  border-color: transparent;
-  background: transparent;
-  color: inherit;
+/* 押すと少し縮み、離すとばねで戻る */
+:where(button, a.button):where(
+    :not(.secondary, .outline, .ghost, .plain, [aria-pressed], :disabled)
+  ):where(:active) {
+  scale: 0.97;
+  transition: scale var(--dp-duration) var(--dp-ease);
 }
-a.button.ghost:hover,
-button.ghost:hover,
-summary[role="button"].ghost:hover {
-  background: var(--ui-base-200);
+:where(button, a.button):is(.secondary, .outline) {
+  --pico-background-color: var(--dp-btn-tonal);
+  --pico-color: var(--dp-btn-text);
+  font-weight: var(--dp-weight);
 }
-a.button.ghost[aria-current="page"] {
-  background: var(--ui-base-200);
-  color: var(--pico-primary);
+:where(button, a.button).ghost {
+  --pico-background-color: transparent;
+  --pico-color: inherit;
+  font-weight: var(--dp-weight);
 }
-a.button.small,
-button.small {
-  padding: 0.3rem 0.7rem;
-  font-size: 0.875rem;
+:where(button, a.button):is(.secondary, .outline, .ghost):where(
+    :hover,
+    :active
+  ) {
+  --pico-background-color: var(--dp-btn-tonal-hover);
 }
-a.button.mini,
-button.mini {
-  min-height: 2rem;
-  padding: 0.15rem 0.6rem;
-  font-size: 0.8rem;
+:where(button, a.button).danger {
+  --pico-color: var(--dp-rec-text);
 }
-a.button.big {
+/* 入っている切り替え(`aria-pressed="true"`)はオン。主の色の字と短い下線。塗らず、浮かせない */
+:where(button)[aria-pressed] {
+  --pico-background-color: transparent;
+  font-weight: var(--dp-weight);
+}
+:where(button)[aria-pressed="true"] {
+  --pico-color: var(--dp-primary-text);
+  background-image: linear-gradient(var(--pico-primary), var(--pico-primary));
+  background-repeat: no-repeat;
+  background-position: center bottom 0.2rem;
+  background-size: 1rem var(--dp-mark);
+}
+:where(button, a.button):is(.small, .mini, .big) {
+  padding-block: 0;
+}
+:where(button, a.button).small {
+  min-height: var(--dp-btn-h-sm);
+  padding-inline: var(--dp-space-3);
+  font-size: var(--dp-text-sm);
+}
+:where(button, a.button).mini {
+  min-height: var(--dp-btn-h-xs);
+  padding-inline: var(--dp-space-2);
+  font-size: var(--dp-text-xs);
+}
+:where(a.button, button).big {
   min-height: 3rem;
-  padding-inline: 1.25rem;
-  font-size: 1.05rem;
+  padding-inline: var(--dp-space-5);
+  font-size: var(--dp-text-lg);
+}
+/*
+ * **浮いたものの中**(メニュー・話すの入力欄・図の上の操作 `.float`)**と件の面**(`.item`)。
+ * 中の主のボタンは面も影も持たず、太字だけ(浮いたものの上に、さらに浮いたものを重ねない)
+ */
+:where(dialog, [popover], .float, .item) {
+  --dp-btn-solid: transparent;
+  --dp-btn-solid-hover: var(--dp-btn-tonal-hover);
+  --dp-btn-lift: none;
+}
+/* 送信中のボタン。幅を動かさず、中身を隠して回るものを重ねる(Pico は文字の前に足すので横に伸びる) */
+button[aria-busy="true"] {
+  position: relative;
+  color: transparent;
+  opacity: 1;
+}
+button[aria-busy="true"]::before {
+  display: none;
+}
+button[aria-busy="true"] > * {
+  visibility: hidden;
+}
+button[aria-busy="true"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 1.25em;
+  height: 1.25em;
+  background: var(--pico-icon-loading) center / 1.25em auto no-repeat;
+}
+
+/* ---- 入力欄。線も凹みも付けず、平らな面だけで示す。打っている間は外側の 2px の主の色の線 ---- */
+:where(
+  input:not(
+    [type="checkbox"],
+    [type="radio"],
+    [type="range"],
+    [type="file"],
+    [type="color"]
+  ),
+  select,
+  textarea
+) {
+  --pico-form-element-background-color: var(--dp-field);
+  --pico-form-element-active-background-color: var(--dp-field);
+  --pico-form-element-focus-color: transparent;
+  --pico-box-shadow: none;
+  border-width: 0;
+  border-radius: var(--dp-radius);
+  box-shadow: none;
+}
+:where(
+  input:not(
+    [type="checkbox"],
+    [type="radio"],
+    [type="range"],
+    [type="file"],
+    [type="color"]
+  ),
+  select,
+  textarea
+):focus {
+  outline: 2px solid var(--pico-primary);
+  outline-offset: 2px;
+}
+/* チェックボックスは角の丸い四角(Pico の角丸だとラジオと見分けが付かない)。スイッチは丸いまま */
+input[type="checkbox"]:not([role="switch"]) {
+  border-radius: 0.25rem;
+}
+/* ファイルを選ぶボタンは控えのボタンと同じく平ら(淡い面だけ) */
+input[type="file"]::file-selector-button {
+  border: 0;
+  border-radius: var(--dp-radius-full);
+  background: var(--dp-subtle);
+  color: var(--dp-fg);
+}
+/* 入力欄とつなげたボタン(`role="group"`)。つなぐ側の角を落とし、面は入力欄と同じにして 1 つの欄に見せる */
+[role="group"] {
+  box-shadow: none;
+}
+[role="group"] > button {
+  --dp-btn-solid: var(--dp-field);
+  --dp-btn-solid-hover: var(--dp-field);
+  --dp-btn-lift: none;
+  flex: 0 0 auto;
+  margin: 0;
+  border-radius: var(--dp-radius);
+}
+[role="group"] > button:not(:first-child) {
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+}
+[role="group"] > :not(:last-child) {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+/*
+ * 入力欄のすぐ後の補足(small)。Pico は入力欄の下の余白を前提に負の上マージンで引き上げるが、
+ * ここでは入力欄の下の余白を外しているので、補足が欄に食い込んでいた(2026-10-19)
+ */
+:is(input, select, textarea, fieldset, .grid) + small {
+  margin-top: var(--dp-space-2);
+  margin-bottom: 0;
+}
+/* 欄の上の小さい見出し。<label class="field"><span class="lab">見出し</span><input></label> */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dp-space-1);
+  min-width: 0;
+}
+.lab {
+  color: var(--dp-muted);
+  font-size: var(--dp-text-xs);
+  font-weight: var(--dp-weight);
 }
 
 /* ---- 並べる ---- */
@@ -232,16 +639,16 @@ a.button.big {
 .stack {
   display: flex;
   flex-direction: column;
-  gap: var(--gap, 1rem);
+  gap: var(--gap, var(--dp-space-4));
 }
 .stack.tight {
-  --gap: 0.5rem;
+  --gap: var(--dp-space-2);
 }
 .cluster {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--gap, 0.5rem);
+  gap: var(--gap, var(--dp-space-2));
 }
 .grow {
   flex: 1 1 0;
@@ -250,7 +657,7 @@ a.button.big {
 /* 2 列(狭ければ 1 列) */
 .two {
   display: grid;
-  gap: var(--gap, 1rem);
+  gap: var(--gap, var(--dp-space-5));
   align-items: start;
 }
 @media (min-width: 800px) {
@@ -258,39 +665,30 @@ a.button.big {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
-/* 画面の頭。見出し + 説明 + 右端の操作 */
+/* 画面の頭。見出し + 右端の操作 */
 .head {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: 0.5rem 1rem;
-}
-.head > hgroup {
-  flex: 1 1 16rem;
-  margin: 0;
-}
-.head > hgroup > p {
-  margin-top: 0.25rem;
-  color: var(--ui-muted);
-  font-size: 0.9rem;
+  gap: var(--dp-space-2) var(--dp-space-4);
 }
 
 /*
  * 並べて見比べる枠(ペイン)。広い画面では列に並べ、狭い画面では縦に積む。列の数は --cols(既定 2)。
- * 枠の中ではスクロールさせず、ページだけがスクロールする(カードの中でスクロールするのをやめた。
- * 持ち主の指摘、2026-10-19)。枠の上に要るのは操作の細い 1 行(.pane-head)だけ
+ * 枠の中ではスクロールさせず、ページだけがスクロールする(持ち主の指摘、2026-10-19)。
+ * 枠は地のまま(線も面も無い)。まとまりは余白と見出しで分ける
  */
 .panes {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 1.75rem;
+  gap: var(--dp-space-6);
   align-items: start;
 }
 .pane {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--dp-space-5);
 }
 @media (min-width: 1100px) {
   .panes {
@@ -298,7 +696,7 @@ a.button.big {
   }
 }
 /*
- * 枠の頭の行。どの枠も同じ型にそろえる(左右で頭の有無や形が違い、中身の始まりがずれていた):
+ * 枠の頭の行。どの枠も同じ型にそろえる:
  *   枠の名前(.pane-name)・件数(.count)・説明(.hint、1 行で切る)・右端に操作
  * 高さを決めて 1 行に収め、隣の枠と中身の始まりをそろえる
  */
@@ -306,73 +704,127 @@ a.button.big {
   display: flex;
   flex: none;
   align-items: center;
-  gap: 0.6rem;
+  gap: var(--dp-space-3);
   min-height: 2.25rem;
 }
 .pane-name {
   flex: none;
-  font-size: 1.05rem;
-  font-weight: 700;
-  letter-spacing: 0.01em;
+  font-size: var(--dp-text-lg);
+  font-weight: var(--dp-weight-bold);
 }
 .pane-head .count {
   flex: none;
-  color: var(--ui-muted);
-  font-size: 0.85rem;
+  color: var(--dp-muted);
+  font-size: var(--dp-text-sm);
 }
 .pane-head .hint {
   flex: 1 1 0;
   min-width: 0;
   overflow: hidden;
-  color: var(--ui-muted);
-  font-size: 0.8rem;
+  color: var(--dp-muted);
+  font-size: var(--dp-text-xs);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.pane-head > :is(form, a, button, .tag) {
+.pane-head > :is(form, a, button, .tag, .fact) {
   flex: none;
 }
-.pane-head form {
-  margin: 0;
+/* 狭い画面では 1 行に収まらないので、説明を次の行へ送る(横にはみ出してページが横に巻けないように) */
+@media (max-width: 639.98px) {
+  .pane-head {
+    flex-wrap: wrap;
+    row-gap: var(--dp-space-1);
+  }
+  .pane-head .hint {
+    flex-basis: 100%;
+    order: 1;
+  }
 }
 
 /* ---- 面 ---- */
-.panel {
-  border: 1px solid var(--ui-line);
-  border-radius: 0.9rem;
-  background: var(--ui-surface);
-  padding: 1rem 1.15rem;
-}
-/*
- * 並べた項目を包む面は、面にしない。中の 1 項目ずつをカードにする(1 枚のカードの中に一覧を
- * 詰めていた。持ち主の指摘、2026-10-19)
- */
-.panel.list,
-.panel:has(> :is(.rows, .timeline)) {
-  border: 0;
+/* Pico は <article> をカード(面・影・余白)にする。読み物は地にそのまま置くので外す(件の面は下の `.item`) */
+article {
+  margin: 0;
+  border-radius: 0;
   background: none;
+  box-shadow: none;
   padding: 0;
 }
-.panel.soft {
-  border-color: transparent;
-  background: var(--ui-base-200);
-}
-/* 見出しの付いた面。見出しの行と中身の間に線 */
-.panel > .panel-head {
+/* まとまりの箱。地の上に置き、枠も地も付けず、見出しと余白だけで分ける */
+.panel {
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin: -0.15rem 0 0.75rem;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--dp-space-3);
 }
-.panel > .panel-head > h2 {
-  flex: 1 1 auto;
-  font-size: 0.95rem;
+/* まとまりの見出しの行。見出し + 控えた補足(.fact)+ 右端の操作 */
+.panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--dp-space-1) var(--dp-space-3);
 }
-.panel > .panel-head a {
-  font-size: 0.85rem;
+.panel-head > h2 {
+  font-size: var(--dp-text-base);
 }
-/* 並べた項目。行ごとに薄い線 */
+.panel-head > form {
+  margin-inline-start: auto;
+}
+/* まとまりに直に置いたボタンは、中身の幅のまま左に置く */
+.panel > :is(button, a.button) {
+  align-self: flex-start;
+}
+/*
+ * **件の面**(`.item`。1 件が 2〜3 行ある一覧の件)。透かさない面で、明るいほうは白とごく薄い影、
+ * 暗いほうは地より一段明るい。縁は無し。指を乗せると面を一段変える。中のボタンは平ら(上の「浮いたものの中」)
+ */
+.item {
+  border-radius: var(--dp-item-radius);
+  background: var(--dp-item);
+  box-shadow: var(--dp-item-shadow);
+  padding: var(--dp-space-3) var(--dp-space-4);
+  transition:
+    background-color var(--dp-duration) var(--dp-ease),
+    opacity var(--dp-duration-enter) var(--dp-ease);
+}
+/* 件は出てくるときにふわっと出る。場所は動かさない(読んでいる所がずれないように) */
+@starting-style {
+  .item {
+    opacity: 0;
+  }
+}
+.item:hover {
+  background: var(--dp-item-hover);
+}
+/* 件を並べる箱。件の間は詰め、線で区切らない。中は題名 → 補足の順に控える */
+.item-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dp-list-gap);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.item-list > li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--dp-space-3);
+  margin: 0;
+  list-style: none;
+}
+/* 件の 2 段目からの補足。控えた字を「・」でつなぐ(事実はバッジにしない) */
+.item .sub:not(.clamp2) {
+  display: block;
+}
+.item .sub {
+  margin-top: 0.125rem;
+  color: var(--dp-muted);
+  font-size: var(--dp-text-sm);
+}
+/* 1 行の並び。地のまま、線も面も付けない */
 .rows {
+  display: flex;
+  flex-direction: column;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -380,165 +832,196 @@ a.button.big {
 .rows > li {
   display: flex;
   align-items: baseline;
-  gap: 0.6rem;
-  padding: 0.55rem 0;
-  border-top: 1px solid var(--ui-base-200);
+  gap: var(--dp-space-3);
+  margin: 0;
+  padding: 0.375rem 0;
   list-style: none;
 }
-.rows > li:first-child {
-  border-top: 0;
-  padding-top: 0;
-}
-.rows > li:last-child {
-  padding-bottom: 0;
-}
-/* 面に直に並べた項目は、線で区切らず 1 項目ずつのカードにする */
-.panel > .rows {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-.panel > .rows > li,
-.panel > .rows > li:first-child,
-.panel > .rows > li:last-child {
-  border: 1px solid var(--ui-line);
-  border-radius: 0.75rem;
-  background: var(--ui-surface);
-  padding: 0.7rem 0.9rem;
-  transition:
-    border-color 0.15s,
-    box-shadow 0.15s;
-}
-.panel > .rows > li:hover {
-  border-color: var(--ui-base-300);
-  box-shadow: var(--ui-shadow);
-}
-/* 何も無いとき */
+/* 絞り込んで当てはまらなかった・まだ無い、の一言。平らのまま */
 .empty {
-  padding: 1.25rem 0.5rem;
-  color: var(--ui-muted);
-  font-size: 0.9rem;
+  padding: var(--dp-space-4) var(--dp-space-2);
+  color: var(--dp-muted);
+  font-size: var(--dp-text-sm);
   text-align: center;
 }
-/* 何も無いと言うだけの面は、点線の枠に */
-.panel:has(> .empty:only-child) {
-  border-style: dashed;
-  background: none;
+/*
+ * 1 つのことだけを言う画面(ログイン)。枠で囲まず、見出し・文・ボタンを左に揃えて置く。
+ * 見せる画面なので、地に主の色の淡い光(`.glow`)を敷いてよい
+ */
+.solo {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--dp-space-3);
+  max-width: 32rem;
+  margin: clamp(2rem, 16vh, 9rem) auto 2rem;
+  padding-inline: var(--dp-gutter);
+}
+.solo p {
+  color: var(--dp-muted);
+}
+/* 見せる画面の地の光。中身の裏に radial-gradient を 1 枚敷くだけで、ぼかさず、動かさない */
+.glow {
+  position: relative;
+  isolation: isolate;
+}
+.glow::before {
+  content: "";
+  position: absolute;
+  inset: -3rem 0 0;
+  z-index: -1;
+  background: radial-gradient(closest-side, var(--dp-glow), transparent);
+  pointer-events: none;
+}
+/*
+ * **操作の層の面**(`.float`)。動く中身の上に重なるものだけ(話すの入力欄・つながりの図の上の操作)。
+ * 面と 2 段の影だけで浮かせ、縁もぼかしも付けない。ヘッダーと下のタブは +layout.svelte
+ */
+.float {
+  border-radius: var(--dp-bar-radius);
+  background: var(--dp-float);
+  box-shadow: var(--dp-shadow-pop);
 }
 
-/* ---- 数字の札(いまの画面) ---- */
+/* ---- 数字(いまの画面)。地に置き、札にしない ---- */
 .stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--dp-space-5);
 }
 .stat {
   display: flex;
+  min-width: 0;
   flex-direction: column;
-  gap: 0.15rem;
-  padding: 0.85rem 1rem;
+  gap: 0.125rem;
 }
 .stat > .label {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  color: var(--ui-muted);
-  font-size: 0.78rem;
-  font-weight: 600;
+  gap: 0.375rem;
+  color: var(--dp-muted);
+  font-size: var(--dp-text-xs);
 }
 .stat > .value {
-  font-size: 1.35rem;
-  font-weight: 700;
+  font-size: var(--dp-text-xl);
+  font-weight: var(--dp-weight-bold);
   font-variant-numeric: tabular-nums;
   line-height: 1.3;
 }
-.stat > .sub {
-  color: var(--ui-muted);
-  font-size: 0.8rem;
+.stat .unit {
+  color: var(--dp-muted);
+  font-size: var(--dp-text-sm);
+  font-weight: var(--dp-weight);
 }
-/* 使った割合の棒 */
+.stat > .sub {
+  color: var(--dp-muted);
+  font-size: var(--dp-text-xs);
+}
+/* 使った割合の棒。淡い溝に主の色 */
 .meter {
-  height: 0.35rem;
-  margin-top: 0.35rem;
+  height: 0.25rem;
+  margin-block: var(--dp-space-1);
   overflow: hidden;
-  border-radius: 999px;
-  background: var(--ui-base-200);
+  border-radius: var(--dp-radius-full);
+  background: var(--dp-subtle);
 }
 .meter > span {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: var(--ui-accent);
+  background: var(--pico-primary-background);
 }
 
-/* ---- 注意書き ---- */
+/*
+ * ---- 通知(`.note`)。種類は頭のアイコンと言葉で示し、地は状態の色で塗らない ----
+ * 状態の色は `-text` の側をアイコンにだけ使う。左の線は引かない(左の縦線は「選んでいる・自分のもの」の印)。
+ * アイコンは lucide の形(circle-x・triangle-alert・circle-check・info)を mask で切り抜いて塗る
+ */
 .note {
-  border-left: 4px solid var(--ui-muted);
-  border-radius: var(--pico-border-radius);
-  background: var(--ui-base-200);
-  padding: 0.7rem 0.9rem;
-  font-size: 0.9rem;
+  --note-mark: none;
+  --note-mark-color: transparent;
+  position: relative;
+  border-radius: var(--dp-radius);
+  background: var(--dp-subtle);
+  padding: var(--dp-space-3) var(--dp-space-4);
+  color: var(--dp-fg);
 }
-.note.ok {
-  border-left-color: var(--ui-ok);
-  background: var(--ui-ok-bg);
+.note:is(.ok, .warn, .err, .info) {
+  padding-inline-start: calc(var(--dp-space-5) + 1.125em);
 }
-.note.warn {
-  border-left-color: var(--ui-warn);
-  background: var(--ui-warn-bg);
+.note::before {
+  content: "";
+  position: absolute;
+  top: calc(var(--dp-space-3) + (1lh - 1.125em) / 2);
+  left: var(--dp-space-4);
+  width: 1.125em;
+  height: 1.125em;
+  background: var(--note-mark-color);
+  mask: var(--note-mark) center / contain no-repeat;
 }
 .note.err {
-  border-left-color: var(--ui-err);
-  background: var(--ui-err-bg);
+  --note-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='m15 9-6 6M9 9l6 6'/%3E%3C/svg%3E");
+  --note-mark-color: var(--dp-rec-text);
+}
+.note.warn {
+  --note-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3M12 9v4M12 17h.01'/%3E%3C/svg%3E");
+  --note-mark-color: var(--dp-warn-text);
+}
+.note.ok {
+  --note-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='m9 12 2 2 4-4'/%3E%3C/svg%3E");
+  --note-mark-color: var(--dp-ok-text);
 }
 .note.info {
-  border-left-color: var(--ui-info);
-  background: var(--ui-info-bg);
+  --note-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 16v-4M12 8h.01'/%3E%3C/svg%3E");
+  --note-mark-color: var(--dp-info-text);
 }
 
-/* ---- 札。淡い地 + 濃い文字。塗るのは「いま動いているもの」だけ ---- */
+/*
+ * ---- バッジ(`.tag`)。状態だけ。形は 1 つで、淡い地に状態の色の字 ----
+ * 事実(系統・テーマ・出どころ・数)はバッジにせず、控えた字(`.fact` か `.sub`)を「・」でつなぐ
+ */
 .tag {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  border: 1px solid var(--ui-base-300);
-  border-radius: 999px;
-  padding: 0.05rem 0.55rem;
-  color: var(--ui-muted);
-  font-size: 0.75rem;
-  font-weight: 600;
-  line-height: 1.6;
+  gap: var(--dp-space-1);
+  border-radius: var(--dp-radius-full);
+  background: var(--dp-subtle);
+  padding: 0 var(--dp-space-2);
+  color: inherit;
+  font-size: var(--dp-text-xs);
+  font-weight: var(--dp-weight);
+  line-height: 1.75;
+  text-decoration: none;
   white-space: nowrap;
 }
 .tag.ok {
-  border-color: transparent;
-  background: var(--ui-ok-bg);
-  color: var(--ui-ok);
+  background: color-mix(in srgb, var(--dp-ok) 14%, var(--dp-surface));
+  color: var(--dp-ok-text);
 }
 .tag.warn {
-  border-color: transparent;
-  background: var(--ui-warn-bg);
-  color: var(--ui-warn);
+  background: color-mix(in srgb, var(--dp-warn) 14%, var(--dp-surface));
+  color: var(--dp-warn-text);
+}
+.tag.err {
+  background: color-mix(in srgb, var(--dp-rec) 14%, var(--dp-surface));
+  color: var(--dp-rec-text);
 }
 .tag.info {
-  border-color: transparent;
-  background: var(--ui-info-bg);
-  color: var(--ui-info);
+  background: color-mix(in srgb, var(--dp-info) 14%, var(--dp-surface));
+  color: var(--dp-info-text);
 }
-.tag.accent {
-  border-color: transparent;
-  background: var(--ui-accent-bg);
-  color: var(--ui-accent);
+/* 事実の補足。控えた小さな字 */
+.fact {
+  color: var(--dp-muted);
+  font-size: var(--dp-text-xs);
 }
-/* いま歩いている、の点 */
+/* いま歩いている、の点。ゆっくり脈打つ(動かすのはファイルの最後) */
 .dot {
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: 999px;
+  flex: none;
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: var(--dp-radius-full);
   background: currentColor;
-}
-.dot.live {
-  animation: ui-pulse 1.6s ease-in-out infinite;
 }
 @keyframes ui-pulse {
   50% {
@@ -546,59 +1029,46 @@ a.button.big {
   }
 }
 
-/* ---- 入力 ---- */
-/*
- * 入力欄のすぐ後の補足(small)。Pico は入力欄の下の余白を前提に負の上マージンで引き上げるが、
- * ここでは入力欄の下の余白を外しているので、補足が欄に食い込んでいた(2026-10-19)
- */
-:is(input, select, textarea, fieldset, .grid) + small {
-  margin-top: 0.5rem;
-  margin-bottom: 0;
-}
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  min-width: 0;
-}
-.field > .lab {
-  color: var(--ui-muted);
-  font-size: 0.78rem;
-  font-weight: 600;
-}
-
-/* ---- 表 ---- */
-table {
-  font-size: 0.9rem;
-}
+/* ---- 表。見出しは地を塗らず、小さく控えた字だけ。行の区切りの線も引かない ---- */
 th,
 td {
-  padding: 0.5rem 0.65rem;
+  padding: var(--dp-space-2) var(--dp-space-3);
   vertical-align: baseline;
 }
 thead th {
-  color: var(--ui-muted);
-  font-size: 0.78rem;
+  background: transparent;
+  color: var(--dp-muted);
+  font-size: var(--dp-text-xs);
+  font-weight: var(--dp-weight);
   white-space: nowrap;
 }
-.scroll-x {
-  overflow-x: auto;
-}
-.scroll-x > table {
-  min-width: 36rem;
+tbody th {
+  font-weight: var(--dp-weight-bold);
 }
 
-/* ---- 読み物(ノート・日記・自己記述) ---- */
+/* ---- 読み物(ノート・日記・自己記述)。地にそのまま置く ---- */
 .prose :is(h1, h2, h3) {
-  margin: 1.25rem 0 0.5rem;
+  margin: var(--dp-space-5) 0 var(--dp-space-2);
+}
+.prose h1 {
+  font-size: var(--dp-text-xl);
+}
+.prose h2 {
+  font-size: var(--dp-text-lg);
+}
+.prose :is(h3, h4) {
+  font-size: var(--dp-text-base);
 }
 .prose > :first-child {
   margin-top: 0;
 }
 .prose :is(p, ul, ol, pre, blockquote, table) {
-  margin-bottom: 0.8rem;
+  margin-bottom: var(--dp-space-3);
 }
 .prose > :last-child {
+  margin-bottom: 0;
+}
+.prose blockquote > :last-child {
   margin-bottom: 0;
 }
 .prose pre {
@@ -608,32 +1078,46 @@ thead th {
 .prose ol {
   padding-left: 1.3rem;
 }
-
-/* ---- 折りたたみ ---- */
-details.fold {
-  border: 1px solid var(--ui-line);
-  border-radius: 0.9rem;
-  background: var(--ui-surface);
-  padding: 0.75rem 1rem;
+/* 引用は淡い面(左の線は引かない。左の縦線は「選んでいる・自分のもの」の印) */
+.prose blockquote {
+  margin-inline: 0;
+  border: 0;
+  border-radius: var(--dp-radius);
+  background: var(--dp-subtle);
+  padding: var(--dp-space-2) var(--dp-space-4);
 }
+
+/* ---- 折りたたみ(`details.fold`)。字だけの見出しの下に、開いたら中身。枠も面も付けない ---- */
 details.fold > summary {
-  font-size: 0.9rem;
-  font-weight: 600;
+  border-radius: var(--dp-radius);
+  padding: var(--dp-space-2) 0;
+  color: var(--dp-fg);
+  font-size: var(--dp-text-sm);
+  line-height: 1.5;
+}
+details.fold > summary::after {
+  height: 1.5em;
 }
 details.fold[open] > summary {
-  margin-bottom: 0.75rem;
+  margin-bottom: var(--dp-space-2);
+}
+/* 件の面に乗せた折りたたみ(よそ者との対話)。余白は件の面のものを使う */
+details.fold.item > summary {
+  padding: 0;
 }
 
 /* ---- 文字 ---- */
+/* 控えた字。透かさずに色で(淡い面の上でも 4.5:1 を保つ) */
 .muted {
-  color: var(--ui-muted);
+  color: var(--dp-muted);
 }
 .small {
-  font-size: 0.875rem;
+  font-size: var(--dp-text-sm);
 }
 .tiny {
-  font-size: 0.78rem;
+  font-size: var(--dp-text-xs);
 }
+/* 変わる数字・縦に並ぶ数字は、桁の幅を揃える */
 .nums {
   font-variant-numeric: tabular-nums;
 }
@@ -644,26 +1128,135 @@ details.fold[open] > summary {
   -webkit-line-clamp: 2;
   line-clamp: 2;
 }
+/* 待っている印。動かしてよい端末でだけ回す(ファイルの最後) */
 .spin {
+  flex: none;
   width: 1rem;
   height: 1rem;
-  border: 2px solid var(--ui-info);
+  border: 2px solid var(--dp-muted);
   border-right-color: transparent;
-  border-radius: 999px;
-  animation: ui-spin 0.8s linear infinite;
+  border-radius: var(--dp-radius-full);
 }
 @keyframes ui-spin {
   to {
     transform: rotate(360deg);
   }
 }
-
 /* 読み上げにだけ出す見出し(並べた画面は枠ごとの見出しで足りるので) */
 .sr-only {
   position: absolute;
   width: 1px;
   height: 1px;
   overflow: hidden;
-  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
   white-space: nowrap;
+}
+
+/* ---- メニュー(下のタブの「その他」。開け閉めはブラウザの popover、見た目はここ) ---- */
+/*
+ * どのメニューも同じ形: 箱の内側の余白 8px・項目の間 2px・項目の余白 8px × 12px。縁を付けず影だけで浮かせる。
+ * 少し小さく少しずれた透明な姿からばねで開き、閉じるときは短く引っ込む(動かすのは transform と透明度だけ)
+ */
+.menu {
+  --menu-pad: var(--dp-space-2);
+  --dp-hover: var(--dp-pop-hover);
+  inset: auto;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 12rem;
+  margin: 0;
+  border: 0;
+  border-radius: var(--dp-radius-lg);
+  background: var(--dp-pop);
+  box-shadow: var(--dp-shadow-pop);
+  padding: var(--menu-pad);
+  color: var(--dp-fg);
+  opacity: 0;
+  transform: translateY(0.375rem) scale(0.94);
+  transform-origin: bottom right;
+  transition:
+    opacity var(--dp-duration-exit) var(--dp-ease-exit),
+    transform var(--dp-duration-exit) var(--dp-ease-exit),
+    overlay var(--dp-duration-exit) allow-discrete,
+    display var(--dp-duration-exit) allow-discrete;
+}
+.menu:popover-open {
+  display: flex;
+  opacity: 1;
+  transform: none;
+  transition-duration: var(--dp-duration-enter);
+  transition-timing-function: var(--dp-ease-spring);
+}
+@starting-style {
+  .menu:popover-open {
+    opacity: 0;
+    transform: translateY(0.375rem) scale(0.94);
+  }
+}
+.menu form {
+  display: contents;
+}
+/* 項目。<button> も <a> も同じ見た目 */
+.menu-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--dp-space-2);
+  width: 100%;
+  margin: 0;
+  border: 0;
+  border-radius: calc(var(--dp-radius-lg) - var(--menu-pad));
+  background: transparent;
+  box-shadow: none;
+  padding: var(--dp-space-2) var(--dp-space-3);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.menu-item:is(:hover, :focus-visible) {
+  background: var(--dp-hover);
+  color: inherit;
+}
+.menu-item:focus-visible {
+  outline-offset: -2px;
+}
+/* 選んでいる項目(いまの画面)は、塗らずに左の縦線と主の色の太字 */
+.menu-item[aria-current="page"] {
+  color: var(--dp-primary-text);
+  font-weight: var(--dp-weight-bold);
+}
+.menu-item[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  inset-block: 0.5rem;
+  left: 0;
+  width: var(--dp-mark);
+  border-radius: var(--dp-mark);
+  background: var(--pico-primary);
+}
+
+/*
+ * **動き続けるもの(歩いているの点・待っている印)は、動かしてよい端末でだけ動かす。**
+ * 動きを減らす設定と、ソフトウェアで描いている端末(<html data-lite>。#lib/lite.ts)では動きを足さず、
+ * 止まった姿のまま見せる。回すのは小さな面の透明度と transform だけ
+ */
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-lite]) .dot.live {
+    animation: ui-pulse var(--dp-pulse) ease-in-out infinite;
+  }
+  :root:not([data-lite]) .spin {
+    animation: ui-spin 0.8s linear infinite;
+  }
+}
+/* 動きを減らす設定の端末では、全部止めて終わった姿を見せる(上の決まりに勝つよう、ファイルの最後に置く) */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dp-duration: 0s;
+    --dp-duration-enter: 0s;
+    --dp-duration-move: 0s;
+    --dp-duration-exit: 0s;
+  }
 }

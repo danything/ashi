@@ -34,21 +34,16 @@
     </div>
     {#if data.notes.length}
       <div class="panel">
-        <ul class="rows">
+        <ul class="item-list">
           {#each data.notes as n (n.id)}
-            <li>
+            <li class="item note-item">
               <a class="note-row" href="/notes/{n.id}">
-                <span class="meta">
-                  <span class="tag {n.track === 'owner' ? 'info' : 'accent'}"
-                    >{TRACK_LABEL[n.track]}</span
-                  >
-                  <span class="muted tiny">{n.theme}</span>
-                  <span class="muted tiny nums"
-                    >{when(n.createdAt).slice(5, 16)}</span
-                  >
-                </span>
                 <strong class="title">{n.title}</strong>
                 <span class="small muted clamp2">{n.summary}</span>
+                <span class="meta muted tiny">
+                  <span>{TRACK_LABEL[n.track]}・{n.theme}</span>
+                  <span class="nums">{when(n.createdAt).slice(5, 16)}</span>
+                </span>
               </a>
             </li>
           {/each}
@@ -74,33 +69,31 @@
   .search fieldset {
     margin: 0;
   }
+  /* 件いっぱいを押せる。余白はリンクの側に持たせ、焦点の線は内側に引く */
+  .note-item {
+    padding: 0;
+  }
   .note-row {
     display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
     flex-direction: column;
-    gap: 0.2rem;
-    padding: 0.15rem 0;
+    gap: 0.125rem;
+    border-radius: inherit;
+    padding: var(--dp-space-3) var(--dp-space-4);
     color: inherit;
     text-decoration: none;
   }
-  .note-row:hover .title {
-    color: var(--pico-primary);
+  .note-row:focus-visible {
+    outline-offset: -2px;
   }
   .meta {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-  }
-  .meta .nums {
-    margin-left: auto;
+    justify-content: space-between;
+    gap: var(--dp-space-2);
   }
   .title {
     line-height: 1.45;
-  }
-  .clamp2 {
-    display: -webkit-box;
-    overflow: hidden;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
   }
 </style>

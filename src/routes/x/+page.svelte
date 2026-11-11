@@ -10,7 +10,7 @@
 
 <svelte:head><title>X | Ashi</title></svelte:head>
 
-<div class="stack" style="--gap: 0.75rem">
+<div class="stack">
   {#if !data.configured}
     <p class="note warn small">
       X のアプリが設定されていません(X_CLIENT_ID・X_CLIENT_SECRET)。
@@ -253,11 +253,11 @@
         <span class="pane-name">会話</span>
         <span class="count">{data.conversations.length} 件</span>
       </div>
-      <section class="panel list">
+      <section class="panel">
         {#if data.conversations.length}
-          <div class="stack tight">
+          <div class="item-list">
             {#each data.conversations as c (c.id)}
-              <div class="conv">
+              <div class="conv item">
                 {#each c.messages.slice(-6) as m (m.id)}
                   {#if m.unrelated}
                     <details class="unrelated tiny muted">
@@ -297,59 +297,47 @@
 <style>
   .stats.mini {
     grid-template-columns: repeat(3, 1fr);
+    gap: var(--dp-space-3);
   }
-  .stats.mini .stat {
-    padding: 0;
+  .stats.mini .value {
+    font-size: var(--dp-text-lg);
   }
-  .unit {
-    color: var(--ui-muted);
-    font-size: 0.8rem;
-  }
+  /* 会話は 1 つずつ件の面に乗せる。中の発言は線でも地でも分けず、名前と日時の行で分ける */
   .conv {
     display: flex;
     flex-direction: column;
-    gap: 0.4rem;
-    border: 1px solid var(--ui-line);
-    border-radius: 0.75rem;
-    padding: 0.75rem 0.9rem;
+    gap: var(--dp-space-2);
+  }
+  .conv > .tag {
+    align-self: flex-start;
   }
   .unrelated p {
-    margin: 0.25rem 0 0;
+    margin: var(--dp-space-1) 0 0;
     overflow-wrap: anywhere;
   }
   .msg p {
     margin: 0;
     white-space: pre-wrap;
   }
-  .msg.mine {
-    border-radius: 0.5rem;
-    background: var(--ui-accent-bg);
-    padding: 0.35rem 0.6rem;
-  }
-  form {
-    margin: 0;
-  }
   .account {
-    --gap: 0.9rem;
+    --gap: var(--dp-space-3);
   }
   .account p {
-    margin-top: 0.15rem;
-  }
-  .actions {
-    --gap: 0.5rem;
+    margin-top: 0.125rem;
   }
   .file {
     width: auto;
+    max-width: 100%;
     margin: 0;
   }
   .icon {
     width: 6rem;
     height: 6rem;
-    border-radius: 999px;
+    border-radius: var(--dp-radius-full);
   }
   .header {
     width: 100%;
     max-width: 30rem;
-    border-radius: 0.5rem;
+    border-radius: var(--dp-radius);
   }
 </style>

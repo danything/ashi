@@ -1,6 +1,7 @@
 import type { Config } from "../config.ts";
 import {
   type Budget,
+  localStamp,
   newId,
   type Note,
   type Proposal,
@@ -804,8 +805,11 @@ export function missedPromises(
     reason?: string;
     resting?: string[];
   }[] = [],
+  /** 前回の内省の後のノートで、この問いに答えていそうなもの(closeHints)。あれば理由に添える */
+  hints: CloseHint[] = [],
 ): { id: string; why: string }[] {
   const byId = new Map(qs.map((q) => [q.id, q]));
+  const hinted = new Map(hints.map((h) => [h.question.id, h]));
   return ids.map((id) => {
     const q = byId.get(id);
     if (!q) return { id, why: "一覧に無い(ID の書き違いか、リセット前の問い)" };
@@ -836,7 +840,15 @@ export function missedPromises(
     // 代わりに何が選ばれ、何が決め手だったか。点数が出ても、なぜ外れたかが分からなかった
     // (Ashi の改善案、2026-10-13・10-16)
     reasons.push(choiceStory(q, steps));
-    return { id, why: `開いたまま選ばれなかった(${reasons.join("、")})` };
+    // 別の問いを歩いたノートで答えが出ているかもしれない。「選ばれなかった」だけでは気づけなかった
+    const h = hinted.get(id);
+    const hint = h
+      ? `。ただし、別の問いを歩いたノート [${h.note.id}]「${h.note.title.slice(0, 60)}」が閉じる候補(${h.by === "id" ? "ノートにこの問いの ID が出ている" : "足が文字の近さだけで拾った"}。答えが出ていれば close_by_note で閉じられる)`
+      : "";
+    return {
+      id,
+      why: `開いたまま選ばれなかった(${reasons.join("、")})${hint}`,
+    };
   });
 }
 
@@ -930,23 +942,66 @@ export function addOwnerCorrections(
   questionId?: string,
   /** answer: 訂正ではなく、確かめて合っていた・答えが出た知らせ(話題に関係なく渡す) */
   kind?: "answer",
+  /**
+   * どの持ち主への返事を指すか。chatAt は足が知っているとき(問いが生まれた返事の時刻)。chats は、
+   * 頭が書いた日時(reply_at)を引き当てる相手(chat.jsonl)。引き当たらなければ欄を付けない
+   */
+  about: { chatAt?: string; chats?: { at: string }[] } = {},
 ): OwnerCorrection[] {
   const out = [...(prev ?? [])];
   for (const t of (Array.isArray(texts) ? texts : [texts]).slice(0, 5)) {
-    if (typeof t !== "string" || !t.trim()) continue;
-    const text = t.trim().slice(0, 400);
+    // 文だけ(前の形)か、{ text, reply_at }
+    const item: { text?: unknown; reply_at?: unknown } =
+      t && typeof t === "object" ? t : { text: t };
+    if (typeof item.text !== "string" || !item.text.trim()) continue;
+    const text = item.text.trim().slice(0, 400);
+    const chatAt = about.chatAt ?? replyAt(item.reply_at, about.chats ?? []);
     const g = bigrams(text);
-    if (out.some((c) => jaccard(g, bigrams(c.text)) >= NEAR_DUPLICATE))
+    const twin = out.findIndex(
+      (c) => jaccard(g, bigrams(c.text)) >= NEAR_DUPLICATE,
+    );
+    const same = out[twin];
+    if (same) {
+      // 重ねない。指す返事が分かっていなかった内省の訂正なら、欄だけ埋める(文は変えない)
+      if (chatAt && !same.chatAt && !same.questionId && !same.deliveredAt)
+        out[twin] = { ...same, chatAt };
       continue;
+    }
     out.push({
       id: newId(),
       text,
       at: now.toISOString(),
       ...(questionId ? { questionId } : {}),
       ...(kind ? { kind } : {}),
+      ...(chatAt ? { chatAt } : {}),
     });
   }
   return capCorrections(out, now);
+}
+
+/**
+ * 頭が書いた「指す返事の日時」(内省に見せている日本時間の形、例: 2026-10-24 21:15。年は無くてもよい)を、
+ * chat.jsonl の返事の時刻(at)に引き当てる。分まで合う返事が無ければ undefined(当て推量で寄せない)
+ */
+export function replyAt(
+  raw: unknown,
+  chats: { at: string }[],
+): string | undefined {
+  if (typeof raw !== "string") return undefined;
+  const m = raw
+    .normalize("NFKC")
+    .match(/(?:(\d{4})-)?(\d{1,2})-(\d{1,2})[ T]+(\d{1,2}):(\d{2})/);
+  if (!m) return undefined;
+  const two = (x: string | undefined) => (x ?? "").padStart(2, "0");
+  const key = `${two(m[2])}-${two(m[3])} ${two(m[4])}:${m[5]}`;
+  return chats
+    .map((c) => c.at)
+    .filter((at) => {
+      const s = localStamp(at);
+      return s.slice(5, 16) === key && (!m[1] || s.slice(0, 4) === m[1]);
+    })
+    .sort()
+    .at(-1);
 }
 
 export type OwnerCorrection = {
@@ -959,6 +1014,11 @@ export type OwnerCorrection = {
   deliveredAt?: string;
   /** read: 話して渡したのではなく、持ち主が画面(/context)で読んで印を付けた */
   deliveredBy?: "read";
+  /**
+   * どの持ち主への返事を指すか(chat.jsonl の at)。足が確かめた訂正・答えは問いが生まれた返事、内省が
+   * 書いたものは頭の申告(reply_at)を足が引き当てたもの。無ければ分からない(2026-11-11 より前の項目)
+   */
+  chatAt?: string;
 };
 
 const CORRECTIONS_MAX = 20;
@@ -1093,6 +1153,83 @@ export function ownerHandoffs(
   };
 }
 
+/** 同じ返事への、まだ渡していない訂正がこの本数を超えたら、内省でまとめ直しを促す */
+export const CORRECTIONS_PER_REPLY = 3;
+
+export interface CorrectionGroup {
+  /** 指す返事の時刻(chat.jsonl の at)。無ければ、指す返事の記録が無いものどうし */
+  chatAt?: string;
+  /** その返事のときの持ち主の言葉(chat.jsonl に見つかったとき) */
+  question?: string;
+  /** guessed: 指す返事の記録が無く、文字の近さだけでこの組に寄せた */
+  items: (OwnerCorrection & { guessed?: true })[];
+  /** 本数が CORRECTIONS_PER_REPLY を超え、頭が取り下げられるものが 2 本以上ある(まとめ直せる) */
+  crowded: boolean;
+}
+
+/**
+ * まだ渡していないものを、指している持ち主への返事ごとに束ねる(内省に並べるため)。指す返事は、
+ * 欄(chatAt)があればそれ、足が確かめたものは問いが生まれた返事(問いの createdAt)。どちらも無い
+ * 古い項目は、文字のいちばん近い(SIMILAR 以上の)組に寄せ、寄せたと分かる印を付ける。近い組が無ければ
+ * 1 本だけの組。同じ助言への、ほぼ同じ訂正が内省のたびに積まれて 6 本重なり、20 本の枠から古い別の
+ * 訂正を押し出しかけていた(10-24 の #45799 の助言。Ashi の改善案、2026-11-11)。足は並べて数えるだけで、
+ * まとめ直しはしない(どれが同じ中身かを決めるのは頭。withdrawn_corrections と owner_corrections で)
+ */
+export function groupCorrections(
+  pending: OwnerCorrection[],
+  chats: { at: string; question?: string }[],
+  qs: Question[],
+): CorrectionGroup[] {
+  const born = new Map(
+    qs.filter((q) => q.source === "chat").map((q) => [q.id, q.createdAt]),
+  );
+  const asked = new Map(chats.map((c) => [c.at, c.question]));
+  type Group = Omit<CorrectionGroup, "crowded"> & { grams: Set<string>[] };
+  const groups: Group[] = [];
+  const loose: OwnerCorrection[] = [];
+  for (const c of pending) {
+    const chatAt = c.chatAt ?? (c.questionId ? born.get(c.questionId) : "");
+    if (!chatAt) {
+      loose.push(c);
+      continue;
+    }
+    let g = groups.find((x) => x.chatAt === chatAt);
+    if (!g) {
+      const question = asked.get(chatAt);
+      g = { chatAt, ...(question ? { question } : {}), items: [], grams: [] };
+      groups.push(g);
+    }
+    g.items.push(c);
+    g.grams.push(bigrams(c.text));
+  }
+  // 指す返事の分からないものは、いちばん文字の近い組へ(同じ近さなら先にできた組)
+  for (const c of loose) {
+    const b = bigrams(c.text);
+    let best: { g: Group; near: number } | undefined;
+    for (const g of groups) {
+      const near = Math.max(...g.grams.map((x) => jaccard(b, x)));
+      if (near >= SIMILAR && (!best || near > best.near)) best = { g, near };
+    }
+    if (best) {
+      best.g.items.push({ ...c, guessed: true });
+      best.g.grams.push(b);
+    } else groups.push({ items: [c], grams: [b] });
+  }
+  const first = (g: Group) =>
+    g.items.reduce((a, c) => (c.at < a ? c.at : a), g.items[0]?.at ?? "");
+  return groups
+    .sort((a, b) => first(a).localeCompare(first(b)))
+    .map((g) => ({
+      ...(g.chatAt ? { chatAt: g.chatAt } : {}),
+      ...(g.question ? { question: g.question } : {}),
+      // 置いた順に並べ直す(寄せたものが後ろに固まらないように)
+      items: [...g.items].sort((a, b) => a.at.localeCompare(b.at)),
+      crowded:
+        g.items.length > CORRECTIONS_PER_REPLY &&
+        g.items.filter((c) => !c.questionId && c.kind !== "answer").length >= 2,
+    }));
+}
+
 /** 文字 2 つ組のうち、ひらがなだけのもの(助詞や活用語尾)を除く。短い文どうしの近さを測るため */
 const contentGrams = (text: string): Set<string> =>
   new Set([...bigrams(text)].filter((g) => !/^[ぁ-ゟ]+$/.test(g)));
@@ -1144,6 +1281,111 @@ export function claimNotes(
       sourced: /https?:\/\/|## 読めた深さ/.test(body(best.n.id) ?? ""),
       near: Math.round(best.near * 100) / 100,
     };
+  }
+  return out;
+}
+
+/**
+ * 開いた問いの文の、中身の文字の組のうちこれ以上がノートの題・要約に出ていたら「閉じる候補」に並べる。
+ * 本番の例(6be30c48 のノートと 93d33daa)の中身は手元に無く、作った例で引いた線。精度は分からない
+ */
+export const CLOSE_HINT_MIN = 0.4;
+const CLOSE_HINT_GRAMS_MIN = 6;
+/** 内省に並べる閉じる候補の数(全部で・ノート 1 本あたり) */
+export const CLOSE_HINTS_MAX = 8;
+const CLOSE_HINTS_PER_NOTE = 3;
+/** 候補を探すノートの数の上限(前回の内省の後に書いたもののうち新しい順) */
+const CLOSE_HINT_NOTES = 15;
+
+export interface CloseHint {
+  note: { id: string; title: string };
+  question: { id: string; text: string };
+  /** id: 問いの ID がノートの題・要約・本文に出ている / text: 問いの文字がノートの題・要約に出ている */
+  by: "id" | "text";
+  /** by が text のときの近さ(問いの中身の文字の組のうち、ノートの題・要約に出た割合) */
+  near?: number;
+  /** by が id のとき、ID が出てきた前後 */
+  excerpt?: string;
+}
+
+/**
+ * 前回の内省(since)の後に書いたノートが、元の問いとは別の開いた問いに答えていそうなもの。ノートより
+ * 前からある開いた問いのうち、(a) ID がノートの題・要約・本文に出ている、(b) 問いの文の中身の文字の組が
+ * ノートの題・要約に CLOSE_HINT_MIN 以上出ている、ものを問い 1 本につき 1 つ(ID が先、次に近い順)。
+ * 別の問いを歩いたノートで答えが出ていても、一覧では「開いたまま選ばれなかった」としか出ず、自分で
+ * 気づくまで閉じられなかった(6be30c48 のノートと 93d33daa。Ashi の改善案、2026-11-11)。
+ * 頭は呼ばない。足は閉じない(答えが出ているかを決めるのは頭。close_by_note で)。束ね直しただけの
+ * ノート(incomplete)は閉じる根拠にできないので外す。ノートと同時か後に生まれた問い(そのノートから
+ * 出た問い)は、文字が近くて当たり前なので外す
+ */
+export function closeHints(
+  notes: Note[],
+  qs: Question[],
+  body: (id: string) => string | undefined,
+  since?: string,
+): CloseHint[] {
+  const open = qs
+    .filter((q) => q.status === "open")
+    .map((q) => ({ q, g: contentGrams(q.text) }));
+  if (!open.length) return [];
+  const fresh = notes
+    .filter((n) => !n.incomplete && (!since || n.createdAt > since))
+    .slice(since ? -CLOSE_HINT_NOTES : -10);
+  const best = new Map<string, CloseHint>();
+  // 古い順に見て、同じ強さなら新しいノートを取る
+  for (const n of fresh) {
+    const head = `${n.title} ${n.summary}`;
+    const full = `${head}\n${noteFindings(body(n.id) ?? "")}`;
+    const g = contentGrams(head);
+    for (const { q, g: c } of open) {
+      if (q.id === n.questionId || q.createdAt >= n.createdAt) continue;
+      const at = /^[0-9a-f]{8}$/.test(q.id)
+        ? full.search(new RegExp(`(?<![0-9a-f])${q.id}(?![0-9a-f])`))
+        : -1;
+      let hint: CloseHint | undefined;
+      if (at >= 0) {
+        hint = {
+          note: { id: n.id, title: n.title },
+          question: { id: q.id, text: q.text },
+          by: "id",
+          excerpt: full
+            .slice(Math.max(0, at - 60), at + 100)
+            .replace(/\s+/g, " ")
+            .trim(),
+        };
+      } else if (c.size >= CLOSE_HINT_GRAMS_MIN) {
+        let hit = 0;
+        for (const x of c) if (g.has(x)) hit++;
+        const near = Math.round((hit / c.size) * 100) / 100;
+        if (near >= CLOSE_HINT_MIN)
+          hint = {
+            note: { id: n.id, title: n.title },
+            question: { id: q.id, text: q.text },
+            by: "text",
+            near,
+          };
+      }
+      if (!hint) continue;
+      const prev = best.get(q.id);
+      if (!prev || strength(hint) >= strength(prev)) best.set(q.id, hint);
+    }
+  }
+  return [...best.values()].sort((a, b) => strength(b) - strength(a));
+}
+
+/** ID が出ていれば、文字の近さより強い手がかり */
+const strength = (h: CloseHint): number => (h.by === "id" ? 2 : (h.near ?? 0));
+
+/** 内省に並べる分(ノート 1 本につき CLOSE_HINTS_PER_NOTE 本、全部で CLOSE_HINTS_MAX 本まで、強い順) */
+export function shownCloseHints(hints: CloseHint[]): CloseHint[] {
+  const perNote = new Map<string, number>();
+  const out: CloseHint[] = [];
+  for (const h of hints) {
+    const n = perNote.get(h.note.id) ?? 0;
+    if (n >= CLOSE_HINTS_PER_NOTE) continue;
+    perNote.set(h.note.id, n + 1);
+    out.push(h);
+    if (out.length >= CLOSE_HINTS_MAX) break;
   }
   return out;
 }

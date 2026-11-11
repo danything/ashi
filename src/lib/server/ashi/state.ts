@@ -290,6 +290,8 @@ export interface Walk {
     deliveredAt?: string;
     /** read: 話して渡したのではなく、持ち主が画面(/context)で読んで印を付けた */
     deliveredBy?: "read";
+    /** どの持ち主への返事を指すか(chat.jsonl の at)。無ければ分からない(内省で束ねて見せるため) */
+    chatAt?: string;
   }[];
   /** 型の当たり率の基準線を最後に測った日(1 日 1 回。legs/baseline.ts) */
   lastBaselineDay?: string;

@@ -1,4 +1,4 @@
-FROM oven/bun:1.4.4-slim AS base
+FROM oven/bun:1.4.5-slim AS base
 WORKDIR /usr/src/app
 EXPOSE 3000
 
@@ -22,7 +22,7 @@ RUN bun run build
 # 今までどおり uid 1000 (bun) で動かす (PVC の /data の持ち主を変えないため)。distroless の
 # /etc/passwd には 1000 が無く、そのままだと HOME が / になって Claude Code の CLI が ~/.claude を
 # 書けない (os.userInfo() も引けない) ので、bun を足した passwd / group を作って写す
-FROM oven/bun:1.4.4-distroless AS distroless
+FROM oven/bun:1.4.5-distroless AS distroless
 FROM base AS rootfs
 COPY --from=distroless /etc/passwd /etc/group /tmp/etc/
 RUN mkdir -p /rootfs/etc /rootfs/data /rootfs/home/bun \

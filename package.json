@@ -32,7 +32,7 @@
     "three": "^0.187.0",
     "typescript": "~6.0.3",
     "unpdf": "^2.2.2",
-    "vite": "^8.3.8"
+    "vite": "^8.4.0"
   },
   "imports": {
     "#lib/*": "./src/lib/*"

@@ -29,7 +29,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: ashi
-          image: ghcr.io/danything/ashi:cede2812c411c4cf5b4afa1fa0051ab7da5d1d98
+          image: ghcr.io/danything/ashi:c3b2e28f1a9f919330d0a2c7962d7392a3f03ecf
           ports:
             - containerPort: 3000
           startupProbe:
